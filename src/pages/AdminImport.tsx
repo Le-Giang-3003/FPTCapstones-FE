@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import api from '../services/api';
 import type { ImportStatusDto } from '../types';
-import { Upload, Loader2, CheckCircle, XCircle } from 'lucide-react';
+import { Upload, Loader2, CheckCircle, XCircle, RotateCcw } from 'lucide-react';
 
 const AdminImport = () => {
   const [file, setFile] = useState<File | null>(null);
@@ -96,8 +96,26 @@ const AdminImport = () => {
         </button>
 
         <p style={{ marginTop: '0.75rem', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-          Import chạy nền (async). Trang sẽ tự động poll status mỗi 2 giây.
+          Import xử lý đồng bộ. Status sẽ Completed/Failed ngay lần poll đầu.
         </p>
+
+        <button
+          className="btn btn-secondary"
+          style={{ marginTop: '0.5rem', width: '100%' }}
+          onClick={async () => {
+            if (!window.confirm('Xóa toàn bộ ImportJob? (dev only)')) return;
+            try {
+              const res = await api.post('/api/imports/reset');
+              alert(`Đã xóa ${res.data.removed} job. Có thể import lại.`);
+              setStatus(null);
+              setJobId(null);
+            } catch (e: any) {
+              alert(e?.response?.data?.message || 'Reset thất bại');
+            }
+          }}
+        >
+          <RotateCcw size={14} /> Reset import jobs (dev)
+        </button>
       </div>
 
       {jobId !== null && (
