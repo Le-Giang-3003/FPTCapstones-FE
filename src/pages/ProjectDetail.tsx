@@ -143,7 +143,7 @@ const ProjectDetail = () => {
           <h1>{project.groupCode} — {project.projectCode}</h1>
           <p style={{ color: 'var(--text-secondary)' }}>GVHD: {project.lecturerName}</p>
         </div>
-        {(isAdmin || isLecturer) && (
+        {isAdmin && (
           <Link to={`/audit-logs?groupId=${project.groupId}`} className="btn btn-secondary">
             <Clock size={16} /> Audit Logs
           </Link>
@@ -253,49 +253,6 @@ const ProjectDetail = () => {
             )}
           </div>
 
-          {/* Version history */}
-          <div className="glass-card">
-            <h3 style={{ marginBottom: '1rem' }}>Lịch sử version</h3>
-            {project.versions.length === 0 ? (
-              <p style={{ color: 'var(--text-secondary)' }}>Chưa có version nào.</p>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                {project.versions.map(v => (
-                  <div key={v.versionId} style={{
-                    background: 'rgba(15, 23, 42, 0.4)',
-                    borderRadius: 8,
-                    padding: '0.75rem 1rem',
-                    border: '1px solid var(--border-glass)',
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center'
-                  }}>
-                    <div>
-                      <strong>Version {v.versionNumber}</strong>
-                      <span className={`badge ${v.isFinalized ? 'badge-success' : 'badge-warning'}`} style={{ marginLeft: '0.75rem' }}>
-                        {v.isFinalized ? 'Finalized' : v === draftVersion ? 'Draft' : 'Submitted'}
-                      </span>
-                      <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: 4 }}>
-                        {v.projectNameSnapshot} • {v.documentCount} file • {new Date(v.createdAt).toLocaleString('vi-VN')}
-                      </div>
-                    </div>
-                    <div>
-                      {(isAdmin || isLecturer) && !v.isFinalized && v !== draftVersion && (
-                        <button className="btn btn-primary" style={{ padding: '0.3rem 0.6rem', fontSize: '0.75rem' }} onClick={() => handleFinalize(v.versionId, true)}>
-                          <CheckCircle size={14} /> Finalize
-                        </button>
-                      )}
-                      {isAdmin && v.isFinalized && (
-                        <button className="btn btn-danger" style={{ padding: '0.3rem 0.6rem', fontSize: '0.75rem' }} onClick={() => handleFinalize(v.versionId, false)}>
-                          <XCircle size={14} /> Un-finalize
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
         </div>
 
         {/* Sidebar */}
@@ -312,6 +269,49 @@ const ProjectDetail = () => {
                     <div style={{ overflow: 'hidden' }}>
                       <div style={{ fontWeight: m.isLeader ? 600 : 400 }}>{m.fullName}</div>
                       <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>{m.email}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Version history — chuyển xuống dưới Thành viên nhóm */}
+          <div className="glass-card">
+            <h3 style={{ marginBottom: '1rem' }}>Lịch sử version</h3>
+            {project.versions.length === 0 ? (
+              <p style={{ color: 'var(--text-secondary)', fontSize: '0.875rem' }}>Chưa có version nào.</p>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                {project.versions.map(v => (
+                  <div key={v.versionId} style={{
+                    background: 'rgba(15, 23, 42, 0.4)',
+                    borderRadius: 8,
+                    padding: '0.75rem',
+                    border: '1px solid var(--border-glass)',
+                  }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>
+                      <div>
+                        <strong>Version {v.versionNumber}</strong>
+                        <span className={`badge ${v.isFinalized ? 'badge-success' : 'badge-warning'}`} style={{ marginLeft: '0.5rem' }}>
+                          {v.isFinalized ? 'Finalized' : v === draftVersion ? 'Draft' : 'Submitted'}
+                        </span>
+                      </div>
+                      <div>
+                        {(isAdmin || isLecturer) && !v.isFinalized && v !== draftVersion && (
+                          <button className="btn btn-primary" style={{ padding: '0.25rem 0.5rem', fontSize: '0.7rem' }} onClick={() => handleFinalize(v.versionId, true)}>
+                            <CheckCircle size={12} /> Finalize
+                          </button>
+                        )}
+                        {isAdmin && v.isFinalized && (
+                          <button className="btn btn-danger" style={{ padding: '0.25rem 0.5rem', fontSize: '0.7rem' }} onClick={() => handleFinalize(v.versionId, false)}>
+                            <XCircle size={12} /> Un-finalize
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: 6 }}>
+                      {v.documentCount} file • {new Date(v.createdAt).toLocaleString('vi-VN')}
                     </div>
                   </div>
                 ))}
