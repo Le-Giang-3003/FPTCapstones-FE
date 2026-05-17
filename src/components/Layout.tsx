@@ -1,9 +1,11 @@
 import { Outlet, Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { LayoutDashboard, Users, FolderKanban, LogOut, Upload, ClipboardList } from 'lucide-react';
+import { useTheme } from '../contexts/ThemeContext';
+import { LayoutDashboard, Users, FolderKanban, LogOut, Upload, ClipboardList, Sun, Moon } from 'lucide-react';
 
 const Layout = () => {
   const { user, logout } = useAuth();
+  const { isDark, toggleTheme } = useTheme();
   const location = useLocation();
 
   const myProjectPath = user?.groupId ? `/projects/${user.groupId}` : '/no-project';
@@ -62,6 +64,13 @@ const Layout = () => {
               <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>{user?.email}</p>
             </div>
           </div>
+          <button onClick={toggleTheme} className="theme-toggle">
+            {isDark ? <Sun size={16} /> : <Moon size={16} />}
+            {isDark ? 'Giao diện sáng' : 'Giao diện tối'}
+            <span className="theme-toggle-track">
+              <span className={`theme-toggle-thumb ${isDark ? 'dark' : 'light'}`} />
+            </span>
+          </button>
           <button onClick={logout} className="btn btn-secondary" style={{ width: '100%', justifyContent: 'flex-start' }}>
             <LogOut size={18} /> Đăng xuất
           </button>
