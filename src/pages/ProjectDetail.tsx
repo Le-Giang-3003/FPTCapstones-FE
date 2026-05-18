@@ -50,7 +50,12 @@ const ProjectDetail = () => {
 
   // We can determine if the selected version is the current active editable draft
   const isSelectedVersionDraft = selectedVersion && draftVersion && selectedVersion.versionId === draftVersion.versionId;
-  const displayedDocuments = selectedVersion?.documents || [];
+  
+  // Trả lại logic frontend nguyên bản, đơn giản hóa tối đa.
+  // Giao phó việc quyết định file nào thuộc về draft cho backend (thông qua mảng currentDocuments).
+  const displayedDocuments = (isSelectedVersionDraft && project?.currentDocuments) 
+    ? project.currentDocuments 
+    : (selectedVersion?.documents || []);
 
   const fetchProject = async () => {
     try {
@@ -160,11 +165,6 @@ const ProjectDetail = () => {
           <h1>{project.groupCode} — {project.projectCode}</h1>
           <p style={{ color: 'var(--text-secondary)' }}>GVHD: {project.lecturerName}</p>
         </div>
-        {isAdmin && (
-          <Link to={`/audit-logs?groupId=${project.groupId}`} className="btn btn-secondary">
-            <Clock size={16} /> Audit Logs
-          </Link>
-        )}
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '2rem' }}>
