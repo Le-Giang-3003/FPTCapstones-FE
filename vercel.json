@@ -1,0 +1,7 @@
+{
+  "rewrites": [
+    { "source": "/api/(.*)", "destination": "http://ongoing-f-caps.premiumasp.net/api/$1" },
+    { "source": "/hangfire/(.*)", "destination": "http://ongoing-f-caps.premiumasp.net/hangfire/$1" },
+    { "source": "/(.*)", "destination": "/index.html" }
+  ]
+}

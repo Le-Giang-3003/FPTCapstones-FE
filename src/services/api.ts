@@ -1,7 +1,13 @@
 import axios from 'axios';
 
+// Prod: dùng same-origin (Vercel proxy /api/* → BE) để browser không block mixed-content.
+// Dev: dùng VITE_API_URL (vd https://localhost:7198) hoặc fallback.
+const baseURL = import.meta.env.PROD
+  ? (import.meta.env.VITE_API_URL || '')
+  : (import.meta.env.VITE_API_URL || 'https://localhost:7198');
+
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || 'https://localhost:5001',
+  baseURL,
   withCredentials: true,
   headers: { 'Content-Type': 'application/json' },
 });
