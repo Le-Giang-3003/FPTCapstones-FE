@@ -160,12 +160,8 @@ const ProjectDetail = () => {
 
   return (
     <div className="animate-fade-in">
-      <div className="topbar">
-        <div>
-          <h1>{project.groupCode} — {project.projectCode}</h1>
-          <p style={{ color: 'var(--text-secondary)' }}>GVHD: {project.lecturerName}</p>
-        </div>
-      </div>
+      {/* Spacer for user profile dropdown */}
+      <div className="topbar" style={{ minHeight: '3rem' }}></div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '2rem' }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
@@ -274,6 +270,11 @@ const ProjectDetail = () => {
 
         {/* Sidebar */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+          <div>
+            <h1 style={{ fontSize: '1.5rem', marginBottom: '0.25rem' }}>{project.groupCode} — {project.projectCode}</h1>
+            <p style={{ color: 'var(--text-secondary)' }}>GVHD: {project.lecturerName}</p>
+          </div>
+
           <div className="glass-card">
             <h3 style={{ marginBottom: '1rem' }}>Thành viên nhóm</h3>
             {project.members.length === 0 ? (

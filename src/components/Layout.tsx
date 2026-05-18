@@ -2,13 +2,14 @@ import { useState, useRef, useEffect } from 'react';
 import { Outlet, Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
-import { LayoutDashboard, Users, FolderKanban, LogOut, Upload, ClipboardList, Sun, Moon, ChevronDown, GraduationCap } from 'lucide-react';
+import { LayoutDashboard, Users, FolderKanban, LogOut, Upload, ClipboardList, Sun, Moon, ChevronDown, GraduationCap, ChevronLeft, ChevronRight } from 'lucide-react';
 
 const Layout = () => {
   const { user, logout } = useAuth();
   const { isDark, toggleTheme } = useTheme();
   const location = useLocation();
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -36,10 +37,38 @@ const Layout = () => {
 
   return (
     <div className="app-container" style={{ position: 'relative' }}>
-      <aside className="sidebar glass-panel" style={{ margin: '1rem 0 1rem 1rem', height: 'calc(100vh - 2rem)' }}>
-        <div style={{ padding: '1rem 0', marginBottom: '2rem', borderBottom: '1px solid var(--border-glass)' }}>
-          <h2 className="text-gradient">FPT Capstones</h2>
-          <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>{user?.role}</p>
+      <aside className={`sidebar glass-panel ${isSidebarCollapsed ? 'collapsed' : ''}`} style={{ margin: '1rem 0 1rem 1rem', height: 'calc(100vh - 2rem)', position: 'relative' }}>
+        <button
+          onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+          style={{
+            position: 'absolute',
+            top: '1.5rem',
+            right: '-12px',
+            background: 'var(--surface-glass)',
+            border: '1px solid var(--border-glass)',
+            borderRadius: '50%',
+            width: '24px',
+            height: '24px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            cursor: 'pointer',
+            color: 'var(--text-primary)',
+            zIndex: 10,
+          }}
+        >
+          {isSidebarCollapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
+        </button>
+
+        <div style={{ padding: '1rem 0', marginBottom: '2rem', borderBottom: '1px solid var(--border-glass)', display: 'flex', flexDirection: 'column', alignItems: isSidebarCollapsed ? 'center' : 'flex-start' }}>
+          {isSidebarCollapsed ? (
+            <h2 className="text-gradient" style={{ fontSize: '1.2rem' }}>FC</h2>
+          ) : (
+            <>
+              <h2 className="text-gradient">FPT Capstones</h2>
+              <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>{user?.role}</p>
+            </>
+          )}
         </div>
 
         <nav style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', flex: 1 }}>
@@ -54,17 +83,19 @@ const Layout = () => {
                   style={{
                     display: 'flex',
                     alignItems: 'center',
-                    gap: '0.75rem',
-                    padding: '0.75rem 1rem',
+                    justifyContent: isSidebarCollapsed ? 'center' : 'flex-start',
+                    gap: isSidebarCollapsed ? '0' : '0.75rem',
+                    padding: isSidebarCollapsed ? '0.75rem 0' : '0.75rem 1rem',
                     borderRadius: '8px',
                     color: isActive ? 'white' : 'var(--text-secondary)',
                     background: isActive ? 'var(--accent-primary)' : 'transparent',
                     transition: 'all 0.2s',
                     textDecoration: 'none',
                   }}
+                  title={isSidebarCollapsed ? item.label : undefined}
                 >
                   {item.icon}
-                  <span style={{ fontWeight: 500 }}>{item.label}</span>
+                  {!isSidebarCollapsed && <span style={{ fontWeight: 500, whiteSpace: 'nowrap' }}>{item.label}</span>}
                 </Link>
               );
             })}

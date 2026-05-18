@@ -257,6 +257,12 @@ a:hover {
   position: sticky;
   top: 1rem;
   flex-shrink: 0;
+  transition: width 0.3s ease, padding 0.3s ease;
+}
+
+.sidebar.collapsed {
+  width: 84px;
+  padding: 1.5rem 0.5rem;
 }
 
 .main-content {
