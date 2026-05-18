@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import api from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
 import type { ProjectDetailDto } from '../types';
-import { Save, FileUp, Trash2, Download, Send, CheckCircle, XCircle, Crown, FileText, Clock } from 'lucide-react';
+import { Save, FileUp, Trash2, Download, Send, CheckCircle, XCircle, Crown, FileText } from 'lucide-react';
 
 const fmtSize = (b: number) => {
   if (b < 1024) return `${b} B`;
