@@ -281,7 +281,7 @@ const ProjectDetail = () => {
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                 {project.members.map(m => (
-                  <div key={m.email} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem', borderRadius: 6, background: 'rgba(15,23,42,0.3)' }}>
+                  <div key={m.email} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem', borderRadius: 6, background: 'var(--table-row-bg)', border: '1px solid var(--border-glass)' }}>
                     {m.isLeader && <Crown size={14} color="gold" />}
                     <div style={{ overflow: 'hidden' }}>
                       <div style={{ fontWeight: m.isLeader ? 600 : 400 }}>{m.fullName}</div>
@@ -305,7 +305,7 @@ const ProjectDetail = () => {
                     key={v.versionId} 
                     onClick={() => setSelectedVersionId(v.versionId)}
                     style={{
-                      background: selectedVersionId === v.versionId ? 'rgba(99, 102, 241, 0.15)' : 'rgba(15, 23, 42, 0.4)',
+                      background: selectedVersionId === v.versionId ? 'var(--accent-glow)' : 'var(--table-row-bg)',
                       borderRadius: 8,
                       padding: '0.75rem',
                       border: selectedVersionId === v.versionId ? '2px solid var(--accent-primary)' : '1px solid var(--border-glass)',

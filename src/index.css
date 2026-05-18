@@ -141,7 +141,7 @@ a:hover {
   padding: 1.5rem;
   transition:
     background 1s ease-in-out,
-    border-color 1s ease-in-out,
+    border-color var(--transition-normal),
     transform var(--transition-normal),
     box-shadow var(--transition-normal);
 }
@@ -186,12 +186,14 @@ a:hover {
   transition:
     background var(--transition-fast),
     color 1s ease-in-out,
-    border-color 1s ease-in-out;
+    border-color var(--transition-fast);
 }
 
 .btn-secondary:hover {
   background: var(--btn-hover-bg);
-  border-color: rgba(99, 102, 241, 0.3);
+  border-color: var(--accent-primary);
+  transform: translateY(-2px);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
 }
 
 .btn-danger {
@@ -229,7 +231,7 @@ a:hover {
   font-family: 'Inter', sans-serif;
   transition:
     background 1s ease-in-out,
-    border-color 1s ease-in-out,
+    border-color var(--transition-fast),
     color 1s ease-in-out,
     box-shadow var(--transition-fast);
 }
@@ -312,15 +314,25 @@ a:hover {
 .data-table td {
   padding: 1rem;
   background: var(--table-row-bg);
-  transition: background 1s ease-in-out;
+  transition: background var(--transition-fast);
 }
 
 .data-table tbody tr {
-  transition: transform var(--transition-fast);
+  transition: transform var(--transition-fast), box-shadow var(--transition-fast);
+  cursor: pointer; /* Thêm con trỏ chuột pointer để nhấn mạnh hàng có thể tương tác */
+}
+
+.data-table tbody tr:hover {
+  transform: translateY(-2px);
 }
 
 .data-table tbody tr:hover td {
   background: var(--table-row-hover);
+}
+
+/* Thêm viền màu nhấn ở cạnh trái của cột đầu tiên để làm nổi bật dòng đang chọn */
+.data-table tbody tr:hover td:first-child {
+  box-shadow: inset 4px 0 0 var(--accent-primary);
 }
 
 .data-table td:first-child { border-top-left-radius: 8px; border-bottom-left-radius: 8px; }
@@ -379,7 +391,7 @@ a:hover {
   transition:
     background var(--transition-fast),
     color 1s ease-in-out,
-    border-color 1s ease-in-out;
+    border-color var(--transition-fast);
 }
 
 .theme-toggle:hover {
