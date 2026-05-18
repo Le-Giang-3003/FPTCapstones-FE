@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import api from '../services/api';
 import type { UserListItem } from '../types';
-import { Search, UserCheck, UserX, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Search, UserCheck, UserX, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from 'lucide-react';
 
 const AdminUsers = () => {
   const [users, setUsers] = useState<UserListItem[]>([]);
@@ -13,15 +13,20 @@ const AdminUsers = () => {
   // Pagination State
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
+  const [totalCount, setTotalCount] = useState(0);
 
   const load = async () => {
     try {
       setLoading(true);
-      const params: Record<string, string> = {};
+      const params: Record<string, string | number> = {
+        page: currentPage,
+        pageSize: itemsPerPage
+      };
       if (search) params.search = search;
       if (roleFilter) params.role = roleFilter;
-      const res = await api.get<UserListItem[]>('/api/admin/users', { params });
-      setUsers(res.data);
+      const res = await api.get<{ items: UserListItem[]; totalCount: number }>('/api/admin/users', { params });
+      setUsers(res.data.items);
+      setTotalCount(res.data.totalCount);
     } catch (e) {
       console.error('Load users failed', e);
     } finally {
@@ -33,7 +38,7 @@ const AdminUsers = () => {
     const t = setTimeout(load, search ? 250 : 0);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [search, roleFilter]);
+  }, [currentPage, search, roleFilter]);
 
   // Reset to first page when search or filter changes
   useEffect(() => {
@@ -55,8 +60,16 @@ const AdminUsers = () => {
   };
 
   // Pagination Calculations
-  const totalPages = Math.ceil(users.length / itemsPerPage);
-  const displayedUsers = users.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+  const totalPages = Math.ceil(totalCount / itemsPerPage);
+  const displayedUsers = users;
+
+  const getPageNumbers = () => {
+    const blockSize = 10;
+    const blockIndex = Math.floor((currentPage - 1) / blockSize);
+    const start = blockIndex * blockSize + 1;
+    const end = Math.min(totalPages, (blockIndex + 1) * blockSize);
+    return Array.from({ length: end - start + 1 }, (_, i) => start + i);
+  };
 
   return (
     <div className="animate-fade-in">
@@ -146,10 +159,23 @@ const AdminUsers = () => {
                 gap: '1rem'
               }}>
                 <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-                  Hiển thị <strong>{Math.min(users.length, (currentPage - 1) * itemsPerPage + 1)}-{Math.min(users.length, currentPage * itemsPerPage)}</strong> trong tổng số <strong>{users.length}</strong> kết quả
+                  Hiển thị <strong>{totalCount === 0 ? 0 : (currentPage - 1) * itemsPerPage + 1}-{Math.min(totalCount, currentPage * itemsPerPage)}</strong> trong tổng số <strong>{totalCount}</strong> kết quả
                 </span>
                 
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                  <button
+                    onClick={() => {
+                      const blockIndex = Math.floor((currentPage - 1) / 10);
+                      setCurrentPage(Math.max(1, blockIndex * 10));
+                    }}
+                    disabled={currentPage <= 10}
+                    className="btn btn-secondary"
+                    style={{ padding: '0.4rem 0.6rem', border: '1px solid var(--border-glass)', opacity: currentPage <= 10 ? 0.5 : 1, cursor: currentPage <= 10 ? 'not-allowed' : 'pointer' }}
+                    title="Cụm trước"
+                  >
+                    <ChevronsLeft size={16} />
+                  </button>
+
                   <button
                     onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
                     disabled={currentPage === 1}
@@ -159,7 +185,7 @@ const AdminUsers = () => {
                     <ChevronLeft size={16} />
                   </button>
 
-                  {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
+                  {getPageNumbers().map(page => (
                     <button
                       key={page}
                       onClick={() => setCurrentPage(page)}
@@ -183,6 +209,20 @@ const AdminUsers = () => {
                     style={{ padding: '0.4rem 0.6rem', border: '1px solid var(--border-glass)', opacity: currentPage === totalPages ? 0.5 : 1, cursor: currentPage === totalPages ? 'not-allowed' : 'pointer' }}
                   >
                     <ChevronRight size={16} />
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      const blockIndex = Math.floor((currentPage - 1) / 10);
+                      const nextBlockPage = (blockIndex + 1) * 10 + 1;
+                      setCurrentPage(Math.min(totalPages, nextBlockPage));
+                    }}
+                    disabled={Math.floor((totalPages - 1) / 10) === Math.floor((currentPage - 1) / 10)}
+                    className="btn btn-secondary"
+                    style={{ padding: '0.4rem 0.6rem', border: '1px solid var(--border-glass)', opacity: (Math.floor((totalPages - 1) / 10) === Math.floor((currentPage - 1) / 10)) ? 0.5 : 1, cursor: (Math.floor((totalPages - 1) / 10) === Math.floor((currentPage - 1) / 10)) ? 'not-allowed' : 'pointer' }}
+                    title="Cụm sau"
+                  >
+                    <ChevronsRight size={16} />
                   </button>
                 </div>
               </div>

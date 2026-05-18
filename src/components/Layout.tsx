@@ -36,146 +36,6 @@ const Layout = () => {
 
   return (
     <div className="app-container" style={{ position: 'relative' }}>
-      {/* Floating User Profile Dropdown in Top-Right Corner */}
-      <div 
-        ref={dropdownRef} 
-        style={{ 
-          position: 'fixed', 
-          top: '1.5rem', 
-          right: '2rem', 
-          zIndex: 100,
-        }}
-      >
-        <button 
-          onClick={() => setDropdownOpen(!dropdownOpen)}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.625rem',
-            background: 'var(--surface-glass)',
-            backdropFilter: 'blur(12px)',
-            border: '1px solid var(--border-glass)',
-            padding: '0.5rem 1rem',
-            borderRadius: '9999px',
-            cursor: 'pointer',
-            boxShadow: 'var(--shadow-md)',
-            color: 'var(--text-primary)',
-            transition: 'all 0.2s',
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.borderColor = 'var(--accent-primary)';
-            e.currentTarget.style.boxShadow = 'var(--shadow-glow)';
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.borderColor = 'var(--border-glass)';
-            e.currentTarget.style.boxShadow = 'var(--shadow-md)';
-          }}
-        >
-          <div style={{ 
-            width: '28px', 
-            height: '28px', 
-            borderRadius: '50%', 
-            background: 'linear-gradient(135deg, var(--accent-primary), var(--accent-hover))', 
-            color: 'white',
-            display: 'flex', 
-            alignItems: 'center', 
-            justifyContent: 'center', 
-            fontWeight: 600,
-            fontSize: '0.8rem'
-          }}>
-            {user?.fullName?.charAt(0).toUpperCase()}
-          </div>
-          <span style={{ fontSize: '0.875rem', fontWeight: 500, maxWidth: '140px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            {user?.fullName}
-          </span>
-          <ChevronDown 
-            size={16} 
-            style={{ 
-              transition: 'transform 0.2s', 
-              transform: dropdownOpen ? 'rotate(180deg)' : 'none',
-              color: 'var(--text-secondary)'
-            }} 
-          />
-        </button>
-
-        {dropdownOpen && (
-          <div 
-            className="glass-panel animate-fade-in" 
-            style={{ 
-              position: 'absolute', 
-              top: 'calc(100% + 0.5rem)', 
-              right: 0, 
-              width: '280px', 
-              padding: '1.25rem', 
-              boxShadow: 'var(--shadow-lg)',
-              border: '1px solid var(--border-glass)',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '1rem',
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', paddingBottom: '0.75rem', borderBottom: '1px solid var(--border-glass)' }}>
-              <div style={{ 
-                width: '40px', 
-                height: '40px', 
-                borderRadius: '50%', 
-                background: 'linear-gradient(135deg, var(--accent-primary), var(--accent-hover))', 
-                color: 'white',
-                display: 'flex', 
-                alignItems: 'center', 
-                justifyContent: 'center', 
-                fontWeight: 600,
-                fontSize: '1rem'
-              }}>
-                {user?.fullName?.charAt(0).toUpperCase()}
-              </div>
-              <div style={{ overflow: 'hidden' }}>
-                <p style={{ fontWeight: 600, fontSize: '0.9rem', whiteSpace: 'nowrap', textOverflow: 'ellipsis', color: 'var(--text-primary)' }}>{user?.fullName}</p>
-                <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>{user?.email}</p>
-                <span className="badge" style={{ display: 'inline-block', marginTop: '0.35rem', background: 'rgba(251, 146, 60, 0.1)', color: 'var(--accent-primary)', padding: '0.125rem 0.5rem', fontSize: '0.7rem', border: '1px solid rgba(251, 146, 60, 0.15)' }}>
-                  {user?.role}
-                </span>
-              </div>
-            </div>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-              <button 
-                onClick={() => {
-                  toggleTheme();
-                }} 
-                className="theme-toggle"
-                style={{ margin: 0, width: '100%' }}
-              >
-                {isDark ? <Sun size={16} /> : <Moon size={16} />}
-                {isDark ? 'Giao diện sáng' : 'Giao diện tối'}
-                <span className="theme-toggle-track">
-                  <span className={`theme-toggle-thumb ${isDark ? 'dark' : 'light'}`} />
-                </span>
-              </button>
-
-              <button 
-                onClick={logout} 
-                className="btn btn-secondary" 
-                style={{ 
-                  width: '100%', 
-                  justifyContent: 'flex-start', 
-                  border: '1px solid rgba(239, 68, 68, 0.2)', 
-                  color: 'var(--danger)' 
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.background = 'rgba(239, 68, 68, 0.08)';
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.background = 'transparent';
-                }}
-              >
-                <LogOut size={18} /> Đăng xuất
-              </button>
-            </div>
-          </div>
-        )}
-      </div>
-
       <aside className="sidebar glass-panel" style={{ margin: '1rem 0 1rem 1rem', height: 'calc(100vh - 2rem)' }}>
         <div style={{ padding: '1rem 0', marginBottom: '2rem', borderBottom: '1px solid var(--border-glass)' }}>
           <h2 className="text-gradient">FPT Capstones</h2>
@@ -212,6 +72,145 @@ const Layout = () => {
       </aside>
 
       <main className="main-content">
+        {/* User Profile Dropdown inside scrollable container */}
+        <div
+          ref={dropdownRef}
+          style={{
+            position: 'absolute',
+            top: '2.4rem',
+            right: '2rem',
+            zIndex: 100,
+          }}
+        >
+          <button
+            onClick={() => setDropdownOpen(!dropdownOpen)}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.625rem',
+              background: 'var(--surface-glass)',
+              backdropFilter: 'blur(12px)',
+              border: '1px solid var(--border-glass)',
+              padding: '0.5rem 1rem',
+              borderRadius: '9999px',
+              cursor: 'pointer',
+              boxShadow: 'var(--shadow-md)',
+              color: 'var(--text-primary)',
+              transition: 'all 0.2s',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.borderColor = 'var(--accent-primary)';
+              e.currentTarget.style.boxShadow = 'var(--shadow-glow)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.borderColor = 'var(--border-glass)';
+              e.currentTarget.style.boxShadow = 'var(--shadow-md)';
+            }}
+          >
+            <div style={{
+              width: '28px',
+              height: '28px',
+              borderRadius: '50%',
+              background: 'linear-gradient(135deg, var(--accent-primary), var(--accent-hover))',
+              color: 'white',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontWeight: 600,
+              fontSize: '0.8rem'
+            }}>
+              {user?.fullName?.charAt(0).toUpperCase()}
+            </div>
+            <span style={{ fontSize: '0.875rem', fontWeight: 500, maxWidth: '140px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {user?.fullName}
+            </span>
+            <ChevronDown
+              size={16}
+              style={{
+                transition: 'transform 0.2s',
+                transform: dropdownOpen ? 'rotate(180deg)' : 'none',
+                color: 'var(--text-secondary)'
+              }}
+            />
+          </button>
+
+          {dropdownOpen && (
+            <div
+              className="glass-panel animate-fade-in"
+              style={{
+                position: 'absolute',
+                top: 'calc(100% + 0.5rem)',
+                right: 0,
+                width: '280px',
+                padding: '1.25rem',
+                boxShadow: 'var(--shadow-lg)',
+                border: '1px solid var(--border-glass)',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '1rem',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', paddingBottom: '0.75rem', borderBottom: '1px solid var(--border-glass)' }}>
+                <div style={{
+                  width: '40px',
+                  height: '40px',
+                  borderRadius: '50%',
+                  background: 'linear-gradient(135deg, var(--accent-primary), var(--accent-hover))',
+                  color: 'white',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontWeight: 600,
+                  fontSize: '1rem'
+                }}>
+                  {user?.fullName?.charAt(0).toUpperCase()}
+                </div>
+                <div style={{ overflow: 'hidden' }}>
+                  <p style={{ fontWeight: 600, fontSize: '0.9rem', whiteSpace: 'nowrap', textOverflow: 'ellipsis', color: 'var(--text-primary)' }}>{user?.fullName}</p>
+                  <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>{user?.email}</p>
+                  <span className="badge" style={{ display: 'inline-block', marginTop: '0.35rem', background: 'rgba(251, 146, 60, 0.1)', color: 'var(--accent-primary)', padding: '0.125rem 0.5rem', fontSize: '0.7rem', border: '1px solid rgba(251, 146, 60, 0.15)' }}>
+                    {user?.role}
+                  </span>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                <button
+                  onClick={() => {
+                    toggleTheme();
+                  }}
+                  className="theme-toggle"
+                  style={{ margin: 0, width: '100%' }}
+                >
+                  {isDark ? <Sun size={16} /> : <Moon size={16} />}
+                  {isDark ? 'Giao diện sáng' : 'Giao diện tối'}
+                  <span className="theme-toggle-track">
+                    <span className={`theme-toggle-thumb ${isDark ? 'dark' : 'light'}`} />
+                  </span>
+                </button>
+
+                <button
+                  onClick={logout}
+                  className="btn btn-secondary"
+                  style={{
+                    width: '100%',
+                    justifyContent: 'flex-start',
+                    border: '1px solid rgba(239, 68, 68, 0.2)',
+                    color: 'var(--danger)'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.background = 'rgba(239, 68, 68, 0.08)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.background = 'transparent';
+                  }}
+                >
+                  <LogOut size={18} /> Đăng xuất
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
         <Outlet />
       </main>
     </div>

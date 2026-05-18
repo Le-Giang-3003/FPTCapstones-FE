@@ -31,9 +31,26 @@ const ProjectDetail = () => {
   const isAdmin = user?.role === 'Admin';
   const isLecturer = user?.role === 'Lecturer';
 
+  // State for selected version (PRD: switch documents view by version)
+  const [selectedVersionId, setSelectedVersionId] = useState<number | null>(null);
+
+  // Set default selected version when project loads
+  useEffect(() => {
+    if (project && project.versions && project.versions.length > 0) {
+      if (selectedVersionId === null || !project.versions.some(v => v.versionId === selectedVersionId)) {
+        setSelectedVersionId(project.versions[0].versionId);
+      }
+    }
+  }, [project, selectedVersionId]);
+
   // Version mới nhất = draft (chưa finalize). Mọi version khác đã submit/finalize không sửa được.
   const draftVersion = project?.versions?.[0];
+  const selectedVersion = project?.versions?.find(v => v.versionId === selectedVersionId) || draftVersion;
   const isDraftEditable = draftVersion && !draftVersion.isFinalized;
+
+  // We can determine if the selected version is the current active editable draft
+  const isSelectedVersionDraft = selectedVersion && draftVersion && selectedVersion.versionId === draftVersion.versionId;
+  const displayedDocuments = selectedVersion?.documents || [];
 
   const fetchProject = async () => {
     try {
@@ -185,25 +202,25 @@ const ProjectDetail = () => {
             )}
           </div>
 
-          {/* Current draft documents */}
+          {/* Version documents list */}
           <div className="glass-card">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
               <div>
-                <h3>Tài liệu draft hiện tại</h3>
-                {draftVersion && (
-                  <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
-                    Version {draftVersion.versionNumber} {draftVersion.isFinalized ? '(Đã finalize)' : '(Draft)'}
+                <h3>Danh sách tài liệu</h3>
+                {selectedVersion && (
+                  <p style={{ color: 'var(--accent-primary)', fontSize: '0.9rem', fontWeight: 600 }}>
+                    Đang xem: Version {selectedVersion.versionNumber} {selectedVersion.versionId === draftVersion?.versionId ? (draftVersion.isFinalized ? '(Đã finalize)' : '(Draft)') : '(Submitted)'}
                   </p>
                 )}
               </div>
-              {isStudentLeader && isDraftEditable && project.currentDocuments.length > 0 && (
+              {isStudentLeader && isDraftEditable && isSelectedVersionDraft && displayedDocuments.length > 0 && (
                 <button className="btn btn-primary" onClick={handleSubmitVersion}>
                   <Send size={16} /> Submit Version
                 </button>
               )}
             </div>
 
-            {isStudentLeader && isDraftEditable && (
+            {isStudentLeader && isDraftEditable && isSelectedVersionDraft && (
               <div style={{ display: 'flex', gap: '1rem', marginBottom: '1.5rem', alignItems: 'flex-end' }}>
                 <div className="input-group" style={{ marginBottom: 0, flex: 1 }}>
                   <label className="input-label">Upload file (tối đa 50MB, định dạng: .pdf .docx .doc .xlsx .pptx .zip)</label>
@@ -216,8 +233,8 @@ const ProjectDetail = () => {
               </div>
             )}
 
-            {project.currentDocuments.length === 0 ? (
-              <p style={{ color: 'var(--text-secondary)', padding: '1rem 0' }}>Chưa có tài liệu.</p>
+            {displayedDocuments.length === 0 ? (
+              <p style={{ color: 'var(--text-secondary)', padding: '1rem 0' }}>Chưa có tài liệu trong version này.</p>
             ) : (
               <table className="data-table">
                 <thead>
@@ -229,7 +246,7 @@ const ProjectDetail = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {project.currentDocuments.map(d => (
+                  {displayedDocuments.map(d => (
                     <tr key={d.id}>
                       <td><FileText size={14} style={{ verticalAlign: 'middle', marginRight: 6 }} />{d.fileName}</td>
                       <td>{fmtSize(d.fileSize)}</td>
@@ -239,7 +256,7 @@ const ProjectDetail = () => {
                           <button className="btn btn-secondary" style={{ padding: '0.3rem' }} onClick={() => handleDownloadDoc(d.id, d.fileName)} title="Download">
                             <Download size={14} />
                           </button>
-                          {isStudentLeader && isDraftEditable && (
+                          {isStudentLeader && isDraftEditable && isSelectedVersionDraft && (
                             <button className="btn btn-danger" style={{ padding: '0.3rem' }} onClick={() => handleDeleteDoc(d.id)} title="Xóa">
                               <Trash2 size={14} />
                             </button>
@@ -286,39 +303,46 @@ const ProjectDetail = () => {
                 {project.versions.map(v => (
                   <div 
                     key={v.versionId} 
+                    onClick={() => setSelectedVersionId(v.versionId)}
                     style={{
-                      background: 'rgba(15, 23, 42, 0.4)',
+                      background: selectedVersionId === v.versionId ? 'rgba(99, 102, 241, 0.15)' : 'rgba(15, 23, 42, 0.4)',
                       borderRadius: 8,
                       padding: '0.75rem',
-                      border: '1px solid var(--border-glass)',
+                      border: selectedVersionId === v.versionId ? '2px solid var(--accent-primary)' : '1px solid var(--border-glass)',
+                      boxShadow: selectedVersionId === v.versionId ? 'var(--shadow-glow)' : 'none',
+                      cursor: 'pointer',
                       transition: 'all 0.2s ease-in-out',
                     }}
                     onMouseEnter={(e) => {
-                      e.currentTarget.style.borderColor = 'var(--accent-primary)';
-                      e.currentTarget.style.boxShadow = 'var(--shadow-glow)';
                       e.currentTarget.style.transform = 'translateY(-2px)';
+                      if (selectedVersionId !== v.versionId) {
+                        e.currentTarget.style.borderColor = 'var(--accent-primary)';
+                        e.currentTarget.style.boxShadow = 'var(--shadow-glow)';
+                      }
                     }}
                     onMouseLeave={(e) => {
-                      e.currentTarget.style.borderColor = 'var(--border-glass)';
-                      e.currentTarget.style.boxShadow = 'none';
                       e.currentTarget.style.transform = 'translateY(0)';
+                      if (selectedVersionId !== v.versionId) {
+                        e.currentTarget.style.borderColor = 'var(--border-glass)';
+                        e.currentTarget.style.boxShadow = 'none';
+                      }
                     }}
                   >
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>
                       <div>
                         <strong>Version {v.versionNumber}</strong>
                         <span className={`badge ${v.isFinalized ? 'badge-success' : 'badge-warning'}`} style={{ marginLeft: '0.5rem' }}>
-                          {v.isFinalized ? 'Finalized' : v === draftVersion ? 'Draft' : 'Submitted'}
+                          {v.isFinalized ? 'Finalized' : v.versionId === draftVersion?.versionId ? 'Draft' : 'Submitted'}
                         </span>
                       </div>
                       <div>
-                        {(isAdmin || isLecturer) && !v.isFinalized && v !== draftVersion && (
-                          <button className="btn btn-primary" style={{ padding: '0.25rem 0.5rem', fontSize: '0.7rem' }} onClick={() => handleFinalize(v.versionId, true)}>
+                        {(isAdmin || isLecturer) && !v.isFinalized && v.versionId !== draftVersion?.versionId && (
+                          <button className="btn btn-primary" style={{ padding: '0.25rem 0.5rem', fontSize: '0.7rem' }} onClick={(e) => { e.stopPropagation(); handleFinalize(v.versionId, true); }}>
                             <CheckCircle size={12} /> Finalize
                           </button>
                         )}
                         {isAdmin && v.isFinalized && (
-                          <button className="btn btn-danger" style={{ padding: '0.25rem 0.5rem', fontSize: '0.7rem' }} onClick={() => handleFinalize(v.versionId, false)}>
+                          <button className="btn btn-danger" style={{ padding: '0.25rem 0.5rem', fontSize: '0.7rem' }} onClick={(e) => { e.stopPropagation(); handleFinalize(v.versionId, false); }}>
                             <XCircle size={12} /> Un-finalize
                           </button>
                         )}

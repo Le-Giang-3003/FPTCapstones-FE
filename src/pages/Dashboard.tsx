@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import api from '../services/api';
 import type { DashboardItem } from '../types';
-import { Search, Eye, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Search, Eye, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 const Dashboard = () => {
@@ -45,6 +45,14 @@ const Dashboard = () => {
   // Pagination Calculations
   const totalPages = Math.ceil(data.length / itemsPerPage);
   const displayedData = data.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+
+  const getPageNumbers = () => {
+    const blockSize = 10;
+    const blockIndex = Math.floor((currentPage - 1) / blockSize);
+    const start = blockIndex * blockSize + 1;
+    const end = Math.min(totalPages, (blockIndex + 1) * blockSize);
+    return Array.from({ length: end - start + 1 }, (_, i) => start + i);
+  };
 
   return (
     <div className="animate-fade-in">
@@ -155,6 +163,19 @@ const Dashboard = () => {
                 
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
                   <button
+                    onClick={() => {
+                      const blockIndex = Math.floor((currentPage - 1) / 10);
+                      setCurrentPage(Math.max(1, blockIndex * 10));
+                    }}
+                    disabled={currentPage <= 10}
+                    className="btn btn-secondary"
+                    style={{ padding: '0.4rem 0.6rem', border: '1px solid var(--border-glass)', opacity: currentPage <= 10 ? 0.5 : 1, cursor: currentPage <= 10 ? 'not-allowed' : 'pointer' }}
+                    title="Cụm trước"
+                  >
+                    <ChevronsLeft size={16} />
+                  </button>
+
+                  <button
                     onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
                     disabled={currentPage === 1}
                     className="btn btn-secondary"
@@ -163,7 +184,7 @@ const Dashboard = () => {
                     <ChevronLeft size={16} />
                   </button>
 
-                  {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
+                  {getPageNumbers().map(page => (
                     <button
                       key={page}
                       onClick={() => setCurrentPage(page)}
@@ -187,6 +208,20 @@ const Dashboard = () => {
                     style={{ padding: '0.4rem 0.6rem', border: '1px solid var(--border-glass)', opacity: currentPage === totalPages ? 0.5 : 1, cursor: currentPage === totalPages ? 'not-allowed' : 'pointer' }}
                   >
                     <ChevronRight size={16} />
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      const blockIndex = Math.floor((currentPage - 1) / 10);
+                      const nextBlockPage = (blockIndex + 1) * 10 + 1;
+                      setCurrentPage(Math.min(totalPages, nextBlockPage));
+                    }}
+                    disabled={Math.floor((totalPages - 1) / 10) === Math.floor((currentPage - 1) / 10)}
+                    className="btn btn-secondary"
+                    style={{ padding: '0.4rem 0.6rem', border: '1px solid var(--border-glass)', opacity: (Math.floor((totalPages - 1) / 10) === Math.floor((currentPage - 1) / 10)) ? 0.5 : 1, cursor: (Math.floor((totalPages - 1) / 10) === Math.floor((currentPage - 1) / 10)) ? 'not-allowed' : 'pointer' }}
+                    title="Cụm sau"
+                  >
+                    <ChevronsRight size={16} />
                   </button>
                 </div>
               </div>

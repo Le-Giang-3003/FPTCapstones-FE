@@ -261,6 +261,7 @@ a:hover {
   flex: 1;
   padding: 2rem;
   overflow-y: auto;
+  position: relative;
 }
 
 .topbar {
@@ -268,6 +269,7 @@ a:hover {
   justify-content: space-between;
   align-items: center;
   margin-bottom: 2rem;
+  padding-right: 260px; /* Chừa khoảng trống cố định cho nút User Profile ở góc phải trên, tránh đè các nút chức năng khác */
 }
 
 /* Utilities */

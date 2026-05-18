@@ -48,6 +48,7 @@ export interface VersionSummaryDto {
   createdAt: string;
   isFinalized: boolean;
   documentCount: number;
+  documents: DocumentDto[];
 }
 
 export interface DocumentDto {

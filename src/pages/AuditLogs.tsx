@@ -3,7 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import api from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
 import type { AuditLogDto } from '../types';
-import { RefreshCw, ChevronLeft, ChevronRight } from 'lucide-react';
+import { RefreshCw, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from 'lucide-react';
 
 const AuditLogs = () => {
   const { user } = useAuth();
@@ -17,12 +17,12 @@ const AuditLogs = () => {
   // Pagination State
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
+  const [totalCount, setTotalCount] = useState(0);
 
   const isAdmin = user?.role === 'Admin';
 
-  const load = async () => {
+  const load = async (pageToLoad = currentPage) => {
     setErr(null);
-    setCurrentPage(1); // Reset to first page on load
     if (!isAdmin && !groupId) {
       setErr('Cần chọn nhóm để xem audit log.');
       setLogs([]);
@@ -30,10 +30,14 @@ const AuditLogs = () => {
     }
     try {
       setLoading(true);
-      const query: Record<string, string> = { pageSize: '100' };
+      const query: Record<string, string | number> = {
+        page: pageToLoad,
+        pageSize: itemsPerPage
+      };
       if (groupId) query.groupId = groupId;
-      const res = await api.get<AuditLogDto[]>('/api/audit-logs', { params: query });
-      setLogs(res.data);
+      const res = await api.get<{ items: AuditLogDto[]; totalCount: number }>('/api/audit-logs', { params: query });
+      setLogs(res.data.items);
+      setTotalCount(res.data.totalCount);
     } catch (e: any) {
       setErr(e?.response?.data?.message || 'Không tải được audit log.');
       setLogs([]);
@@ -43,20 +47,31 @@ const AuditLogs = () => {
   };
 
   useEffect(() => {
-    load();
+    load(currentPage);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [currentPage]);
 
   const applyFilter = () => {
     if (groupId) setParams({ groupId });
     else setParams({});
-    setCurrentPage(1); // Reset to first page on filter
-    load();
+    if (currentPage === 1) {
+      load(1);
+    } else {
+      setCurrentPage(1);
+    }
   };
 
   // Pagination Calculations
-  const totalPages = Math.ceil(logs.length / itemsPerPage);
-  const displayedLogs = logs.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+  const totalPages = Math.ceil(totalCount / itemsPerPage);
+  const displayedLogs = logs;
+
+  const getPageNumbers = () => {
+    const blockSize = 10;
+    const blockIndex = Math.floor((currentPage - 1) / blockSize);
+    const start = blockIndex * blockSize + 1;
+    const end = Math.min(totalPages, (blockIndex + 1) * blockSize);
+    return Array.from({ length: end - start + 1 }, (_, i) => start + i);
+  };
 
   return (
     <div className="animate-fade-in">
@@ -135,10 +150,23 @@ const AuditLogs = () => {
                 gap: '1rem'
               }}>
                 <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-                  Hiển thị <strong>{Math.min(logs.length, (currentPage - 1) * itemsPerPage + 1)}-{Math.min(logs.length, currentPage * itemsPerPage)}</strong> trong tổng số <strong>{logs.length}</strong> kết quả
+                  Hiển thị <strong>{totalCount === 0 ? 0 : (currentPage - 1) * itemsPerPage + 1}-{Math.min(totalCount, currentPage * itemsPerPage)}</strong> trong tổng số <strong>{totalCount}</strong> kết quả
                 </span>
                 
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                  <button
+                    onClick={() => {
+                      const blockIndex = Math.floor((currentPage - 1) / 10);
+                      setCurrentPage(Math.max(1, blockIndex * 10));
+                    }}
+                    disabled={currentPage <= 10}
+                    className="btn btn-secondary"
+                    style={{ padding: '0.4rem 0.6rem', border: '1px solid var(--border-glass)', opacity: currentPage <= 10 ? 0.5 : 1, cursor: currentPage <= 10 ? 'not-allowed' : 'pointer' }}
+                    title="Cụm trước"
+                  >
+                    <ChevronsLeft size={16} />
+                  </button>
+
                   <button
                     onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
                     disabled={currentPage === 1}
@@ -148,7 +176,7 @@ const AuditLogs = () => {
                     <ChevronLeft size={16} />
                   </button>
 
-                  {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
+                  {getPageNumbers().map(page => (
                     <button
                       key={page}
                       onClick={() => setCurrentPage(page)}
@@ -172,6 +200,20 @@ const AuditLogs = () => {
                     style={{ padding: '0.4rem 0.6rem', border: '1px solid var(--border-glass)', opacity: currentPage === totalPages ? 0.5 : 1, cursor: currentPage === totalPages ? 'not-allowed' : 'pointer' }}
                   >
                     <ChevronRight size={16} />
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      const blockIndex = Math.floor((currentPage - 1) / 10);
+                      const nextBlockPage = (blockIndex + 1) * 10 + 1;
+                      setCurrentPage(Math.min(totalPages, nextBlockPage));
+                    }}
+                    disabled={Math.floor((totalPages - 1) / 10) === Math.floor((currentPage - 1) / 10)}
+                    className="btn btn-secondary"
+                    style={{ padding: '0.4rem 0.6rem', border: '1px solid var(--border-glass)', opacity: (Math.floor((totalPages - 1) / 10) === Math.floor((currentPage - 1) / 10)) ? 0.5 : 1, cursor: (Math.floor((totalPages - 1) / 10) === Math.floor((currentPage - 1) / 10)) ? 'not-allowed' : 'pointer' }}
+                    title="Cụm sau"
+                  >
+                    <ChevronsRight size={16} />
                   </button>
                 </div>
               </div>
