@@ -4,6 +4,7 @@ import { useAuth } from './contexts/AuthContext';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import AdminUsers from './pages/AdminUsers';
+import AdminLecturers from './pages/AdminLecturers';
 import AdminImport from './pages/AdminImport';
 import AuditLogs from './pages/AuditLogs';
 import ProjectDetail from './pages/ProjectDetail';
@@ -48,6 +49,10 @@ const App = () => {
           <Route
             path="/admin/users"
             element={<PrivateRoute roles={['Admin']}><AdminUsers /></PrivateRoute>}
+          />
+          <Route
+            path="/admin/lecturers"
+            element={<PrivateRoute roles={['Admin']}><AdminLecturers /></PrivateRoute>}
           />
           <Route
             path="/admin/import"

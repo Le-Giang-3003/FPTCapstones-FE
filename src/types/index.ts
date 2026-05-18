@@ -98,3 +98,24 @@ export interface AuditLogDto {
   details: string | null;
   createdAt: string;
 }
+
+export interface LecturerListItemDto {
+  id: number;
+  userId: number;
+  email: string;
+  fullName: string;
+  code: string | null;
+  isActive: boolean;
+}
+
+export interface LecturerImportError {
+  rowNumber: number;
+  message: string;
+}
+
+export interface ImportLecturersResultDto {
+  updated: number;
+  created: number;
+  skipped: number;
+  errors: LecturerImportError[];
+}
