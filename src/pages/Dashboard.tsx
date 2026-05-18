@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import api from '../services/api';
 import type { DashboardItem } from '../types';
-import { Search, Eye } from 'lucide-react';
+import { Search, Eye, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 const Dashboard = () => {
@@ -11,6 +11,10 @@ const Dashboard = () => {
   const [finalized, setFinalized] = useState<string>('');
   const [sortBy, setSortBy] = useState('newest');
   const navigate = useNavigate();
+
+  // Pagination State
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
 
   const fetchDashboard = async () => {
     try {
@@ -32,6 +36,15 @@ const Dashboard = () => {
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [search, finalized, sortBy]);
+
+  // Reset pagination when search or filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [search, finalized, sortBy]);
+
+  // Pagination Calculations
+  const totalPages = Math.ceil(data.length / itemsPerPage);
+  const displayedData = data.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
   return (
     <div className="animate-fade-in">
@@ -77,51 +90,108 @@ const Dashboard = () => {
         ) : data.length === 0 ? (
           <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-secondary)' }}>Không có nhóm nào.</div>
         ) : (
-          <div style={{ overflowX: 'auto' }}>
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>Mã nhóm</th>
-                  <th>Tên đề tài</th>
-                  <th>Trưởng nhóm</th>
-                  <th>Số version</th>
-                  <th>Trạng thái</th>
-                  <th>Cập nhật</th>
-                  <th>Thao tác</th>
-                </tr>
-              </thead>
-              <tbody>
-                {data.map(item => (
-                  <tr key={item.groupId}>
-                    <td><strong>{item.groupCode}</strong></td>
-                    <td>{item.projectName || '—'}</td>
-                    <td>
-                      <div>{item.leaderFullName || '—'}</div>
-                      <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>{item.leaderEmail}</div>
-                    </td>
-                    <td>{item.submittedVersionCount}</td>
-                    <td>
-                      <span className={`badge ${item.isFinalized ? 'badge-success' : 'badge-warning'}`}>
-                        {item.isFinalized ? 'Finalized' : 'Pending'}
-                      </span>
-                    </td>
-                    <td style={{ color: 'var(--text-secondary)' }}>
-                      {item.lastUpdated ? new Date(item.lastUpdated).toLocaleString('vi-VN') : '—'}
-                    </td>
-                    <td>
-                      <button
-                        className="btn btn-secondary"
-                        style={{ padding: '0.4rem 0.75rem', fontSize: '0.75rem' }}
-                        onClick={() => navigate(`/projects/${item.groupId}`)}
-                      >
-                        <Eye size={14} /> Xem
-                      </button>
-                    </td>
+          <>
+            <div style={{ overflowX: 'auto' }}>
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>Mã nhóm</th>
+                    <th>Tên đề tài</th>
+                    <th>Trưởng nhóm</th>
+                    <th>Số version</th>
+                    <th>Trạng thái</th>
+                    <th>Cập nhật</th>
+                    <th>Thao tác</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {displayedData.map(item => (
+                    <tr key={item.groupId}>
+                      <td><strong>{item.groupCode}</strong></td>
+                      <td>{item.projectName || '—'}</td>
+                      <td>
+                        <div>{item.leaderFullName || '—'}</div>
+                        <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>{item.leaderEmail}</div>
+                      </td>
+                      <td>{item.submittedVersionCount}</td>
+                      <td>
+                        <span className={`badge ${item.isFinalized ? 'badge-success' : 'badge-warning'}`}>
+                          {item.isFinalized ? 'Finalized' : 'Pending'}
+                        </span>
+                      </td>
+                      <td style={{ color: 'var(--text-secondary)' }}>
+                        {item.lastUpdated ? new Date(item.lastUpdated).toLocaleString('vi-VN') : '—'}
+                      </td>
+                      <td>
+                        <button
+                          className="btn btn-secondary"
+                          style={{ padding: '0.4rem 0.75rem', fontSize: '0.75rem' }}
+                          onClick={() => navigate(`/projects/${item.groupId}`)}
+                        >
+                          <Eye size={14} /> Xem
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Pagination Controls */}
+            {totalPages > 1 && (
+              <div style={{ 
+                display: 'flex', 
+                alignItems: 'center', 
+                justifyContent: 'space-between', 
+                padding: '1rem 1.5rem', 
+                borderTop: '1px solid var(--border-glass)',
+                background: 'var(--surface-glass)',
+                flexWrap: 'wrap',
+                gap: '1rem'
+              }}>
+                <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                  Hiển thị <strong>{Math.min(data.length, (currentPage - 1) * itemsPerPage + 1)}-{Math.min(data.length, currentPage * itemsPerPage)}</strong> trong tổng số <strong>{data.length}</strong> kết quả
+                </span>
+                
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                  <button
+                    onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                    disabled={currentPage === 1}
+                    className="btn btn-secondary"
+                    style={{ padding: '0.4rem 0.6rem', border: '1px solid var(--border-glass)', opacity: currentPage === 1 ? 0.5 : 1, cursor: currentPage === 1 ? 'not-allowed' : 'pointer' }}
+                  >
+                    <ChevronLeft size={16} />
+                  </button>
+
+                  {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
+                    <button
+                      key={page}
+                      onClick={() => setCurrentPage(page)}
+                      className={`btn ${currentPage === page ? 'btn-primary' : 'btn-secondary'}`}
+                      style={{ 
+                        padding: '0.4rem 0.75rem', 
+                        minWidth: '32px',
+                        background: currentPage === page ? 'var(--accent-primary)' : 'transparent',
+                        border: currentPage === page ? 'none' : '1px solid var(--border-glass)',
+                        color: currentPage === page ? 'white' : 'var(--text-primary)'
+                      }}
+                    >
+                      {page}
+                    </button>
+                  ))}
+
+                  <button
+                    onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                    disabled={currentPage === totalPages}
+                    className="btn btn-secondary"
+                    style={{ padding: '0.4rem 0.6rem', border: '1px solid var(--border-glass)', opacity: currentPage === totalPages ? 0.5 : 1, cursor: currentPage === totalPages ? 'not-allowed' : 'pointer' }}
+                  >
+                    <ChevronRight size={16} />
+                  </button>
+                </div>
+              </div>
+            )}
+          </>
         )}
       </div>
     </div>

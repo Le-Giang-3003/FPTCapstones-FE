@@ -55,7 +55,7 @@ const Login = () => {
             <Shield size={44} color="var(--accent-primary)" />
           </div>
         </div>
-        <h1 style={{ marginBottom: '0.25rem', fontSize: '1.6rem' }}>FPT Capstones</h1>
+        <h1 className="text-gradient" style={{ marginBottom: '0.25rem', fontSize: '1.6rem' }}>FPT Capstones</h1>
         <p style={{ color: 'var(--text-secondary)', marginBottom: '2rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', fontSize: '0.85rem' }}>
           <Sparkles size={14} /> Hệ thống quản lý đồ án tốt nghiệp
         </p>

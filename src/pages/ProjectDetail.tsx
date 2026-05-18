@@ -284,12 +284,26 @@ const ProjectDetail = () => {
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                 {project.versions.map(v => (
-                  <div key={v.versionId} style={{
-                    background: 'rgba(15, 23, 42, 0.4)',
-                    borderRadius: 8,
-                    padding: '0.75rem',
-                    border: '1px solid var(--border-glass)',
-                  }}>
+                  <div 
+                    key={v.versionId} 
+                    style={{
+                      background: 'rgba(15, 23, 42, 0.4)',
+                      borderRadius: 8,
+                      padding: '0.75rem',
+                      border: '1px solid var(--border-glass)',
+                      transition: 'all 0.2s ease-in-out',
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.borderColor = 'var(--accent-primary)';
+                      e.currentTarget.style.boxShadow = 'var(--shadow-glow)';
+                      e.currentTarget.style.transform = 'translateY(-2px)';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.borderColor = 'var(--border-glass)';
+                      e.currentTarget.style.boxShadow = 'none';
+                      e.currentTarget.style.transform = 'translateY(0)';
+                    }}
+                  >
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>
                       <div>
                         <strong>Version {v.versionNumber}</strong>
