@@ -110,7 +110,7 @@ export interface LecturerListItemDto {
 
 export interface LecturerImportError {
   rowNumber: number;
-  message: string;
+  reason: string;
 }
 
 export interface ImportLecturersResultDto {

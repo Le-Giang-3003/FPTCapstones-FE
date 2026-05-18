@@ -139,7 +139,7 @@ const AdminLecturers = () => {
               <div style={{ maxHeight: '200px', overflowY: 'auto' }}>
                 <ul style={{ margin: 0, paddingLeft: '1.5rem', color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
                   {importResult.errors.map((err, idx) => (
-                    <li key={idx}>Dòng {err.rowNumber}: {err.message}</li>
+                    <li key={idx}>Dòng {err.rowNumber}: {err.reason}</li>
                   ))}
                 </ul>
               </div>
