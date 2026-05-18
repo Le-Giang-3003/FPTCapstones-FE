@@ -148,6 +148,8 @@ const Layout = () => {
                 display: 'flex',
                 flexDirection: 'column',
                 gap: '1rem',
+                // Override bg đục hơn để content phía sau không lộ qua khi prod browser không apply backdrop-blur hoặc trang có nhiều content
+                background: isDark ? 'rgba(21, 31, 50, 0.97)' : 'rgba(255, 255, 255, 0.98)',
               }}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', paddingBottom: '0.75rem', borderBottom: '1px solid var(--border-glass)' }}>
