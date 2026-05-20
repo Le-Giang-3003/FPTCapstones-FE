@@ -120,3 +120,56 @@ export interface ImportLecturersResultDto {
   skipped: number;
   errors: LecturerImportError[];
 }
+
+// BE serialize enum thành string nhờ JsonStringEnumConverter
+export type SemesterSeason = 'Spring' | 'Summer' | 'Fall';
+export type SemesterStatus = 'Ongoing' | 'Completed' | 'Cancelled' | 'Pending';
+
+export interface SemesterListItemDto {
+  id: number;
+  code: string;            // SP26, SU26, FA26...
+  season: SemesterSeason;
+  year: number;
+  startDate: string;
+  endDate: string;
+  status: SemesterStatus;
+  groupCount: number;
+}
+
+// Detail trả thêm timestamps (BE: SemesterDetailDto)
+export interface SemesterDetailDto extends SemesterListItemDto {
+  createdAt: string;
+  updatedAt: string | null;
+}
+
+// Holiday gắn vào 1 semester (BE: SemesterHolidayDto)
+export interface SemesterHolidayDto {
+  id: number;
+  semesterId: number;
+  templateId: number | null;
+  label: string;
+  startDate: string;
+  durationDays: number;
+  isCompensated: boolean;
+}
+
+// Kết quả nối nhóm với học kỳ qua GroupCode (vd GSU26SE02 → SU26)
+export interface LinkGroupsResultDto {
+  totalUnlinked: number;
+  linked: number;
+  skipped: number;
+  skippedGroups: string[];
+}
+
+// Template lễ độc lập — admin sửa template chỉ ảnh hưởng năm sinh sau.
+// VD: Tết Nguyên Đán dùng ngày tượng trưng 10/2 — khi gán vào kỳ cụ thể, admin chỉnh lại cho đúng năm.
+export interface HolidayTemplateDto {
+  id: number;
+  label: string;
+  isAnnual: boolean;
+  isActive: boolean;
+  isCompensated: boolean;
+  defaultStartMonth: number;     // 1-12
+  defaultStartDay: number;       // 1-31
+  defaultDurationDays: number;
+}

@@ -6,6 +6,8 @@ import Dashboard from './pages/Dashboard';
 import AdminUsers from './pages/AdminUsers';
 import AdminLecturers from './pages/AdminLecturers';
 import AdminImport from './pages/AdminImport';
+import AdminSemesters from './pages/AdminSemesters';
+import AdminHolidayTemplates from './pages/AdminHolidayTemplates';
 import AuditLogs from './pages/AuditLogs';
 import ProjectDetail from './pages/ProjectDetail';
 import Layout from './components/Layout';
@@ -57,6 +59,14 @@ const App = () => {
           <Route
             path="/admin/import"
             element={<PrivateRoute roles={['Admin']}><AdminImport /></PrivateRoute>}
+          />
+          <Route
+            path="/admin/semesters"
+            element={<PrivateRoute roles={['Admin']}><AdminSemesters /></PrivateRoute>}
+          />
+          <Route
+            path="/admin/holiday-templates"
+            element={<PrivateRoute roles={['Admin']}><AdminHolidayTemplates /></PrivateRoute>}
           />
           <Route
             path="/audit-logs"
