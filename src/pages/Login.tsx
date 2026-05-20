@@ -68,7 +68,7 @@ const Login = () => {
           <input
             type="email"
             className="input-field"
-            placeholder="vd: gianglse184279@fpt.edu.vn"
+            placeholder=""
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             disabled={submitting}
@@ -82,9 +82,6 @@ const Login = () => {
           >
             <LogIn size={16} /> {submitting ? 'Đang đăng nhập...' : 'Đăng nhập bằng email'}
           </button>
-          <p style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', marginTop: '0.5rem' }}>
-            Email phải đã được seed/import trong DB. Không yêu cầu mật khẩu.
-          </p>
         </form>
 
         {/* Divider */}
