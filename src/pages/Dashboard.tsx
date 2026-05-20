@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import api from '../services/api';
-import type { DashboardItem } from '../types';
-import { Search, Eye, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from 'lucide-react';
+import type { DashboardItem, SemesterListItemDto, LinkGroupsResultDto } from '../types';
+import { useAuth } from '../contexts/AuthContext';
+import { Search, Eye, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Link2, AlertCircle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 const Dashboard = () => {
@@ -10,11 +11,50 @@ const Dashboard = () => {
   const [search, setSearch] = useState('');
   const [finalized, setFinalized] = useState<string>('');
   const [sortBy, setSortBy] = useState('newest');
+  // Semester filter — '' = tất cả, hoặc semesterId (string vì select value là string)
+  const [semesters, setSemesters] = useState<SemesterListItemDto[]>([]);
+  const [semesterId, setSemesterId] = useState<string>('');
+  const [semestersLoaded, setSemestersLoaded] = useState(false);
   const navigate = useNavigate();
 
   // Pagination State
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
+
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'Admin';
+
+  // Load semesters 1 lần. Default = '' (Tất cả) để không miss nhóm chưa link với semester.
+  // (Trước default Ongoing -> nhóm import nhưng chưa link semester sẽ không hiện -> dashboard trống bí ẩn)
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await api.get<SemesterListItemDto[]>('/api/admin/semesters');
+        setSemesters(res.data);
+      } catch (err) {
+        console.error('Failed to fetch semesters', err);
+      } finally {
+        setSemestersLoaded(true);
+      }
+    })();
+  }, []);
+
+  // Quick-action: gọi backfill link-groups (chỉ Admin) — dùng khi dashboard trống vì group thiếu SemesterId
+  const [linking, setLinking] = useState(false);
+  const handleLinkGroups = async () => {
+    if (linking) return;
+    try {
+      setLinking(true);
+      const res = await api.post<LinkGroupsResultDto>('/api/admin/semesters/link-groups', {});
+      const r = res.data;
+      alert(`Đã nối ${r.linked}/${r.totalUnlinked} nhóm với học kỳ tương ứng.${r.skipped > 0 ? `\n${r.skipped} nhóm chưa nối được (chưa có học kỳ tương ứng).` : ''}`);
+      await fetchDashboard();
+    } catch (err: any) {
+      alert(err?.response?.data?.message || 'Đồng bộ nhóm thất bại');
+    } finally {
+      setLinking(false);
+    }
+  };
 
   const fetchDashboard = async () => {
     try {
@@ -22,6 +62,7 @@ const Dashboard = () => {
       const params: Record<string, string> = { sortBy };
       if (search) params.search = search;
       if (finalized !== '') params.finalized = finalized;
+      if (semesterId !== '') params.semesterId = semesterId;
       const res = await api.get<DashboardItem[]>('/api/dashboard', { params });
       setData(res.data);
     } catch (err) {
@@ -32,15 +73,17 @@ const Dashboard = () => {
   };
 
   useEffect(() => {
+    // Đợi semesters load xong rồi mới fetch — tránh fetch 2 lần (1 lần default, 1 lần sau khi default semester được set).
+    if (!semestersLoaded) return;
     const t = setTimeout(fetchDashboard, search ? 250 : 0);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [search, finalized, sortBy]);
+  }, [search, finalized, sortBy, semesterId, semestersLoaded]);
 
   // Reset pagination when search or filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [search, finalized, sortBy]);
+  }, [search, finalized, sortBy, semesterId]);
 
   // Pagination Calculations
   const totalPages = Math.ceil(data.length / itemsPerPage);
@@ -78,7 +121,22 @@ const Dashboard = () => {
           </div>
         </div>
 
-        <div style={{ display: 'flex', gap: '1rem' }}>
+        <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+          <select
+            className="input-field"
+            value={semesterId}
+            onChange={(e) => setSemesterId(e.target.value)}
+            style={{ width: 'auto' }}
+            title="Lọc theo học kỳ"
+          >
+            <option value="">Tất cả học kỳ</option>
+            {semesters.map(s => (
+              <option key={s.id} value={s.id}>
+                {s.code} ({s.status})
+              </option>
+            ))}
+          </select>
+
           <select className="input-field" value={finalized} onChange={(e) => setFinalized(e.target.value)} style={{ width: 'auto' }}>
             <option value="">Tất cả trạng thái</option>
             <option value="true">Đã finalize</option>
@@ -96,7 +154,39 @@ const Dashboard = () => {
         {loading ? (
           <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-secondary)' }}>Đang tải...</div>
         ) : data.length === 0 ? (
-          <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-secondary)' }}>Không có nhóm nào.</div>
+          <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-secondary)' }}>
+            <p style={{ marginBottom: isAdmin && semesterId !== '' ? '1rem' : 0 }}>
+              {semesterId === ''
+                ? (isAdmin ? 'Chưa có nhóm nào trong hệ thống. Hãy import file Excel ở mục "Import Excel".' : 'Bạn chưa có nhóm nào được phân công.')
+                : `Không có nhóm nào trong học kỳ này${isAdmin ? ' (có thể nhóm đã import nhưng chưa được nối với học kỳ).' : '.'}`}
+            </p>
+            {isAdmin && semesterId !== '' && (
+              <div style={{
+                display: 'inline-flex', flexDirection: 'column', alignItems: 'center', gap: '0.75rem',
+                padding: '1rem 1.5rem', marginTop: '0.5rem',
+                background: 'rgba(251, 146, 60, 0.08)',
+                border: '1px solid rgba(251, 146, 60, 0.2)',
+                borderRadius: '10px',
+                maxWidth: 480,
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--text-primary)' }}>
+                  <AlertCircle size={18} color="var(--accent-primary)" />
+                  <strong style={{ fontSize: '0.9rem' }}>Tip cho Admin</strong>
+                </div>
+                <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.5 }}>
+                  Nhóm vừa import có thể chưa được nối với học kỳ. Bấm nút bên dưới để tự động nối theo mã nhóm (vd <code style={{ background: 'var(--surface-glass)', padding: '0.05rem 0.3rem', borderRadius: 3 }}>GSU26SE01</code> → kỳ <code style={{ background: 'var(--surface-glass)', padding: '0.05rem 0.3rem', borderRadius: 3 }}>SU26</code>).
+                </p>
+                <button
+                  className="btn btn-primary"
+                  onClick={handleLinkGroups}
+                  disabled={linking}
+                  style={{ padding: '0.5rem 1rem', fontSize: '0.85rem' }}
+                >
+                  <Link2 size={14} /> {linking ? 'Đang đồng bộ...' : 'Đồng bộ nhóm theo mã'}
+                </button>
+              </div>
+            )}
+          </div>
         ) : (
           <>
             <div style={{ overflowX: 'auto' }}>
