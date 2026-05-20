@@ -74,7 +74,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setUser(null);
     localStorage.removeItem(TOKEN_KEY);
     localStorage.removeItem(USER_KEY);
-    window.location.href = '/login';
+    // Không dùng window.location.href để tránh full page reload gây nháy theme
+    // PrivateRoute sẽ tự redirect về /login khi user === null
   };
 
   return (

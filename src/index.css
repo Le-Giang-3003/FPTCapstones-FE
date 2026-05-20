@@ -98,15 +98,13 @@ body {
   -webkit-font-smoothing: antialiased;
   min-height: 100vh;
   overflow-x: hidden;
-  /* body cũng transition để nền page chuyển mượt */
-  transition: background-color 1s ease-in-out, color 1s ease-in-out;
+  /* Bỏ transition 1s ở đây vì :root biến custom property đã có transition 0.2s */
 }
 
 h1, h2, h3, h4, h5, h6 {
   font-family: 'Outfit', sans-serif;
   font-weight: 600;
   color: var(--text-primary);
-  transition: color 1s ease-in-out;
 }
 
 a {
@@ -127,9 +125,6 @@ a:hover {
   border: 1px solid var(--border-glass);
   border-radius: 16px;
   box-shadow: var(--shadow-lg);
-  transition:
-    background 1s ease-in-out,
-    border-color 1s ease-in-out;
 }
 
 .glass-card {
@@ -140,8 +135,6 @@ a:hover {
   border-radius: 12px;
   padding: 1.5rem;
   transition:
-    background 1s ease-in-out,
-    border-color var(--transition-normal),
     transform var(--transition-normal),
     box-shadow var(--transition-normal);
 }
@@ -185,7 +178,6 @@ a:hover {
   border: 1px solid var(--border-glass);
   transition:
     background var(--transition-fast),
-    color 1s ease-in-out,
     border-color var(--transition-fast);
 }
 
@@ -218,7 +210,6 @@ a:hover {
   font-size: 0.875rem;
   font-weight: 500;
   color: var(--text-secondary);
-  transition: color 1s ease-in-out;
 }
 
 .input-field {
@@ -230,9 +221,7 @@ a:hover {
   color: var(--text-primary);
   font-family: 'Inter', sans-serif;
   transition:
-    background 1s ease-in-out,
     border-color var(--transition-fast),
-    color 1s ease-in-out,
     box-shadow var(--transition-fast);
 }
 
@@ -314,7 +303,6 @@ a:hover {
   font-size: 0.875rem;
   font-weight: 500;
   border-bottom: 1px solid var(--border-glass);
-  transition: color 1s ease-in-out, border-color 1s ease-in-out;
 }
 
 .data-table td {
@@ -368,7 +356,6 @@ a:hover {
   align-items: center;
   justify-content: center;
   z-index: 50;
-  transition: background 1s ease-in-out;
 }
 
 .modal-content {
@@ -396,7 +383,6 @@ a:hover {
   margin-bottom: 0.5rem;
   transition:
     background var(--transition-fast),
-    color 1s ease-in-out,
     border-color var(--transition-fast);
 }
 
