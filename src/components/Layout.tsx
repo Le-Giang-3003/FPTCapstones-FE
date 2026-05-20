@@ -179,6 +179,8 @@ const Layout = () => {
                 display: 'flex',
                 flexDirection: 'column',
                 gap: '1rem',
+                // Override bg đục 100% — không cho content phía sau lộ qua dropdown
+                background: isDark ? 'rgb(21, 31, 50)' : 'rgb(255, 255, 255)',
               }}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', paddingBottom: '0.75rem', borderBottom: '1px solid var(--border-glass)' }}>
