@@ -68,7 +68,7 @@ const Login = () => {
           <input
             type="email"
             className="input-field"
-            placeholder="gianglse184279@fpt.edu.vn"
+            placeholder=""
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             disabled={submitting}
