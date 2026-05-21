@@ -28,6 +28,7 @@ const Layout = () => {
 
   const navItems = [
     { path: '/dashboard', label: 'Dashboard', icon: <LayoutDashboard size={20} />, roles: ['Admin', 'Lecturer'] },
+    { path: '/topics', label: 'Quản lý đề tài', icon: <FolderKanban size={20} />, roles: ['Admin', 'Lecturer'] },
     { path: '/admin/users', label: 'Quản lý user', icon: <Users size={20} />, roles: ['Admin'] },
     { path: '/admin/lecturers', label: 'Giảng viên', icon: <GraduationCap size={20} />, roles: ['Admin'] },
     { path: '/admin/semesters', label: 'Lịch trình kỳ', icon: <CalendarRange size={20} />, roles: ['Admin'] },

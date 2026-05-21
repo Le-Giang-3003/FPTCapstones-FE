@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import { useAuth } from './contexts/AuthContext';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
+import TopicManagement from './pages/TopicManagement';
 import AdminUsers from './pages/AdminUsers';
 import AdminLecturers from './pages/AdminLecturers';
 import AdminImport from './pages/AdminImport';
@@ -47,6 +48,10 @@ const App = () => {
           <Route
             path="/dashboard"
             element={<PrivateRoute roles={['Admin', 'Lecturer']}><Dashboard /></PrivateRoute>}
+          />
+          <Route
+            path="/topics"
+            element={<PrivateRoute roles={['Admin', 'Lecturer']}><TopicManagement /></PrivateRoute>}
           />
           <Route
             path="/admin/users"
