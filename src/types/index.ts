@@ -6,6 +6,8 @@ export interface User {
   fullName: string;
   role: Role;
   groupId?: number | null;
+  lecturerId?: number | null;     // chỉ Lecturer mới có — dùng khi đăng ký slot
+  isLeader?: boolean;             // true nếu là leader của group hiện tại
 }
 
 export interface AuthResponse {
@@ -21,6 +23,8 @@ export interface CurrentUserDto {
   fullName: string;
   role: string;   // [Flags] enum.ToString() — single role "Admin" hoặc multi "Admin, Lecturer"
   groupId: number | null;
+  lecturerId: number | null;
+  isLeader: boolean;
 }
 
 // Matches BE DashboardGroupDto
@@ -186,6 +190,111 @@ export interface LinkGroupsResultDto {
   linked: number;
   skipped: number;
   skippedGroups: string[];
+}
+
+// Review window / Defence window — 1 review = 1 cửa sổ thời gian (vd 2 tuần) để book slot.
+// BE đã rename SemesterMilestone -> Review. Endpoint /api/admin/reviews.
+export type ReviewType = 'Review' | 'Defence';
+export type ReviewStatus = 'Draft' | 'Registering' | 'Registered' | 'Ongoing' | 'Finished' | 'Cancelled';
+
+export interface ReviewDto {
+  id: number;
+  semesterId: number;
+  type: ReviewType;
+  orderIndex: number;
+  label: string;
+  windowStart: string;
+  windowEnd: string;
+  status: ReviewStatus;
+  note: string | null;
+}
+
+// Aliases để giữ compat tạm thời (giảm rủi ro rename ở component)
+export type MilestoneType = ReviewType;
+export type SemesterMilestoneDto = ReviewDto;
+
+// ---- Slot review (BE: /api/admin/reviews/{id}/slots) ----
+// Đăng ký giờ là NGUYỆN VỌNG: nhóm tối đa 5 slot/đợt, GV không giới hạn.
+// Slot thực tế của 1 lần review = ReviewAssignment (sinh sau thuật toán xếp lịch).
+export interface ReviewSlotGroupPreferenceDto {
+  groupId: number;
+  groupCode: string;
+}
+
+export interface ReviewSlotLecturerPreferenceDto {
+  lecturerId: number;
+  lecturerName: string;
+}
+
+export interface ReviewAssignmentDto {
+  id: number;
+  sessionIndex: number;
+  groupId: number;
+  groupCode: string;
+  lecturer1Id: number;
+  lecturer1Name: string;
+  lecturer2Id: number | null;
+  lecturer2Name: string | null;
+  isActive: boolean;
+}
+
+export interface ReviewSlotDto {
+  id: number;
+  reviewId: number;
+  slotDate: string;
+  slotIndex: number;
+  roomCount: number;
+  plannedCapacity: number;
+  groupPreferenceCount: number;
+  lecturerPreferenceCount: number;
+  assignmentCount: number;
+  isCurrentUserRegistered: boolean;   // BE compute từ JWT — slot có chứa group/lecturer của user hiện tại
+  groupPreferences: ReviewSlotGroupPreferenceDto[];
+  lecturerPreferences: ReviewSlotLecturerPreferenceDto[];
+  assignments: ReviewAssignmentDto[];
+  note: string | null;
+}
+
+// Số nguyện vọng tối đa cho nhóm (đồng bộ với BE ReviewSlotGroup.MaxPreferences)
+export const MAX_GROUP_PREFERENCES = 5;
+
+// Kết quả cascade khi thêm/sửa/xóa lễ có bù — FE dùng để show feedback các kỳ/milestone đã shift
+export interface ShiftedSemesterDto {
+  id: number;
+  code: string;
+  oldStart: string;
+  newStart: string;
+  oldEnd: string;
+  newEnd: string;
+  deltaDays: number;
+}
+
+export interface ShiftedMilestoneDto {
+  id: number;
+  label: string;
+  oldWindowStart: string;
+  newWindowStart: string;
+  oldWindowEnd: string;
+  newWindowEnd: string;
+  reason: string;
+}
+
+export interface OverflowItemDto {
+  id: number;
+  kind: 'Holiday' | 'Milestone';
+  label: string;
+  semesterId: number;
+  semesterCode: string;
+  overflowDays: number;
+}
+
+export interface HolidayCascadeResultDto {
+  id?: number;                 // có khi Create, vắng khi Update/Delete
+  semesterId: number;
+  shiftedSemesters: ShiftedSemesterDto[];
+  shiftedMilestones: ShiftedMilestoneDto[];
+  overflows: OverflowItemDto[];
+  skippedCompletedCodes: string[];
 }
 
 // Template lễ độc lập — admin sửa template chỉ ảnh hưởng năm sinh sau.

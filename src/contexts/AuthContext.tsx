@@ -1,6 +1,6 @@
 import { createContext, useState, useEffect, useContext } from 'react';
 import type { ReactNode } from 'react';
-import type { User, AuthResponse, CurrentUserDto } from '../types';
+import type { User, AuthResponse, CurrentUserDto, Role } from '../types';
 import api from '../services/api';
 import type { CredentialResponse } from '@react-oauth/google';
 
@@ -28,8 +28,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       userId: res.data.userId,
       email: res.data.email,
       fullName: res.data.fullName,
-      role: res.data.role,
+      role: res.data.role as Role,
       groupId: res.data.groupId,
+      lecturerId: res.data.lecturerId,
+      isLeader: res.data.isLeader,
     };
     setUser(u);
     localStorage.setItem(USER_KEY, JSON.stringify(u));

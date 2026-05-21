@@ -12,6 +12,7 @@ import AdminSemesters from './pages/AdminSemesters';
 import AdminHolidayTemplates from './pages/AdminHolidayTemplates';
 import AuditLogs from './pages/AuditLogs';
 import ProjectDetail from './pages/ProjectDetail';
+import ReviewSlots from './pages/ReviewSlots';
 import Layout from './components/Layout';
 
 const PrivateRoute = ({ children, roles }: { children: React.ReactNode; roles?: string[] }) => {
@@ -83,6 +84,14 @@ const App = () => {
             element={<PrivateRoute><AuditLogs /></PrivateRoute>}
           />
           <Route path="/projects/:id" element={<ProjectDetail />} />
+          <Route
+            path="/reviews/slots"
+            element={
+              <PrivateRoute roles={['Admin', 'Lecturer', 'StudentLeader', 'GroupMember']}>
+                <ReviewSlots />
+              </PrivateRoute>
+            }
+          />
         </Route>
 
         <Route path="*" element={<Navigate to="/" replace />} />

@@ -2,8 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { Outlet, Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
-import { LayoutDashboard, Users, FolderKanban, LogOut, Upload, ClipboardList, Sun, Moon, ChevronDown, GraduationCap, CalendarRange, BookmarkPlus, ChevronLeft, ChevronRight, BookOpen } from 'lucide-react';
-
+import { LayoutDashboard, Users, FolderKanban, LogOut, Upload, ClipboardList, Sun, Moon, ChevronDown, GraduationCap, CalendarRange, BookmarkPlus, ChevronLeft, ChevronRight, BookOpen, CalendarCheck } from 'lucide-react';
 const Layout = () => {
   const { user, logout } = useAuth();
   const { isDark, toggleTheme } = useTheme();
@@ -36,6 +35,7 @@ const Layout = () => {
     { path: '/admin/holiday-templates', label: 'Kho ngày lễ', icon: <BookmarkPlus size={20} />, roles: ['Admin'] },
     { path: '/admin/import', label: 'Import Excel', icon: <Upload size={20} />, roles: ['Admin'] },
     { path: '/audit-logs', label: 'Audit Logs', icon: <ClipboardList size={20} />, roles: ['Admin'] },
+    { path: '/reviews/slots', label: 'Đăng ký slot review', icon: <CalendarCheck size={20} />, roles: ['Lecturer', 'StudentLeader', 'GroupMember'] },
     { path: myProjectPath, label: 'Nhóm của tôi', icon: <FolderKanban size={20} />, roles: ['StudentLeader', 'GroupMember', 'Student'] },
   ];
 
