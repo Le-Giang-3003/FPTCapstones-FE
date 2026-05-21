@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import api from '../services/api';
 import type { LecturerListItemDto, ImportLecturersResultDto } from '../types';
 import { Search, Upload, Edit, ChevronLeft, ChevronRight, Loader2, CheckCircle, AlertTriangle } from 'lucide-react';
@@ -96,6 +97,7 @@ const AdminLecturers = () => {
   const displayedLecturers = lecturers.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
   return (
+    <>
     <div className="animate-fade-in">
       <div className="topbar">
         <div>
@@ -242,42 +244,43 @@ const AdminLecturers = () => {
         )}
       </div>
 
-      {editingLecturer && (
-        <div style={{
-          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-          background: 'rgba(15, 23, 42, 0.7)', backdropFilter: 'blur(4px)', zIndex: 1000,
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          padding: '1rem'
-        }}>
-          <div className="glass-panel animate-fade-in" style={{ width: '100%', maxWidth: 500, padding: '2rem' }}>
-            <h2 style={{ marginBottom: '1.5rem', color: 'var(--text-primary)' }}>Sửa thông tin GVHD</h2>
-            <form onSubmit={handleSaveEdit}>
-              <div className="input-group">
-                <label className="input-label">Họ tên</label>
-                <input required type="text" className="input-field" value={editForm.fullName} onChange={e => setEditForm({...editForm, fullName: e.target.value})} />
-              </div>
-              <div className="input-group">
-                <label className="input-label">Email</label>
-                <input required type="email" className="input-field" value={editForm.email} onChange={e => setEditForm({...editForm, email: e.target.value})} />
-              </div>
-              <div className="input-group">
-                <label className="input-label">Mã tên</label>
-                <input type="text" className="input-field" value={editForm.code} onChange={e => setEditForm({...editForm, code: e.target.value})} placeholder="VD: HungNN" />
-              </div>
-              
-              <div style={{ display: 'flex', gap: '1rem', marginTop: '2rem', justifyContent: 'flex-end' }}>
-                <button type="button" className="btn btn-secondary" onClick={() => setEditingLecturer(null)} disabled={saving}>Hủy</button>
-                <button type="submit" className="btn btn-primary" disabled={saving}>
-                  {saving ? <><Loader2 size={16} className="spin" /> Đang lưu...</> : 'Lưu thay đổi'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
       <style>{`.spin { animation: spin 1s linear infinite; } @keyframes spin { from{transform:rotate(0)} to{transform:rotate(360deg)} }`}</style>
     </div>
+    {editingLecturer && createPortal(
+      <div style={{
+        position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+        background: 'rgba(15, 23, 42, 0.85)', zIndex: 9999,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        padding: '1rem'
+      }}>
+        <div className="glass-panel animate-fade-in" style={{ width: '100%', maxWidth: 500, padding: '2rem' }}>
+          <h2 style={{ marginBottom: '1.5rem', color: 'var(--text-primary)' }}>Sửa thông tin GVHD</h2>
+          <form onSubmit={handleSaveEdit}>
+            <div className="input-group">
+              <label className="input-label">Họ tên</label>
+              <input required type="text" className="input-field" value={editForm.fullName} onChange={e => setEditForm({...editForm, fullName: e.target.value})} />
+            </div>
+            <div className="input-group">
+              <label className="input-label">Email</label>
+              <input required type="email" className="input-field" value={editForm.email} onChange={e => setEditForm({...editForm, email: e.target.value})} />
+            </div>
+            <div className="input-group">
+              <label className="input-label">Mã tên</label>
+              <input type="text" className="input-field" value={editForm.code} onChange={e => setEditForm({...editForm, code: e.target.value})} placeholder="VD: HungNN" />
+            </div>
+            
+            <div style={{ display: 'flex', gap: '1rem', marginTop: '2rem', justifyContent: 'flex-end' }}>
+              <button type="button" className="btn btn-secondary" onClick={() => setEditingLecturer(null)} disabled={saving}>Hủy</button>
+              <button type="submit" className="btn btn-primary" disabled={saving}>
+                {saving ? <><Loader2 size={16} className="spin" /> Đang lưu...</> : 'Lưu thay đổi'}
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>,
+      document.body
+    )}
+    </>
   );
 };
 
