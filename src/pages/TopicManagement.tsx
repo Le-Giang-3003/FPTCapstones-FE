@@ -101,7 +101,7 @@ const TopicManagement = () => {
     <div className="animate-fade-in">
       <div className="topbar">
         <div>
-          <h1>Quản lý đề tài</h1>
+          <h1>Quản lý đồ án</h1>
           <p style={{ color: 'var(--text-secondary)' }}>Danh sách nhóm đang hướng dẫn</p>
         </div>
       </div>
@@ -196,6 +196,8 @@ const TopicManagement = () => {
                     <th>Mã nhóm</th>
                     <th>Tên đề tài</th>
                     <th>Trưởng nhóm</th>
+                    <th>Giảng viên hướng dẫn 1</th>
+                    <th>Giảng viên hướng dẫn 2</th>
                     <th>Số version</th>
                     <th>Trạng thái</th>
                     <th>Cập nhật</th>
@@ -210,6 +212,12 @@ const TopicManagement = () => {
                       <td>
                         <div>{item.leaderFullName || '—'}</div>
                         <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>{item.leaderEmail}</div>
+                      </td>
+                      <td>
+                        <strong>{item.lecturer1Name}</strong>
+                      </td>
+                      <td>
+                        {item.lecturer2Name ? <span>{item.lecturer2Name}</span> : <span style={{ color: 'var(--text-secondary)' }}>—</span>}
                       </td>
                       <td>{item.submittedVersionCount}</td>
                       <td>

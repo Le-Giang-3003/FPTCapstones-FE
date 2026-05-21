@@ -4,6 +4,7 @@ import { useAuth } from './contexts/AuthContext';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import TopicManagement from './pages/TopicManagement';
+import TopicIdeas from './pages/TopicIdeas';
 import AdminUsers from './pages/AdminUsers';
 import AdminLecturers from './pages/AdminLecturers';
 import AdminImport from './pages/AdminImport';
@@ -52,6 +53,10 @@ const App = () => {
           <Route
             path="/topics"
             element={<PrivateRoute roles={['Admin', 'Lecturer']}><TopicManagement /></PrivateRoute>}
+          />
+          <Route
+            path="/topic-ideas"
+            element={<PrivateRoute roles={['Lecturer']}><TopicIdeas /></PrivateRoute>}
           />
           <Route
             path="/admin/users"
