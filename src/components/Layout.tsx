@@ -39,8 +39,8 @@ const Layout = () => {
   ];
 
   return (
-    <div className="app-container" style={{ position: 'relative' }}>
-      <aside className={`sidebar glass-panel ${isSidebarCollapsed ? 'collapsed' : ''}`} style={{ margin: '1rem 0 1rem 1rem', height: 'calc(100vh - 2rem)', position: 'relative' }}>
+    <div className="app-container" style={{ height: '100vh', overflow: 'hidden' }}>
+      <aside className={`sidebar glass-panel ${isSidebarCollapsed ? 'collapsed' : ''}`} style={{ margin: '1rem 0 1rem 1rem', height: 'calc(100vh - 2rem)', position: 'relative', flexShrink: 0 }}>
         <button
           onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
           style={{
