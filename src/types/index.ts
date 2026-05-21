@@ -81,6 +81,19 @@ export interface UserListItem {
   createdAt: string;
 }
 
+export interface UserDetailDto {
+  id: number;
+  email: string;
+  fullName: string;
+  role: string;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string | null;
+  googleSubject: string | null;
+  lecturerProfile: { id: number; code: string | null } | null;
+  studentProfile: { id: number } | null;
+}
+
 export type ImportJobStatus = 'Pending' | 'Processing' | 'Success' | 'Failed';
 
 export interface ImportStatusDto {
