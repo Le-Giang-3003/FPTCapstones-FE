@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import api from '../services/api';
 import type { DashboardItem, SemesterListItemDto, LinkGroupsResultDto } from '../types';
 import { useAuth } from '../contexts/AuthContext';
-import { Search, Eye, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Link2, AlertCircle } from 'lucide-react';
+import { Search, Eye, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Link2, AlertCircle, Download } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 const TopicManagement = () => {
@@ -53,6 +53,47 @@ const TopicManagement = () => {
       alert(err?.response?.data?.message || 'Đồng bộ nhóm thất bại');
     } finally {
       setLinking(false);
+    }
+  };
+
+  // Export đề tài ra file ZIP
+  const [exporting, setExporting] = useState(false);
+  const handleExport = async () => {
+    if (exporting) return;
+    try {
+      setExporting(true);
+      const params: Record<string, string> = {};
+      if (semesterId) params.semesterId = semesterId;
+
+      const res = await api.get('/api/export/projects', {
+        params,
+        responseType: 'blob',
+      });
+
+      // Lấy tên file từ Content-Disposition header, fallback tên mặc định
+      const contentDisposition = res.headers['content-disposition'];
+      let fileName = `Export_DeTai_${new Date().toISOString().slice(0, 10).replace(/-/g, '')}.zip`;
+      if (contentDisposition) {
+        const match = contentDisposition.match(/filename\*?=['"]?(?:UTF-8'')?([^;'"\n]+)/i);
+        if (match) fileName = decodeURIComponent(match[1]);
+      }
+
+      // Trigger download
+      const url = window.URL.createObjectURL(new Blob([res.data]));
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = fileName;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err: any) {
+      const message = err?.response?.status === 404
+        ? 'Không có nhóm nào để export'
+        : (err?.response?.data?.message || 'Export thất bại');
+      alert(message);
+    } finally {
+      setExporting(false);
     }
   };
 
@@ -147,6 +188,19 @@ const TopicManagement = () => {
             <option value="newest">Mới nhất</option>
             <option value="oldest">Cũ nhất</option>
           </select>
+
+          {(isAdmin || user?.role === 'Lecturer' || user?.role === 'StudentLeader') && (
+            <button
+              className="btn btn-primary"
+              onClick={handleExport}
+              disabled={exporting || loading}
+              style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.6rem 1.2rem' }}
+              title="Export danh sách đề tài ra file ZIP"
+            >
+              <Download size={16} />
+              {exporting ? 'Đang export...' : 'Export'}
+            </button>
+          )}
         </div>
       </div>
 
