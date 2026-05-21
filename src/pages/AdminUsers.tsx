@@ -1,21 +1,32 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import api from '../services/api';
-import type { UserListItem, UserDetailDto } from '../types';
+import type { UserListItem, UserDetailDto, ImportUsersResultDto } from '../types';
 import {
   Search, UserCheck, UserX, ChevronLeft, ChevronRight,
   ChevronsLeft, ChevronsRight, Plus, Eye, Mail, X,
-  Loader2, CheckCircle, AlertTriangle, Users,
+  Loader2, CheckCircle, AlertTriangle, Users, Upload,
 } from 'lucide-react';
 
 type Toast = { type: 'success' | 'error'; message: string } | null;
 
-// Badge class theo role để phân biệt màu sắc
+// Badge class theo từng role flag
 const roleBadge: Record<string, string> = {
   Admin:         'badge-danger',
   Lecturer:      'badge-info',
   StudentLeader: 'badge-success',
   GroupMember:   '',
 };
+
+// Hiển thị một hoặc nhiều badge cho user có multi-role ("Admin, Lecturer")
+const RoleBadges = ({ role }: { role: string }) => (
+  <>
+    {role.split(', ').map(r => (
+      <span key={r} className={`badge ${roleBadge[r.trim()] ?? ''}`} style={{ marginRight: '0.25rem' }}>
+        {r.trim()}
+      </span>
+    ))}
+  </>
+);
 
 // ─── Component phụ ──────────────────────────────────────────────────────────
 
@@ -69,6 +80,11 @@ const AdminUsers = () => {
     setToast({ type, message });
     setTimeout(() => setToast(null), 3500);
   };
+
+  // Import Excel
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [importing, setImporting]         = useState(false);
+  const [importResult, setImportResult]   = useState<ImportUsersResultDto | null>(null);
 
   // Modal tạo user
   const [showCreate, setShowCreate]   = useState(false);
@@ -149,6 +165,27 @@ const AdminUsers = () => {
     setShowEditEmail(false);
   };
 
+  const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      setImporting(true);
+      setImportResult(null);
+      const formData = new FormData();
+      formData.append('file', file);
+      const res = await api.post<ImportUsersResultDto>('/api/admin/users/import', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      setImportResult(res.data);
+      await load();
+    } catch (err: any) {
+      showToast('error', err?.response?.data?.message || 'Import thất bại');
+    } finally {
+      setImporting(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
   const handleCreateUser = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
@@ -210,10 +247,65 @@ const AdminUsers = () => {
             Tạo, kích hoạt và quản lý tài khoản trong hệ thống
           </p>
         </div>
-        <button className="btn btn-primary" onClick={() => setShowCreate(true)}>
-          <Plus size={16} /> Thêm User
-        </button>
+        <div style={{ display: 'flex', gap: '0.75rem' }}>
+          <button
+            className="btn btn-secondary"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={importing}
+          >
+            {importing ? <Loader2 size={16} className="spin" /> : <Upload size={16} />}
+            {importing ? 'Đang Import...' : 'Import Excel'}
+          </button>
+          <input
+            type="file" accept=".xlsx,.xls" ref={fileInputRef}
+            style={{ display: 'none' }} onChange={handleImport}
+          />
+          <button className="btn btn-primary" onClick={() => setShowCreate(true)}>
+            <Plus size={16} /> Thêm User
+          </button>
+        </div>
       </div>
+
+      {/* Kết quả import */}
+      {importResult && (
+        <div className="glass-card animate-fade-in" style={{ marginBottom: '1.5rem', borderLeft: '4px solid var(--success)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem' }}>
+            <CheckCircle size={20} color="var(--success)" />
+            <h3 style={{ margin: 0 }}>Kết quả Import Users</h3>
+          </div>
+          <div style={{ display: 'flex', gap: '2rem', marginBottom: '0.75rem', flexWrap: 'wrap' }}>
+            <span style={{ color: 'var(--text-secondary)' }}>
+              Tạo mới: <strong style={{ color: 'var(--success)' }}>{importResult.created}</strong>
+            </span>
+            <span style={{ color: 'var(--text-secondary)' }}>
+              Cập nhật: <strong style={{ color: 'var(--accent-primary)' }}>{importResult.updated}</strong>
+            </span>
+            <span style={{ color: 'var(--text-secondary)' }}>
+              Bỏ qua: <strong>{importResult.skipped}</strong>
+            </span>
+          </div>
+          {importResult.errors.length > 0 && (
+            <div style={{ background: 'rgba(239,68,68,0.08)', padding: '0.75rem 1rem', borderRadius: '8px', marginBottom: '0.75rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--danger)', marginBottom: '0.5rem' }}>
+                <AlertTriangle size={15} />
+                <strong>Cảnh báo / Lỗi ({importResult.errors.length})</strong>
+              </div>
+              <div style={{ maxHeight: '180px', overflowY: 'auto' }}>
+                <ul style={{ margin: 0, paddingLeft: '1.5rem', color: 'var(--text-secondary)', fontSize: '0.84rem', lineHeight: 1.7 }}>
+                  {importResult.errors.map((err, i) => (
+                    <li key={i}>
+                      {err.rowNumber > 0 ? `Dòng ${err.rowNumber}: ` : ''}{err.reason}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          )}
+          <button className="btn btn-secondary" style={{ fontSize: '0.85rem' }} onClick={() => setImportResult(null)}>
+            Đóng
+          </button>
+        </div>
+      )}
 
       {/* Bộ lọc */}
       <div className="glass-card" style={{ marginBottom: '2rem', display: 'flex', gap: '1rem', flexWrap: 'wrap', alignItems: 'center' }}>
@@ -274,7 +366,7 @@ const AdminUsers = () => {
                       <td style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>#{u.id}</td>
                       <td style={{ fontWeight: 500 }}>{u.fullName}</td>
                       <td style={{ color: 'var(--text-secondary)', fontSize: '0.875rem' }}>{u.email}</td>
-                      <td><span className={`badge ${roleBadge[u.role] || ''}`}>{u.role}</span></td>
+                      <td><RoleBadges role={u.role} /></td>
                       <td>
                         <span className={`badge ${u.isActive ? 'badge-success' : 'badge-warning'}`}>
                           {u.isActive ? 'Active' : 'Inactive'}
@@ -419,7 +511,7 @@ const AdminUsers = () => {
                 {/* Grid thông tin cơ bản */}
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1.5rem' }}>
                   <InfoRow label="Họ tên" value={detail.fullName} />
-                  <InfoRow label="Role" value={<span className={`badge ${roleBadge[detail.role] || ''}`}>{detail.role}</span>} />
+                  <InfoRow label="Role" value={<RoleBadges role={detail.role} />} />
                   <InfoRow label="Trạng thái" value={
                     <span className={`badge ${detail.isActive ? 'badge-success' : 'badge-warning'}`}>
                       {detail.isActive ? 'Active' : 'Inactive'}
