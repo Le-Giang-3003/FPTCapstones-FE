@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import api from '../services/api';
 import type { UserListItem, UserDetailDto } from '../types';
 import {
@@ -540,18 +541,21 @@ const AdminUsers = () => {
 
 const Required = () => <span style={{ color: 'var(--danger)' }}>*</span>;
 
-const ModalOverlay = ({ children, onClose }: { children: React.ReactNode; onClose: () => void }) => (
-  <div
-    style={{
-      position: 'fixed', inset: 0,
-      background: 'rgba(15,23,42,0.7)', backdropFilter: 'blur(4px)',
-      zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem',
-    }}
-    onClick={onClose}
-  >
-    {children}
-  </div>
-);
+const ModalOverlay = ({ children, onClose }: { children: React.ReactNode; onClose: () => void }) => {
+  return createPortal(
+    <div
+      style={{
+        position: 'fixed', inset: 0,
+        background: 'rgba(15, 23, 42, 0.85)',
+        zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem',
+      }}
+      onClick={onClose}
+    >
+      {children}
+    </div>,
+    document.body
+  );
+};
 
 const ModalHeader = ({
   title, subtitle, onClose, disabled = false,
