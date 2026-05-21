@@ -19,7 +19,7 @@ export interface CurrentUserDto {
   userId: number;
   email: string;
   fullName: string;
-  role: Role;
+  role: string;   // [Flags] enum.ToString() — single role "Admin" hoặc multi "Admin, Lecturer"
   groupId: number | null;
 }
 
@@ -79,6 +79,18 @@ export interface UserListItem {
   role: string;
   isActive: boolean;
   createdAt: string;
+}
+
+export interface UserImportRowError {
+  rowNumber: number;
+  reason: string;
+}
+
+export interface ImportUsersResultDto {
+  created: number;
+  updated: number;
+  skipped: number;
+  errors: UserImportRowError[];
 }
 
 export interface UserDetailDto {
