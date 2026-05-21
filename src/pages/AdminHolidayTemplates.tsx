@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import api from '../services/api';
 import type { HolidayTemplateDto } from '../types';
 import { Plus, Loader2, Edit, Trash2, AlertCircle, BookmarkPlus, CheckCircle, XCircle } from 'lucide-react';
@@ -103,6 +104,7 @@ const AdminHolidayTemplates = () => {
   };
 
   return (
+    <>
     <div className="animate-fade-in">
       <div className="topbar">
         <div>
@@ -207,12 +209,14 @@ const AdminHolidayTemplates = () => {
           </div>
         )}
       </div>
+      <style>{`.spin { animation: spin 1s linear infinite; } @keyframes spin { from{transform:rotate(0)} to{transform:rotate(360deg)} }`}</style>
+    </div>
 
       {/* Modal create / edit */}
-      {editMode !== null && (
+      {editMode !== null && createPortal(
         <div style={{
-          position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.7)', backdropFilter: 'blur(4px)',
-          zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem'
+          position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.85)',
+          zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem'
         }}>
           <div className="glass-panel animate-fade-in" style={{ width: '100%', maxWidth: 560, padding: '2rem', maxHeight: '90vh', overflowY: 'auto' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.5rem' }}>
@@ -325,11 +329,10 @@ const AdminHolidayTemplates = () => {
               </div>
             </form>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
-
-      <style>{`.spin { animation: spin 1s linear infinite; } @keyframes spin { from{transform:rotate(0)} to{transform:rotate(360deg)} }`}</style>
-    </div>
+    </>
   );
 };
 

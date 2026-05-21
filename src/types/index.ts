@@ -30,6 +30,8 @@ export interface DashboardItem {
   projectName: string;
   leaderFullName: string;
   leaderEmail: string;
+  lecturer1Name: string;
+  lecturer2Name: string | null;
   submittedVersionCount: number;
   isFinalized: boolean;
   lastUpdated: string;
