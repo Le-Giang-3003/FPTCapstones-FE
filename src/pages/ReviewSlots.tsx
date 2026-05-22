@@ -24,8 +24,8 @@ const parseDateInfo = (iso: string) => {
 const ReviewSlots = () => {
   const { user, refreshMe } = useAuth();
   const role = user?.role;
-  // BE tự suy group/lecturer từ JWT — FE chỉ cần check role
-  const canRegister = hasRole(role, 'StudentLeader') || hasRole(role, 'Lecturer');
+  // Quyền cơ bản theo role — sẽ bị khóa thêm nếu review không ở trạng thái Registering (xem canRegister bên dưới)
+  const roleAllowsRegister = hasRole(role, 'StudentLeader') || hasRole(role, 'Lecturer');
 
   // Khi vào trang, refresh thông tin user để đảm bảo có lecturerId/groupId mới nhất.
   useEffect(() => { refreshMe().catch(() => {}); }, []);
@@ -111,6 +111,12 @@ const ReviewSlots = () => {
     return 'empty';
   };
 
+  // Review hiện tại — dùng để xác định đợt còn mở đăng ký không
+  const currentReview = useMemo(() => reviews.find((r) => r.id === reviewId) ?? null, [reviews, reviewId]);
+  const isRegistrationOpen = currentReview?.status === 'Registering';
+  // Quyền cuối cùng = role cho phép + đợt review đang mở đăng ký
+  const canRegister = roleAllowsRegister && isRegistrationOpen;
+
   // Tổng sau khi lưu = đã đăng ký - đánh dấu hủy + mới chọn
   const registeredCount = useMemo(() => slots.filter(isRegistered).length, [slots, user]);
   const totalAfterSubmit = registeredCount - pendingRemove.size + selected.size;
@@ -118,13 +124,20 @@ const ReviewSlots = () => {
   const overLimit = isStudent && totalAfterSubmit > MAX_GROUP_PREFERENCES;
   const hasChanges = selected.size > 0 || pendingRemove.size > 0;
 
-  // Click 1 lần: toggle chọn slot trống / bỏ chọn slot xanh nước / hủy "đánh dấu hủy" slot đỏ
+  // Single click — chuyển state theo cycle:
+  //   empty → selected (xanh nước)         selected → empty (bỏ chọn)
+  //   registered (xanh lá) → pendingUnregister (đỏ, đánh dấu hủy)
+  //   pendingUnregister → registered (bỏ đánh dấu)
   const toggleSelect = (s: ReviewSlotDto) => {
     if (!canRegister || submitting) return;
     const state = slotState(s);
-    if (state === 'registered') return;     // green: cần double-click mới chuyển sang đỏ
+    if (state === 'registered') {
+      const next = new Set(pendingRemove);
+      next.add(s.id);
+      setPendingRemove(next);
+      return;
+    }
     if (state === 'pendingUnregister') {
-      // bỏ đánh dấu hủy → trở lại xanh lá
       const next = new Set(pendingRemove);
       next.delete(s.id);
       setPendingRemove(next);
@@ -136,14 +149,26 @@ const ReviewSlots = () => {
     setSelected(next);
   };
 
-  // Double-click trên slot đã đăng ký (xanh lá) → đánh dấu hủy (đỏ), chưa gửi BE
-  const markForRemove = (s: ReviewSlotDto) => {
+  // Bulk toggle 1 nhóm slot (1 hàng / 1 cột / toàn bộ):
+  //   Lần 1 (chưa có cái nào blue trong scope): chọn hết empty → blue. Skip registered + pendingUnregister.
+  //   Lần 2 (đã có blue trong scope): deselect hết blue → empty.
+  const bulkToggle = (scope: ReviewSlotDto[]) => {
     if (!canRegister || submitting) return;
-    if (slotState(s) !== 'registered') return;
-    const next = new Set(pendingRemove);
-    next.add(s.id);
-    setPendingRemove(next);
+    const blueInScope = scope.filter((s) => selected.has(s.id));
+    const next = new Set(selected);
+    if (blueInScope.length > 0) {
+      for (const s of blueInScope) next.delete(s.id);
+    } else {
+      for (const s of scope) {
+        if (slotState(s) === 'empty') next.add(s.id);
+      }
+    }
+    setSelected(next);
   };
+
+  // Helper: lấy tất cả slot trong 1 hàng / 1 cột / toàn bộ
+  const slotsInRow = (idx: number) => slots.filter((s) => s.slotIndex === idx);
+  const slotsInCol = (date: string) => slots.filter((s) => s.slotDate.substring(0, 10) === date);
 
   // Lưu — 1 lần bấm: gửi tất cả register + unregister đang pending
   const submitChanges = async () => {
@@ -246,12 +271,11 @@ const ReviewSlots = () => {
         key={slot.id}
         style={cellStyle(state)}
         onClick={() => toggleSelect(slot)}
-        onDoubleClick={() => markForRemove(slot)}
         title={
           state === 'registered'
-            ? 'Đã đăng ký — double-click để đánh dấu hủy'
+            ? 'Đã đăng ký — bấm để đánh dấu hủy'
             : state === 'pendingUnregister'
-            ? 'Đã đánh dấu hủy — bấm để bỏ đánh dấu, "Lưu" để xác nhận'
+            ? 'Đã đánh dấu hủy — bấm để bỏ đánh dấu'
             : state === 'selected'
             ? 'Đang chọn — bấm "Lưu" để xác nhận'
             : 'Bấm để chọn'
@@ -272,61 +296,96 @@ const ReviewSlots = () => {
         <h1 className="text-gradient" style={{ margin: 0 }}>Đăng ký slot review</h1>
       </div>
 
-      {/* Hint */}
+      {/* Hint — đổi theo state (mở đăng ký / đã chốt) + role */}
       <div
         className="glass-panel"
-        style={{ padding: '0.75rem 1rem', marginBottom: '1rem', fontSize: '0.875rem', color: 'var(--text-secondary)' }}
+        style={{
+          padding: '0.75rem 1rem',
+          marginBottom: '1rem',
+          fontSize: '0.875rem',
+          color: currentReview && !isRegistrationOpen ? 'var(--danger)' : 'var(--text-secondary)',
+          background: currentReview && !isRegistrationOpen
+            ? 'rgba(239, 68, 68, 0.08)'
+            : undefined,
+          border: currentReview && !isRegistrationOpen
+            ? '1px solid rgba(239, 68, 68, 0.25)'
+            : undefined,
+        }}
       >
-        {hasRole(role, 'StudentLeader') && (
-          <>Chọn tối đa <b>{MAX_GROUP_PREFERENCES} slot</b> mong muốn cho nhóm. Bấm slot trống → xanh nước. Double-click slot đã đăng ký (xanh lá) → đỏ (đánh dấu hủy). Bấm "Lưu" để gửi.</>
+        {currentReview && !isRegistrationOpen ? (
+          <>Đã hết thời hạn đăng ký lịch.</>
+        ) : (
+          <>
+            {hasRole(role, 'StudentLeader') && (
+              <>Chọn tối đa <b>{MAX_GROUP_PREFERENCES} slot</b> mong muốn cho nhóm.</>
+            )}
+            {hasRole(role, 'Lecturer') && (
+              <>Chọn các slot mong muốn được dùng để chấm review (không giới hạn).</>
+            )}
+            {hasRole(role, 'GroupMember') && <>Bạn chỉ xem được lịch. Liên hệ nhóm trưởng để đăng ký.</>}
+            {hasRole(role, 'Admin') && <>Bạn là Admin — chế độ chỉ xem.</>}
+          </>
         )}
-        {hasRole(role, 'Lecturer') && (
-          <>Chọn các slot bạn rảnh để chấm review (không giới hạn). Bấm slot trống → xanh nước. Double-click slot đã đăng ký (xanh lá) → đỏ (đánh dấu hủy). Bấm "Lưu" để gửi.</>
-        )}
-        {hasRole(role, 'GroupMember') && <>Bạn chỉ xem được lịch. Liên hệ nhóm trưởng để đăng ký.</>}
-        {hasRole(role, 'Admin') && <>Bạn là Admin — chế độ chỉ xem.</>}
       </div>
 
-      {/* Review selector + register bar */}
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'center', marginBottom: '1.25rem' }}>
-        <label style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>Đợt review:</label>
-        {loadingReviews ? (
-          <Loader2 size={16} className="animate-spin" />
-        ) : (
-          <select
-            value={reviewId ?? ''}
-            onChange={(e) => setReviewId(e.target.value ? parseInt(e.target.value, 10) : null)}
-            style={{
-              padding: '0.5rem 0.75rem',
-              borderRadius: 6,
-              background: 'var(--input-bg)',
-              color: 'var(--text-primary)',
-              border: '1px solid var(--border-glass)',
-              minWidth: 280,
-            }}
-          >
-            {reviews.length === 0 && <option value="">— Chưa có đợt review nào —</option>}
-            {reviews.map((r) => (
-              <option key={r.id} value={r.id}>
-                {r.label} ({r.type}#{r.orderIndex}) — {r.status}
-              </option>
-            ))}
-          </select>
-        )}
+      {/* Review selector + counter + save button — gom vào 1 panel */}
+      <div
+        className="glass-panel"
+        style={{
+          display: 'flex',
+          flexWrap: 'wrap',
+          gap: '1rem',
+          alignItems: 'center',
+          padding: '0.85rem 1rem',
+          marginBottom: '1.25rem',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: '1 1 320px', minWidth: 260 }}>
+          <CalendarRange size={16} color="var(--accent-primary)" />
+          <label htmlFor="review-select" style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
+            Đợt review:
+          </label>
+          {loadingReviews ? (
+            <Loader2 size={16} className="animate-spin" />
+          ) : (
+            <select
+              id="review-select"
+              value={reviewId ?? ''}
+              onChange={(e) => setReviewId(e.target.value ? parseInt(e.target.value, 10) : null)}
+              style={{
+                flex: 1,
+                padding: '0.45rem 0.7rem',
+                borderRadius: 6,
+                background: 'var(--input-bg)',
+                color: 'var(--text-primary)',
+                border: '1px solid var(--border-glass)',
+                fontSize: '0.875rem',
+                cursor: 'pointer',
+              }}
+            >
+              {reviews.length === 0 && <option value="">— Chưa có đợt review nào —</option>}
+              {reviews.map((r) => (
+                <option key={r.id} value={r.id}>
+                  {r.label} ({r.type}#{r.orderIndex}) — {r.status}
+                </option>
+              ))}
+            </select>
+          )}
+        </div>
 
         {canRegister && (
           <>
-            <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginLeft: 'auto' }}>
-              Đã đăng ký: <b style={{ color: '#10b981' }}>{registeredCount}</b>
-              {' · '}Thêm: <b style={{ color: '#0ea5e9' }}>{selected.size}</b>
-              {' · '}Hủy: <b style={{ color: '#ef4444' }}>{pendingRemove.size}</b>
-              {isStudent && <> {' · '}Tối đa: <b>{MAX_GROUP_PREFERENCES}</b></>}
-            </span>
+            <div style={{ display: 'flex', gap: 14, fontSize: '0.85rem', color: 'var(--text-secondary)', flexWrap: 'wrap' }}>
+              <span>Đã đăng ký <b style={{ color: '#10b981' }}>{registeredCount}</b></span>
+              <span>Thêm <b style={{ color: '#0ea5e9' }}>{selected.size}</b></span>
+              <span>Hủy <b style={{ color: '#ef4444' }}>{pendingRemove.size}</b></span>
+              {isStudent && <span>Tối đa <b>{MAX_GROUP_PREFERENCES}</b></span>}
+            </div>
             <button
               className="btn btn-primary"
               disabled={!hasChanges || overLimit || submitting}
               onClick={submitChanges}
-              style={{ padding: '0.5rem 1rem' }}
+              style={{ padding: '0.5rem 1rem', marginLeft: 'auto' }}
             >
               {submitting ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
               {' '}Lưu ({selected.size + pendingRemove.size})
@@ -363,9 +422,9 @@ const ReviewSlots = () => {
 
       {/* Legend */}
       <div style={{ display: 'flex', gap: 16, marginBottom: '0.75rem', fontSize: '0.75rem', color: 'var(--text-secondary)', flexWrap: 'wrap' }}>
-        <span><span style={{ display: 'inline-block', width: 14, height: 14, background: 'rgba(14, 165, 233, 0.22)', border: '1.5px solid #0ea5e9', borderRadius: 3, verticalAlign: 'middle', marginRight: 4 }} /> Đang chọn (chưa lưu)</span>
+        <span><span style={{ display: 'inline-block', width: 14, height: 14, background: 'rgba(14, 165, 233, 0.22)', border: '1.5px solid #0ea5e9', borderRadius: 3, verticalAlign: 'middle', marginRight: 4 }} /> Đang chọn</span>
         <span><span style={{ display: 'inline-block', width: 14, height: 14, background: 'rgba(16, 185, 129, 0.18)', border: '1.5px solid #10b981', borderRadius: 3, verticalAlign: 'middle', marginRight: 4 }} /> Đã đăng ký</span>
-        <span><span style={{ display: 'inline-block', width: 14, height: 14, background: 'rgba(239, 68, 68, 0.18)', border: '1.5px solid #ef4444', borderRadius: 3, verticalAlign: 'middle', marginRight: 4 }} /> Đánh dấu hủy (chưa lưu)</span>
+        <span><span style={{ display: 'inline-block', width: 14, height: 14, background: 'rgba(239, 68, 68, 0.18)', border: '1.5px solid #ef4444', borderRadius: 3, verticalAlign: 'middle', marginRight: 4 }} /> Đánh dấu hủy</span>
       </div>
 
       {/* Grid */}
@@ -387,12 +446,39 @@ const ReviewSlots = () => {
               minWidth: 70 + dates.length * 86,
             }}
           >
-            <div />
+            {/* Ô góc trên-trái — bulk select toàn bộ */}
+            <div
+              onClick={canRegister ? () => bulkToggle(slots) : undefined}
+              title={canRegister ? 'Bấm để chọn / bỏ chọn toàn bộ slot trống' : ''}
+              style={{
+                padding: '0.4rem',
+                fontWeight: 700,
+                color: 'var(--accent-primary)',
+                textAlign: 'center',
+                background: 'var(--surface-glass)',
+                borderRadius: 6,
+                fontSize: '0.75rem',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: canRegister ? 'pointer' : 'default',
+                transition: 'background 0.15s ease',
+                userSelect: 'none',
+              }}
+              onMouseEnter={(e) => { if (canRegister) e.currentTarget.style.background = 'rgba(14, 165, 233, 0.15)'; }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = 'var(--surface-glass)'; }}
+            >
+              ✦
+            </div>
+
+            {/* Header ngày — click chọn cả cột */}
             {dates.map((date) => {
               const info = parseDateInfo(date);
               return (
                 <div
                   key={`hdr_${date}`}
+                  onClick={canRegister ? () => bulkToggle(slotsInCol(date)) : undefined}
+                  title={canRegister ? `Bấm để chọn / bỏ chọn cả cột ${info.dateStr}` : ''}
                   style={{
                     padding: '0.4rem',
                     fontWeight: 600,
@@ -401,7 +487,12 @@ const ReviewSlots = () => {
                     background: 'var(--surface-glass)',
                     borderRadius: 6,
                     fontSize: '0.8rem',
+                    cursor: canRegister ? 'pointer' : 'default',
+                    transition: 'background 0.15s ease',
+                    userSelect: 'none',
                   }}
+                  onMouseEnter={(e) => { if (canRegister) e.currentTarget.style.background = 'rgba(14, 165, 233, 0.15)'; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.background = 'var(--surface-glass)'; }}
                 >
                   <div>{info.dow}</div>
                   <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>{info.dateStr}</div>
@@ -411,7 +502,10 @@ const ReviewSlots = () => {
 
             {slotIndices.map((idx) => (
               <Fragment key={`row_${idx}`}>
+                {/* Label "Slot N" — click chọn cả hàng */}
                 <div
+                  onClick={canRegister ? () => bulkToggle(slotsInRow(idx)) : undefined}
+                  title={canRegister ? `Bấm để chọn / bỏ chọn cả hàng Slot ${idx}` : ''}
                   style={{
                     padding: '0.4rem',
                     fontWeight: 600,
@@ -422,7 +516,12 @@ const ReviewSlots = () => {
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
+                    cursor: canRegister ? 'pointer' : 'default',
+                    transition: 'background 0.15s ease',
+                    userSelect: 'none',
                   }}
+                  onMouseEnter={(e) => { if (canRegister) e.currentTarget.style.background = 'rgba(14, 165, 233, 0.15)'; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.background = 'var(--surface-glass)'; }}
                 >
                   Slot {idx}
                 </div>

@@ -38,7 +38,7 @@ const REVIEW_STATUS_META: Record<ReviewStatus, { label: string; style: React.CSS
   },
   Finished: {
     label: 'Đã xong',
-    style: { background: 'rgba(16, 185, 129, 0.12)', color: '#059669', border: '1px solid rgba(16, 185, 129, 0.3)' },
+    style: { background: 'rgba(234, 179, 8, 0.12)', color: '#ca8a04', border: '1px solid rgba(234, 179, 8, 0.3)' },
   },
   Cancelled: {
     label: 'Đã hủy',
@@ -1701,7 +1701,6 @@ const AdminSemesters = () => {
                       <thead>
                         <tr>
                           <th>Loại</th>
-                          <th>Label</th>
                           <th>Window</th>
                           <th>Số ngày</th>
                           <th>Trạng thái</th>
@@ -1718,19 +1717,32 @@ const AdminSemesters = () => {
                           const isHomeSemester = detail && m.semesterId === detail.id;
                           const homeSem = list.find(s => s.id === m.semesterId);
                           const stMeta = REVIEW_STATUS_META[m.status ?? 'Draft'];
+                          
+                          const palette = [
+                            { bg: 'rgba(59, 130, 246, 0.55)',  border: '#3b82f6' },
+                            { bg: 'rgba(16, 185, 129, 0.55)',  border: '#10b981' },
+                            { bg: 'rgba(251, 146, 60, 0.55)',  border: '#fb923c' },
+                            { bg: 'rgba(168, 85, 247, 0.55)',  border: '#a855f7' },
+                            { bg: 'rgba(236, 72, 153, 0.55)',  border: '#ec4899' },
+                            { bg: 'rgba(14, 165, 233, 0.55)',  border: '#0ea5e9' },
+                            { bg: 'rgba(234, 179, 8, 0.55)',   border: '#eab308' },
+                            { bg: 'rgba(220, 38, 38, 0.55)',   border: '#dc2626' },
+                          ];
+                          const semIdx = list.findIndex(s => s.id === m.semesterId);
+                          const paletteIdx = (semIdx >= 0 ? semIdx : m.semesterId) % palette.length;
+                          const { bg: color, border: borderColor } = palette[Math.abs(paletteIdx)];
+
                           return (
                           <tr key={m.id} style={!isHomeSemester ? { background: 'rgba(148, 163, 184, 0.04)' } : undefined}>
                             <td>
                               <span className="badge" style={{
-                                background: m.type === 'Review' ? 'rgba(59, 130, 246, 0.15)' : 'rgba(16, 185, 129, 0.15)',
-                                color: m.type === 'Review' ? '#3b82f6' : '#10b981',
-                                border: `1px solid ${m.type === 'Review' ? 'rgba(59, 130, 246, 0.3)' : 'rgba(16, 185, 129, 0.3)'}`,
+                                background: color,
+                                color: 'white',
+                                border: `1px solid ${borderColor}`,
+                                fontWeight: 700
                               }}>
-                                {m.type} #{m.orderIndex}
+                                {m.label}
                               </span>
-                            </td>
-                            <td>
-                              {m.label}
                               {isOverflow && <span className="badge badge-warning" style={{ marginLeft: '0.4rem', fontSize: '0.6rem' }}>Vắt biên</span>}
                             </td>
                             <td>{fmt(m.windowStart)} → {fmt(m.windowEnd)}</td>
