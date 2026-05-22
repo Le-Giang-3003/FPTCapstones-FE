@@ -1,87 +1,123 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@500;600;700;800&family=Roboto:wght@400;500;600;700&display=swap');
 
-/* Đăng ký CSS custom properties dạng <color> để browser có thể interpolate (transition) chúng.
-   Khi class thay đổi giữa chừng, browser tự lấy màu hiện tại làm điểm xuất phát → đảo chiều mượt. */
-@property --bg-primary        { syntax: '<color>'; inherits: true; initial-value: #0b0f19; }
-@property --bg-secondary      { syntax: '<color>'; inherits: true; initial-value: #151f32; }
-@property --text-primary      { syntax: '<color>'; inherits: true; initial-value: #f1f5f9; }
-@property --text-secondary    { syntax: '<color>'; inherits: true; initial-value: #94a3b8; }
-@property --surface-glass     { syntax: '<color>'; inherits: true; initial-value: rgba(21, 31, 50, 0.6); }
-@property --border-glass      { syntax: '<color>'; inherits: true; initial-value: rgba(251, 146, 60, 0.1); }
-@property --accent-glow       { syntax: '<color>'; inherits: true; initial-value: rgba(251, 146, 60, 0.2); }
-@property --glass-card-bg     { syntax: '<color>'; inherits: true; initial-value: rgba(21, 31, 50, 0.5); }
-@property --input-bg          { syntax: '<color>'; inherits: true; initial-value: rgba(11, 15, 25, 0.7); }
-@property --table-row-bg      { syntax: '<color>'; inherits: true; initial-value: rgba(21, 31, 50, 0.3); }
-@property --table-row-hover   { syntax: '<color>'; inherits: true; initial-value: rgba(251, 146, 60, 0.08); }
-@property --modal-overlay-bg  { syntax: '<color>'; inherits: true; initial-value: rgba(15, 23, 42, 0.8); }
-@property --btn-hover-bg      { syntax: '<color>'; inherits: true; initial-value: rgba(251, 146, 60, 0.08); }
-@property --accent-primary    { syntax: '<color>'; inherits: true; initial-value: #fb923c; }
-@property --accent-hover      { syntax: '<color>'; inherits: true; initial-value: #f97316; }
+/* ──────────────────────────────────────────────────────────────
+   LottieFiles-style design system (xem DESIGN_Lottie.md)
+   "Playful precision" — nền trắng Cloud White, neutral achromatic,
+   accent teal #019d91 (CTA/active/link) với điểm nhấn vàng #f0b100.
+   MỘT shadow rất nhẹ duy nhất. Bo mềm: card 16px, nút 12px, form 8px.
+   Font giữ Be Vietnam Pro (tối ưu tiếng Việt) thay cho DM Sans/Inter.
+   Theme sáng là chuẩn; :root.dark là biến thể tối.
+   ────────────────────────────────────────────────────────────── */
+
+/* Đăng ký CSS custom properties dạng <color> để browser interpolate khi đổi theme. */
+@property --bg-primary        { syntax: '<color>'; inherits: true; initial-value: #ffffff; }
+@property --bg-secondary      { syntax: '<color>'; inherits: true; initial-value: #f4f4f5; }
+@property --text-primary      { syntax: '<color>'; inherits: true; initial-value: #09090b; }
+@property --text-secondary    { syntax: '<color>'; inherits: true; initial-value: #71717b; }
+@property --surface-glass     { syntax: '<color>'; inherits: true; initial-value: #ffffff; }
+@property --border-glass      { syntax: '<color>'; inherits: true; initial-value: #e4e4e7; }
+@property --accent-glow       { syntax: '<color>'; inherits: true; initial-value: rgba(1, 157, 145, 0.22); }
+@property --glass-card-bg     { syntax: '<color>'; inherits: true; initial-value: #ffffff; }
+@property --input-bg          { syntax: '<color>'; inherits: true; initial-value: #fafafa; }
+@property --table-row-bg      { syntax: '<color>'; inherits: true; initial-value: #ffffff; }
+@property --table-row-hover   { syntax: '<color>'; inherits: true; initial-value: #f4f4f5; }
+@property --modal-overlay-bg  { syntax: '<color>'; inherits: true; initial-value: rgba(9, 9, 11, 0.5); }
+@property --btn-hover-bg      { syntax: '<color>'; inherits: true; initial-value: #f4f4f5; }
+@property --accent-primary    { syntax: '<color>'; inherits: true; initial-value: #019d91; }
+@property --accent-hover      { syntax: '<color>'; inherits: true; initial-value: #017d73; }
+@property --accent-text       { syntax: '<color>'; inherits: true; initial-value: #ffffff; }
+@property --accent-violet      { syntax: '<color>'; inherits: true; initial-value: #019d91; }
+@property --accent-blue        { syntax: '<color>'; inherits: true; initial-value: #00ddb3; }
 
 :root {
-  /* --- Dark theme (mặc định) --- */
-  --bg-primary: #0b0f19;
-  --bg-secondary: #151f32;
-  --text-primary: #f1f5f9;
-  --text-secondary: #94a3b8;
-  --accent-primary: #fb923c;
-  --accent-hover: #f97316;
-  --accent-glow: rgba(251, 146, 60, 0.2);
-  --success: #10b981;
-  --danger: #ef4444;
-  --warning: #f59e0b;
-  --surface-glass: rgba(21, 31, 50, 0.6);
-  --border-glass: rgba(251, 146, 60, 0.1);
-  --glass-card-bg: rgba(21, 31, 50, 0.5);
-  --input-bg: rgba(11, 15, 25, 0.7);
-  --table-row-bg: rgba(21, 31, 50, 0.3);
-  --table-row-hover: rgba(251, 146, 60, 0.08);
-  --modal-overlay-bg: rgba(15, 23, 42, 0.8);
-  --btn-hover-bg: rgba(251, 146, 60, 0.08);
-  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
-  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
-  --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
-  --shadow-glow: 0 0 15px var(--accent-glow);
-  --transition-fast: 0.15s ease-in-out;
-  --transition-normal: 0.3s ease-in-out;
+  /* --- LottieFiles Light (mặc định) --- */
+  --bg-primary: #ffffff;        /* Cloud White */
+  --bg-secondary: #f4f4f5;      /* Dark Graphite — section/nền phụ */
+  --text-primary: #09090b;      /* Carbon Black */
+  --text-secondary: #71717b;    /* Steel Gray */
+  --text-tertiary: #9f9fa9;     /* Cadet Gray — placeholder */
+  --heading-color: #09090b;
+  --accent-primary: #f37021;    /* FPT Orange — CTA / active */
+  --accent-hover: #d95f12;
+  --accent-text: #ffffff;
+  --accent-violet: #f37021;     /* link = cam */
+  --accent-blue: #ff8a3d;       /* cam sáng — hover link */
+  --accent-yellow: #f0b100;     /* Sunshine Yellow — điểm nhấn phụ */
+  --accent-glow: rgba(243, 112, 33, 0.22);
+  --success: #15803d;
+  --danger: #e5484d;
+  --warning: #f0b100;
+  --signal-blue: #3a86ff;
+  --surface-glass: #ffffff;
+  --border-glass: #e4e4e7;      /* Slate Gray */
+  --glass-card-bg: #ffffff;
+  --input-bg: #fafafa;          /* Ash White */
+  --table-row-bg: #ffffff;
+  --table-row-hover: #f4f4f5;
+  --modal-overlay-bg: rgba(9, 9, 11, 0.5);
+  --btn-hover-bg: #f4f4f5;
 
-  /* Transition 0.2s cho tất cả custom property màu — xử lý spam-click tự động:
-     khi toggle lúc đang chạy, browser lấy màu hiện tại làm điểm bắt đầu mới */
+  /* MỘT shadow nhẹ duy nhất — triết lý elevation tối giản của Lottie */
+  --shadow-sm: rgba(0, 0, 0, 0.05) 0px 1px 2px 0px;
+  --shadow-md: rgba(0, 0, 0, 0.05) 0px 1px 2px 0px;
+  --shadow-lg: rgba(0, 0, 0, 0.08) 0px 4px 12px 0px;
+  --shadow-glow: 0 0 0 3px var(--accent-glow);
+
+  /* Fonts — Montserrat cho tiêu đề; Roboto cho nội dung (render sắc nét trên Windows, hỗ trợ tiếng Việt) */
+  --font-display: 'Montserrat', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-body: 'Roboto', 'Segoe UI', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+
+  --transition-fast: 0.12s ease;
+  --transition-normal: 0.25s ease;
+
   transition:
-    --bg-primary       0.2s ease-in-out,
-    --bg-secondary     0.2s ease-in-out,
-    --text-primary     0.2s ease-in-out,
-    --text-secondary   0.2s ease-in-out,
-    --surface-glass    0.2s ease-in-out,
-    --border-glass     0.2s ease-in-out,
-    --accent-glow      0.2s ease-in-out,
-    --accent-primary   0.2s ease-in-out,
-    --accent-hover     0.2s ease-in-out,
-    --glass-card-bg    0.2s ease-in-out,
-    --input-bg         0.2s ease-in-out,
-    --table-row-bg     0.2s ease-in-out,
-    --table-row-hover  0.2s ease-in-out,
-    --modal-overlay-bg 0.2s ease-in-out,
-    --btn-hover-bg     0.2s ease-in-out;
+    --bg-primary       0.25s ease,
+    --bg-secondary     0.25s ease,
+    --text-primary     0.25s ease,
+    --text-secondary   0.25s ease,
+    --surface-glass    0.25s ease,
+    --border-glass     0.25s ease,
+    --accent-glow      0.25s ease,
+    --accent-primary   0.25s ease,
+    --accent-hover     0.25s ease,
+    --accent-text      0.25s ease,
+    --accent-violet    0.25s ease,
+    --accent-blue      0.25s ease,
+    --glass-card-bg    0.25s ease,
+    --input-bg         0.25s ease,
+    --table-row-bg     0.25s ease,
+    --table-row-hover  0.25s ease,
+    --modal-overlay-bg 0.25s ease,
+    --btn-hover-bg     0.25s ease;
 }
 
-/* --- Light theme --- */
-:root.light {
-  --bg-primary: #ffffff;
-  --bg-secondary: #fff7ed;
-  --text-primary: #1f2937;
-  --text-secondary: #4b5563;
-  --accent-primary: #f97316;
-  --accent-hover: #ea580c;
-  --accent-glow: rgba(249, 115, 22, 0.25);
-  --surface-glass: rgba(255, 255, 255, 0.85);
-  --border-glass: rgba(249, 115, 22, 0.15);
-  --glass-card-bg: rgba(255, 255, 255, 0.7);
-  --input-bg: rgba(255, 255, 255, 0.9);
-  --table-row-bg: rgba(255, 247, 237, 0.6);
-  --table-row-hover: rgba(255, 237, 213, 0.9);
-  --modal-overlay-bg: rgba(15, 23, 42, 0.4);
-  --btn-hover-bg: rgba(249, 115, 22, 0.08);
+/* --- Biến thể tối (zinc + teal) --- */
+:root.dark {
+  --bg-primary: #09090b;
+  --bg-secondary: #18181b;
+  --text-primary: #fafafa;
+  --text-secondary: #a1a1aa;
+  --text-tertiary: #71717b;
+  --heading-color: #ffffff;
+  --accent-primary: #ff7a33;    /* cam sáng hơn trên nền tối */
+  --accent-hover: #f37021;
+  --accent-text: #ffffff;
+  --accent-violet: #ff8a3d;
+  --accent-blue: #ffa766;
+  --accent-glow: rgba(255, 122, 51, 0.3);
+  --success: #4ade80;
+  --danger: #f87171;
+  --warning: #f0b100;
+  --surface-glass: #18181b;
+  --border-glass: #27272a;
+  --glass-card-bg: #18181b;
+  --input-bg: #111113;
+  --table-row-bg: #18181b;
+  --table-row-hover: #27272a;
+  --modal-overlay-bg: rgba(0, 0, 0, 0.7);
+  --btn-hover-bg: #27272a;
+  --shadow-md: rgba(0, 0, 0, 0.4) 0px 1px 2px 0px;
+  --shadow-lg: rgba(0, 0, 0, 0.5) 0px 4px 12px 0px;
 }
 
 * {
@@ -96,11 +132,13 @@ html {
 }
 
 body {
-  font-family: 'Inter', sans-serif;
+  font-family: var(--font-body);
   background-color: var(--bg-primary);
   color: var(--text-primary);
-  line-height: 1.5;
+  line-height: 1.6;
+  letter-spacing: 0;
   -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
   height: 100%;
   overflow: hidden;
 }
@@ -109,101 +147,99 @@ body {
   height: 100%;
 }
 
+/* Headline — tracking thoáng cho tiếng Việt, line-height rộng để dấu không cụng */
 h1, h2, h3, h4, h5, h6 {
-  font-family: 'Outfit', sans-serif;
+  font-family: var(--font-display);
   font-weight: 600;
-  color: var(--text-primary);
+  letter-spacing: -0.01em;
+  color: var(--heading-color);
+  line-height: 1.25;
 }
 
+h1 { font-weight: 700; letter-spacing: -0.015em; }
+h2 { font-weight: 600; letter-spacing: -0.012em; }
+
 a {
-  color: var(--accent-primary);
+  color: var(--accent-violet);
   text-decoration: none;
   transition: color var(--transition-fast);
 }
 
 a:hover {
-  color: var(--accent-hover);
+  color: var(--accent-blue);
 }
 
-/* Glassmorphism Utilities */
+/* Surfaces — card bo 16px, shadow nhẹ duy nhất */
 .glass-panel {
   background: var(--surface-glass);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
   border: 1px solid var(--border-glass);
   border-radius: 16px;
-  box-shadow: var(--shadow-lg);
+  box-shadow: var(--shadow-md);
 }
 
 .glass-card {
   background: var(--glass-card-bg);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
   border: 1px solid var(--border-glass);
-  border-radius: 12px;
-  padding: 1.5rem;
+  border-radius: 16px;
+  padding: 2rem;
+  box-shadow: var(--shadow-md);
   transition:
-    transform var(--transition-normal),
+    border-color var(--transition-normal),
     box-shadow var(--transition-normal);
 }
 
 .glass-card:hover {
-  transform: translateY(-4px);
-  box-shadow: var(--shadow-glow);
-  border-color: rgba(59, 130, 246, 0.3);
+  border-color: var(--accent-primary);
 }
 
-/* Buttons */
+/* Buttons — bo 12px (bo mềm, friendly) */
 .btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 0.5rem;
-  padding: 0.625rem 1.25rem;
-  border-radius: 8px;
-  font-weight: 500;
-  font-size: 0.875rem;
+  padding: 0.55rem 1.4rem;
+  border-radius: 12px;
+  font-weight: 600;
+  font-size: 0.9rem;
   cursor: pointer;
   transition: all var(--transition-fast);
-  border: none;
-  font-family: 'Inter', sans-serif;
+  border: 1px solid transparent;
+  font-family: var(--font-body);
+  letter-spacing: 0;
 }
 
 .btn-primary {
-  background: linear-gradient(135deg, var(--accent-primary), var(--accent-hover));
-  color: white;
-  box-shadow: 0 4px 6px rgba(59, 130, 246, 0.25);
+  background: var(--accent-primary);
+  color: var(--accent-text);
+  border: 1px solid transparent;
+  box-shadow: var(--shadow-sm);
 }
 
 .btn-primary:hover {
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-glow);
+  background: var(--accent-hover);
 }
 
 .btn-secondary {
-  background: transparent;
+  background: var(--surface-glass);
   color: var(--text-primary);
   border: 1px solid var(--border-glass);
-  transition:
-    background var(--transition-fast),
-    border-color var(--transition-fast);
+  box-shadow: var(--shadow-sm);
 }
 
 .btn-secondary:hover {
   background: var(--btn-hover-bg);
   border-color: var(--accent-primary);
-  transform: translateY(-2px);
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
 }
 
 .btn-danger {
   background: var(--danger);
-  color: white;
+  color: #ffffff;
+  border: 1px solid transparent;
 }
 
 .btn-danger:hover {
-  background: #dc2626;
-  box-shadow: 0 4px 12px rgba(239, 68, 68, 0.4);
+  filter: brightness(0.94);
 }
 
 /* Form Elements */
@@ -216,27 +252,33 @@ a:hover {
 
 .input-label {
   font-size: 0.875rem;
-  font-weight: 500;
+  font-weight: 600;
   color: var(--text-secondary);
 }
 
 .input-field {
   width: 100%;
-  padding: 0.75rem 1rem;
+  padding: 0.65rem 0.9rem;
   border-radius: 8px;
   background: var(--input-bg);
   border: 1px solid var(--border-glass);
   color: var(--text-primary);
-  font-family: 'Inter', sans-serif;
+  font-family: var(--font-body);
+  font-size: 0.9rem;
+  letter-spacing: 0;
   transition:
     border-color var(--transition-fast),
     box-shadow var(--transition-fast);
 }
 
+.input-field::placeholder {
+  color: var(--text-tertiary);
+}
+
 .input-field:focus {
   outline: none;
   border-color: var(--accent-primary);
-  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+  box-shadow: 0 0 0 3px var(--accent-glow);
 }
 
 /* Layout */
@@ -275,30 +317,33 @@ a:hover {
   justify-content: space-between;
   align-items: center;
   margin-bottom: 2rem;
-  padding-right: 260px; /* Chừa khoảng trống cố định cho nút User Profile ở góc phải trên, tránh đè các nút chức năng khác */
+  padding-right: 260px;
 }
 
-/* Utilities */
+/* Logo wordmark — gradient teal → vivid aqua, năng động kiểu Lottie */
 .text-gradient {
-  background: linear-gradient(135deg, #f37021, #facc15);
+  font-family: var(--font-display);
+  font-weight: 700;
+  letter-spacing: -0.015em;
+  background: linear-gradient(135deg, #f37021, #ff9a3d);
   -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
   background-clip: text;
+  -webkit-text-fill-color: transparent;
 }
 
 .badge {
-  padding: 0.25rem 0.75rem;
-  border-radius: 9999px;
-  font-size: 0.75rem;
-  font-weight: 500;
+  padding: 0.2rem 0.7rem;
+  border-radius: 48px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0;
 }
 
-.badge-success { background: rgba(16, 185, 129, 0.1); color: var(--success); border: 1px solid rgba(16, 185, 129, 0.2); }
-.badge-warning { background: rgba(245, 158, 11, 0.1); color: var(--warning); border: 1px solid rgba(245, 158, 11, 0.2); }
-.badge-danger { background: rgba(239, 68, 68, 0.1); color: var(--danger); border: 1px solid rgba(239, 68, 68, 0.2); }
-.badge-info { background: rgba(59, 130, 246, 0.1); color: var(--accent-primary); border: 1px solid rgba(59, 130, 246, 0.2); }
-
-.badge-ongoing { background: rgba(6, 182, 212, 0.1); color: #06b6d4; border: 1px solid rgba(6, 182, 212, 0.18); }
+.badge-success { background: rgba(21, 128, 61, 0.12); color: var(--success); border: 1px solid rgba(21, 128, 61, 0.25); }
+.badge-warning { background: rgba(240, 177, 0, 0.14); color: #946700; border: 1px solid rgba(240, 177, 0, 0.3); }
+.badge-danger  { background: rgba(229, 72, 77, 0.12); color: var(--danger); border: 1px solid rgba(229, 72, 77, 0.25); }
+.badge-info    { background: rgba(58, 134, 255, 0.12); color: var(--signal-blue); border: 1px solid rgba(58, 134, 255, 0.25); }
+.badge-ongoing { background: rgba(0, 221, 179, 0.14); color: #018a80; border: 1px solid rgba(0, 221, 179, 0.3); }
 
 /* Table */
 .data-table {
@@ -309,39 +354,39 @@ a:hover {
 
 .data-table th {
   text-align: left;
-  padding: 1rem;
+  padding: 0.85rem 1rem;
   color: var(--text-secondary);
-  font-size: 0.875rem;
-  font-weight: 500;
+  font-size: 0.82rem;
+  font-weight: 600;
   border-bottom: 1px solid var(--border-glass);
 }
 
 .data-table td {
-  padding: 1rem;
+  padding: 0.9rem 1rem;
   background: var(--table-row-bg);
+  border-top: 1px solid var(--border-glass);
+  border-bottom: 1px solid var(--border-glass);
+  font-size: 0.95rem;
+  font-weight: 500;
+  color: var(--text-primary);
   transition: background var(--transition-fast);
 }
 
 .data-table tbody tr {
-  transition: transform var(--transition-fast), box-shadow var(--transition-fast);
-  cursor: pointer; /* Thêm con trỏ chuột pointer để nhấn mạnh hàng có thể tương tác */
-}
-
-.data-table tbody tr:hover {
-  transform: translateY(-2px);
+  transition: background var(--transition-fast);
+  cursor: pointer;
 }
 
 .data-table tbody tr:hover td {
   background: var(--table-row-hover);
 }
 
-/* Thêm viền màu nhấn ở cạnh trái của cột đầu tiên để làm nổi bật dòng đang chọn */
 .data-table tbody tr:hover td:first-child {
-  box-shadow: inset 4px 0 0 var(--accent-primary);
+  box-shadow: inset 3px 0 0 var(--accent-primary);
 }
 
-.data-table td:first-child { border-top-left-radius: 8px; border-bottom-left-radius: 8px; }
-.data-table td:last-child { border-top-right-radius: 8px; border-bottom-right-radius: 8px; }
+.data-table td:first-child  { border-left: 1px solid var(--border-glass); border-top-left-radius: 10px; border-bottom-left-radius: 10px; }
+.data-table td:last-child   { border-right: 1px solid var(--border-glass); border-top-right-radius: 10px; border-bottom-right-radius: 10px; }
 
 /* Animations */
 @keyframes fadeIn {
@@ -350,7 +395,7 @@ a:hover {
 }
 
 .animate-fade-in {
-  animation: fadeIn 0.4s ease-out forwards;
+  animation: fadeIn 0.25s ease forwards;
 }
 
 .delay-100 { animation-delay: 100ms; }
@@ -363,6 +408,7 @@ a:hover {
   top: 0; left: 0; right: 0; bottom: 0;
   background: var(--modal-overlay-bg);
   backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -374,6 +420,7 @@ a:hover {
   max-width: 500px;
   max-height: 90vh;
   overflow-y: auto;
+  border-radius: 24px;
 }
 
 /* Toggle switch */
@@ -381,15 +428,15 @@ a:hover {
   display: flex;
   align-items: center;
   gap: 0.625rem;
-  padding: 0.625rem 1rem;
-  border-radius: 8px;
+  padding: 0.6rem 1rem;
+  border-radius: 12px;
   width: 100%;
-  background: transparent;
+  background: var(--surface-glass);
   border: 1px solid var(--border-glass);
   color: var(--text-primary);
-  font-family: 'Inter', sans-serif;
-  font-size: 0.875rem;
-  font-weight: 500;
+  font-family: var(--font-body);
+  font-size: 0.9rem;
+  font-weight: 600;
   cursor: pointer;
   margin-bottom: 0.5rem;
   transition:
@@ -399,14 +446,14 @@ a:hover {
 
 .theme-toggle:hover {
   background: var(--btn-hover-bg);
-  border-color: rgba(99, 102, 241, 0.3);
+  border-color: var(--accent-primary);
 }
 
 .theme-toggle-track {
   position: relative;
   width: 36px;
   height: 20px;
-  border-radius: 9999px;
+  border-radius: 48px;
   background: var(--accent-primary);
   flex-shrink: 0;
   transition: background var(--transition-fast);
@@ -419,9 +466,15 @@ a:hover {
   width: 16px;
   height: 16px;
   border-radius: 50%;
-  background: white;
-  transition: left 0.25s ease-in-out;
+  background: #ffffff;
+  transition: left 0.25s ease;
 }
 
 .theme-toggle-thumb.dark  { left: 2px; }
 .theme-toggle-thumb.light { left: 18px; }
+
+/* Scrollbar tinh giản */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border-glass); border-radius: 48px; border: 2px solid var(--bg-primary); }
+::-webkit-scrollbar-thumb:hover { background: var(--text-tertiary); }
