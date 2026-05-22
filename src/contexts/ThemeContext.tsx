@@ -10,7 +10,7 @@ const ThemeContext = createContext<ThemeContextType | null>(null);
 export const ThemeProvider = ({ children }: { children: ReactNode }) => {
   const [isDark, setIsDark] = useState(() => {
     const saved = localStorage.getItem('theme');
-    const dark = saved === 'dark'; // mặc định sáng (eggshell — chuẩn ElevenLabs)
+    const dark = saved === 'dark'; // mặc định sáng (Cloud White — chuẩn LottieFiles)
     // Apply class ngay lập tức để tránh flash giao diện sai khi reload/logout
     const root = document.documentElement;
     if (dark) {
