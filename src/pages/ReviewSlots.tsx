@@ -3,6 +3,7 @@ import api from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
 import { MAX_GROUP_PREFERENCES, type ReviewDto, type ReviewSlotDto } from '../types';
 import { CalendarRange, Loader2, AlertCircle, Check } from 'lucide-react';
+import { hasRole } from '../utils/role';
 
 // Trang đăng ký nguyện vọng slot review.
 //   - StudentLeader: chọn tối đa MAX_GROUP_PREFERENCES slot/đợt cho nhóm mình
@@ -24,7 +25,7 @@ const ReviewSlots = () => {
   const { user, refreshMe } = useAuth();
   const role = user?.role;
   // BE tự suy group/lecturer từ JWT — FE chỉ cần check role
-  const canRegister = role === 'StudentLeader' || role === 'Lecturer';
+  const canRegister = hasRole(role, 'StudentLeader') || hasRole(role, 'Lecturer');
 
   // Khi vào trang, refresh thông tin user để đảm bảo có lecturerId/groupId mới nhất.
   useEffect(() => { refreshMe().catch(() => {}); }, []);
@@ -113,7 +114,7 @@ const ReviewSlots = () => {
   // Tổng sau khi lưu = đã đăng ký - đánh dấu hủy + mới chọn
   const registeredCount = useMemo(() => slots.filter(isRegistered).length, [slots, user]);
   const totalAfterSubmit = registeredCount - pendingRemove.size + selected.size;
-  const isStudent = role === 'StudentLeader';
+  const isStudent = hasRole(role, 'StudentLeader');
   const overLimit = isStudent && totalAfterSubmit > MAX_GROUP_PREFERENCES;
   const hasChanges = selected.size > 0 || pendingRemove.size > 0;
 
@@ -155,7 +156,7 @@ const ReviewSlots = () => {
     for (const slotId of pendingRemove) {
       const slot = slots.find((x) => x.id === slotId);
       if (!slot) continue;
-      const subpath = role === 'StudentLeader' ? 'groups/me' : 'lecturers/me';
+      const subpath = hasRole(role, 'StudentLeader') ? 'groups/me' : 'lecturers/me';
       try {
         await api.delete(`/api/admin/reviews/${slot.reviewId}/slots/${slot.id}/${subpath}`);
       } catch (e: any) {
@@ -167,7 +168,7 @@ const ReviewSlots = () => {
     for (const slotId of selected) {
       const slot = slots.find((x) => x.id === slotId);
       if (!slot) continue;
-      const subpath = role === 'StudentLeader' ? 'groups' : 'lecturers';
+      const subpath = hasRole(role, 'StudentLeader') ? 'groups' : 'lecturers';
       try {
         await api.post(`/api/admin/reviews/${slot.reviewId}/slots/${slot.id}/${subpath}`, {});
       } catch (e: any) {
@@ -176,6 +177,7 @@ const ReviewSlots = () => {
     }
 
     if (reviewId != null) await fetchSlots(reviewId);
+
     setSubmitting(false);
     if (failed.length > 0) setError('Một số thay đổi không lưu được:\n' + failed.join('\n'));
   };
@@ -275,14 +277,14 @@ const ReviewSlots = () => {
         className="glass-panel"
         style={{ padding: '0.75rem 1rem', marginBottom: '1rem', fontSize: '0.875rem', color: 'var(--text-secondary)' }}
       >
-        {role === 'StudentLeader' && (
+        {hasRole(role, 'StudentLeader') && (
           <>Chọn tối đa <b>{MAX_GROUP_PREFERENCES} slot</b> mong muốn cho nhóm. Bấm slot trống → xanh nước. Double-click slot đã đăng ký (xanh lá) → đỏ (đánh dấu hủy). Bấm "Lưu" để gửi.</>
         )}
-        {role === 'Lecturer' && (
+        {hasRole(role, 'Lecturer') && (
           <>Chọn các slot bạn rảnh để chấm review (không giới hạn). Bấm slot trống → xanh nước. Double-click slot đã đăng ký (xanh lá) → đỏ (đánh dấu hủy). Bấm "Lưu" để gửi.</>
         )}
-        {role === 'GroupMember' && <>Bạn chỉ xem được lịch. Liên hệ nhóm trưởng để đăng ký.</>}
-        {role === 'Admin' && <>Bạn là Admin — chế độ chỉ xem.</>}
+        {hasRole(role, 'GroupMember') && <>Bạn chỉ xem được lịch. Liên hệ nhóm trưởng để đăng ký.</>}
+        {hasRole(role, 'Admin') && <>Bạn là Admin — chế độ chỉ xem.</>}
       </div>
 
       {/* Review selector + register bar */}

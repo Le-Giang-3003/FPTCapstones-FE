@@ -4,10 +4,8 @@ export interface User {
   userId?: number;
   email: string;
   fullName: string;
-  role: Role;
+  role: string;
   groupId?: number | null;
-  lecturerId?: number | null;     // chỉ Lecturer mới có — dùng khi đăng ký slot
-  isLeader?: boolean;             // true nếu là leader của group hiện tại
 }
 
 export interface AuthResponse {
@@ -23,8 +21,6 @@ export interface CurrentUserDto {
   fullName: string;
   role: string;   // [Flags] enum.ToString() — single role "Admin" hoặc multi "Admin, Lecturer"
   groupId: number | null;
-  lecturerId: number | null;
-  isLeader: boolean;
 }
 
 // Matches BE DashboardGroupDto

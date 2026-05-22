@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import api from '../services/api';
 import type { DashboardItem, SemesterListItemDto, LinkGroupsResultDto } from '../types';
 import { useAuth } from '../contexts/AuthContext';
+import { hasRole } from '../utils/role';
 import { Search, Eye, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Link2, AlertCircle, Download } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
@@ -22,7 +23,7 @@ const TopicManagement = () => {
   const itemsPerPage = 10;
 
   const { user } = useAuth();
-  const isAdmin = user?.role === 'Admin';
+  const isAdmin = hasRole(user?.role, 'Admin');
 
   // Load semesters 1 lần. Default = '' (Tất cả) để không miss nhóm chưa link với semester.
   // (Trước default Ongoing -> nhóm import nhưng chưa link semester sẽ không hiện -> dashboard trống bí ẩn)
@@ -189,7 +190,7 @@ const TopicManagement = () => {
             <option value="oldest">Cũ nhất</option>
           </select>
 
-          {(isAdmin || user?.role === 'Lecturer' || user?.role === 'StudentLeader') && (
+          {(isAdmin || hasRole(user?.role, 'Lecturer') || hasRole(user?.role, 'StudentLeader')) && (
             <button
               className="btn btn-primary"
               onClick={handleExport}

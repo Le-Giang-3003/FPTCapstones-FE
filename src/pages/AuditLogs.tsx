@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import api from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
+import { hasRole } from '../utils/role';
 import type { AuditLogDto } from '../types';
 import { RefreshCw, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from 'lucide-react';
 
@@ -19,7 +20,7 @@ const AuditLogs = () => {
   const itemsPerPage = 10;
   const [totalCount, setTotalCount] = useState(0);
 
-  const isAdmin = user?.role === 'Admin';
+  const isAdmin = hasRole(user?.role, 'Admin');
 
   const load = async (pageToLoad = currentPage) => {
     setErr(null);

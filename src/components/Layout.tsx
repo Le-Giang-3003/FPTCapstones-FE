@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { Outlet, Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { hasAnyRole } from '../utils/role';
 import { useTheme } from '../contexts/ThemeContext';
 import { LayoutDashboard, Users, FolderKanban, LogOut, Upload, ClipboardList, Sun, Moon, ChevronDown, GraduationCap, CalendarRange, BookmarkPlus, ChevronLeft, ChevronRight, BookOpen, CalendarCheck } from 'lucide-react';
 const Layout = () => {
@@ -77,7 +78,7 @@ const Layout = () => {
 
         <nav style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', flex: 1 }}>
           {navItems
-            .filter(item => user && item.roles.includes(user.role))
+            .filter(item => user && hasAnyRole(user?.role, item.roles as import('../types').Role[]))
             .map(item => {
               const isActive = location.pathname === item.path || location.pathname.startsWith(item.path + '/');
               return (

@@ -1,6 +1,8 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from './contexts/AuthContext';
+import { hasRole, hasAnyRole } from './utils/role';
+import type { Role } from './types';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import TopicManagement from './pages/TopicManagement';
@@ -15,18 +17,18 @@ import ProjectDetail from './pages/ProjectDetail';
 import ReviewSlots from './pages/ReviewSlots';
 import Layout from './components/Layout';
 
-const PrivateRoute = ({ children, roles }: { children: React.ReactNode; roles?: string[] }) => {
+const PrivateRoute = ({ children, roles }: { children: React.ReactNode; roles?: Role[] }) => {
   const { user, loading } = useAuth();
   if (loading) return <div className="app-container" style={{ alignItems: 'center', justifyContent: 'center' }}>Loading...</div>;
   if (!user) return <Navigate to="/login" replace />;
-  if (roles && !roles.includes(user.role)) return <Navigate to="/" replace />;
+  if (roles && !hasAnyRole(user.role, roles)) return <Navigate to="/" replace />;
   return <>{children}</>;
 };
 
 const HomeRedirect = () => {
   const { user } = useAuth();
   if (!user) return <Navigate to="/login" replace />;
-  if (user.role === 'Admin' || user.role === 'Lecturer') return <Navigate to="/dashboard" replace />;
+  if (hasRole(user.role, 'Admin') || hasRole(user.role, 'Lecturer')) return <Navigate to="/dashboard" replace />;
   if (user.groupId) return <Navigate to={`/projects/${user.groupId}`} replace />;
   return <Navigate to="/no-project" replace />;
 };
