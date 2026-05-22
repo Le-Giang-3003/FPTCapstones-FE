@@ -94,7 +94,7 @@ const Layout = () => {
                     gap: isSidebarCollapsed ? '0' : '0.75rem',
                     padding: isSidebarCollapsed ? '0.75rem 0' : '0.75rem 1rem',
                     borderRadius: '8px',
-                    color: isActive ? 'white' : 'var(--text-secondary)',
+                    color: isActive ? 'var(--accent-text)' : 'var(--text-secondary)',
                     background: isActive ? 'var(--accent-primary)' : 'transparent',
                     transition: 'all 0.2s',
                     textDecoration: 'none',
@@ -149,8 +149,8 @@ const Layout = () => {
               width: '28px',
               height: '28px',
               borderRadius: '50%',
-              background: 'linear-gradient(135deg, var(--accent-primary), var(--accent-hover))',
-              color: 'white',
+              background: 'var(--accent-primary)',
+              color: 'var(--accent-text)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
@@ -187,7 +187,7 @@ const Layout = () => {
                 flexDirection: 'column',
                 gap: '1rem',
                 // Override bg đục 100% — không cho content phía sau lộ qua dropdown
-                background: isDark ? 'rgb(21, 31, 50)' : 'rgb(255, 255, 255)',
+                background: 'var(--surface-glass)',
               }}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', paddingBottom: '0.75rem', borderBottom: '1px solid var(--border-glass)' }}>
@@ -208,7 +208,7 @@ const Layout = () => {
                 <div style={{ overflow: 'hidden' }}>
                   <p style={{ fontWeight: 600, fontSize: '0.9rem', whiteSpace: 'nowrap', textOverflow: 'ellipsis', color: 'var(--text-primary)' }}>{user?.fullName}</p>
                   <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>{user?.email}</p>
-                  <span className="badge" style={{ display: 'inline-block', marginTop: '0.35rem', background: 'rgba(251, 146, 60, 0.1)', color: 'var(--accent-primary)', padding: '0.125rem 0.5rem', fontSize: '0.7rem', border: '1px solid rgba(251, 146, 60, 0.15)' }}>
+                  <span className="badge" style={{ display: 'inline-block', marginTop: '0.35rem', background: 'var(--bg-secondary)', color: 'var(--text-secondary)', padding: '0.125rem 0.5rem', fontSize: '0.7rem', border: '1px solid var(--border-glass)' }}>
                     {user?.role}
                   </span>
                 </div>
