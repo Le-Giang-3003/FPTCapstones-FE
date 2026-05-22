@@ -1,11 +1,12 @@
 import { useAuth } from '../contexts/AuthContext';
+import { hasRole, hasAnyRole } from '../utils/role';
 import { GoogleLogin } from '@react-oauth/google';
 import { Navigate, useNavigate } from 'react-router-dom';
 import { Shield, Sparkles } from 'lucide-react';
 
-const routeForUser = (role: string, groupId?: number | null) => {
-  if (role === 'Admin' || role === 'Lecturer') return '/dashboard';
-  if ((role === 'StudentLeader' || role === 'GroupMember' || role === 'Student') && groupId) {
+const routeForUser = (role: string | undefined | null, groupId?: number | null) => {
+  if (hasRole(role, 'Admin') || hasRole(role, 'Lecturer')) return '/dashboard';
+  if (hasAnyRole(role, ['StudentLeader', 'GroupMember', 'Student']) && groupId) {
     return `/projects/${groupId}`;
   }
   return '/no-project';

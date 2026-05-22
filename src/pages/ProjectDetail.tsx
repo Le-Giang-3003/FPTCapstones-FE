@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import api from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
+import { hasRole } from '../utils/role';
 import type { ProjectDetailDto } from '../types';
 import { Save, FileUp, Trash2, Download, Send, CheckCircle, XCircle, Crown, FileText } from 'lucide-react';
 
@@ -27,9 +28,10 @@ const ProjectDetail = () => {
   const [file, setFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
 
-  const isStudentLeader = user?.role === 'StudentLeader';
-  const isAdmin = user?.role === 'Admin';
-  const isLecturer = user?.role === 'Lecturer';
+  const isStudentLeader = hasRole(user?.role, 'StudentLeader');
+  const isAdmin = hasRole(user?.role, 'Admin');
+  const isLecturer = hasRole(user?.role, 'Lecturer');
+
 
   // State for selected version (PRD: switch documents view by version)
   const [selectedVersionId, setSelectedVersionId] = useState<number | null>(null);

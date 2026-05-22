@@ -6,10 +6,45 @@ import type {
   SemesterHolidayDto,
   SemesterStatus,
   SemesterSeason,
-  HolidayTemplateDto,
   LinkGroupsResultDto,
+  SemesterMilestoneDto,
+  HolidayCascadeResultDto,
+  MilestoneType,
+  ReviewStatus,
 } from '../types';
-import { Calendar, Filter, Users, Clock, AlertCircle, Plus, Loader2, RefreshCw, ChevronDown, BookmarkPlus, X, Link2, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Calendar, Filter, Users, Clock, AlertCircle, Plus, Loader2, RefreshCw, ChevronDown, X, Link2, ChevronLeft, ChevronRight } from 'lucide-react';
+
+// Map ReviewStatus → label + style (inline để có hatched pattern cho Registered + gray cho Draft)
+const REVIEW_STATUS_META: Record<ReviewStatus, { label: string; style: React.CSSProperties }> = {
+  Draft: {
+    label: 'Chưa đăng ký được',
+    style: { background: 'rgba(148, 163, 184, 0.15)', color: '#64748b', border: '1px solid rgba(148, 163, 184, 0.3)' },
+  },
+  Registering: {
+    label: 'Đang đăng ký',
+    style: { background: 'rgba(59, 130, 246, 0.15)', color: '#3b82f6', border: '1px solid rgba(59, 130, 246, 0.35)' },
+  },
+  Registered: {
+    label: 'Đã chốt slot',
+    // Xanh dương + hatched diagonal bên trong (đục) để phân biệt với Registering
+    style: {
+      background: 'repeating-linear-gradient(45deg, rgba(59,130,246,0.22) 0px, rgba(59,130,246,0.22) 4px, rgba(59,130,246,0.05) 4px, rgba(59,130,246,0.05) 8px)',
+      color: '#3b82f6', border: '1px solid rgba(59, 130, 246, 0.4)',
+    },
+  },
+  Ongoing: {
+    label: 'Đang diễn ra',
+    style: { background: 'rgba(16, 185, 129, 0.18)', color: '#10b981', border: '1px solid rgba(16, 185, 129, 0.4)' },
+  },
+  Finished: {
+    label: 'Đã xong',
+    style: { background: 'rgba(234, 179, 8, 0.12)', color: '#ca8a04', border: '1px solid rgba(234, 179, 8, 0.3)' },
+  },
+  Cancelled: {
+    label: 'Đã hủy',
+    style: { background: 'rgba(239, 68, 68, 0.12)', color: 'var(--danger)', border: '1px solid rgba(239, 68, 68, 0.3)' },
+  },
+};
 
 // Map enum → label tiếng Việt + màu badge
 
@@ -82,7 +117,12 @@ const AdminSemesters = () => {
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [detail, setDetail] = useState<SemesterDetailDto | null>(null);
   const [holidays, setHolidays] = useState<SemesterHolidayDto[]>([]);
+  const [milestones, setMilestones] = useState<SemesterMilestoneDto[]>([]);   // chỉ overlap kỳ hiện tại (dùng cho bảng dưới)
+  const [allReviews, setAllReviews] = useState<SemesterMilestoneDto[]>([]);  // toàn bộ review trong DB (dùng cho timeline)
   const [loadingDetail, setLoadingDetail] = useState(false);
+
+  // Timeline view mode: 'week' (1 tick = 1 tuần) hoặc 'month' (1 tick = 1 tháng, ít cột hơn → fit screen)
+  const [tlMode, setTlMode] = useState<'week' | 'month'>('week');
 
   // Modal "Tạo kỳ học mới" — default năm hiện tại, season Fall (vì giữa năm hay tạo Fall tiếp theo)
   const currentYear = new Date().getFullYear();
@@ -216,21 +256,24 @@ const AdminSemesters = () => {
     return () => { window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); };
   }, [dragState, detail, holidays]);
 
-  // Lưu các thay đổi drag — PUT từng cái
+  // Lưu các thay đổi drag — PUT từng cái, gộp cascade feedback của cái cuối
   const handleSaveEdits = async () => {
     if (!hasDirty || savingEdits) return;
     try {
       setSavingEdits(true);
       const ids = Object.keys(dirtyEdits).map(n => parseInt(n, 10));
+      let lastCascade: HolidayCascadeResultDto | null = null;
       for (const id of ids) {
         const e = dirtyEdits[id];
-        await api.put(`/api/admin/semester-holidays/${id}`, {
+        const res = await api.put<HolidayCascadeResultDto>(`/api/admin/semester-holidays/${id}`, {
           startDate: e.startDate,
           durationDays: e.durationDays,
         });
+        lastCascade = res.data;
       }
       setDirtyEdits({});
       if (detail) await Promise.all([loadDetail(detail.id), loadList()]);
+      if (lastCascade) showCascadeFeedback(lastCascade, 'Lưu chỉnh sửa');
     } catch (e: any) {
       openConfirm({
         title: 'Lưu thay đổi thất bại',
@@ -248,20 +291,7 @@ const AdminSemesters = () => {
   // Khi đổi semester được chọn -> reset dirty (tránh nhầm giữa các kỳ)
   useEffect(() => { setDirtyEdits({}); }, [selectedId]);
 
-  // === Holiday Templates (kho lễ chuẩn, độc lập với semester) ===
-  const [templates, setTemplates] = useState<HolidayTemplateDto[]>([]);
-  const loadTemplates = async () => {
-    try {
-      const res = await api.get<HolidayTemplateDto[]>('/api/admin/holiday-templates');
-      setTemplates(res.data);
-    } catch (e) {
-      console.error('Load holiday templates failed', e);
-    }
-  };
-  // Load 1 lần khi mount — templates không đổi theo semester
-  useEffect(() => { loadTemplates(); }, []);
-
-  // === Modal "Thêm ngày lễ vào kỳ" ===
+  // === Modal "Thêm ngày nghỉ vào kỳ" ===
   // Khi user pick template, ta clone template values nhưng cho phép override
   // (StartDate được suy từ Year của semester + DefaultStartMonth/Day — clamp >= semester.startDate)
   const [showAddHoliday, setShowAddHoliday] = useState(false);
@@ -276,50 +306,6 @@ const AdminSemesters = () => {
   const [holidayError, setHolidayError] = useState<string | null>(null);
   const [addingHoliday, setAddingHoliday] = useState(false);
 
-  // Kiểm tra template có rơi trong khoảng [semester.start, semester.end] hay không.
-  // VD: template Tết 10/2 không match cho Fall (Sep-Dec) → loại khỏi đề xuất.
-  // Logic: thử construct date với Year của semester; nếu nằm trong range thì OK.
-  // Edge case: ngày kết thúc template (start + duration) vượt qua end semester cũng vẫn cho phép (BE sẽ clamp/cảnh báo sau).
-  const templateFitsSemester = (tpl: HolidayTemplateDto, sem: SemesterDetailDto): boolean => {
-    const yyyy = sem.year;
-    const mm = String(tpl.defaultStartMonth).padStart(2, '0');
-    const dd = String(tpl.defaultStartDay).padStart(2, '0');
-    const candidateStart = new Date(`${yyyy}-${mm}-${dd}`);
-    const semStart = new Date(sem.startDate);
-    const semEnd = new Date(sem.endDate);
-    return candidateStart >= semStart && candidateStart <= semEnd;
-  };
-
-  // Templates lọc theo semester đang xem (chỉ hiện những lễ rơi trong khoảng kỳ)
-  const eligibleTemplates = useMemo(() => {
-    if (!detail) return [] as HolidayTemplateDto[];
-    return templates.filter(t => templateFitsSemester(t, detail));
-  }, [templates, detail]);
-
-  // Apply template -> fill form theo Year của semester đang xem
-  const applyTemplate = (tpl: HolidayTemplateDto | null) => {
-    if (!tpl || !detail) {
-      setHolidayForm({ ...blankHolidayForm });
-      return;
-    }
-    // Ngày gợi ý: dùng Year của semester (vd Tết template có Default 10/2 -> 2026-02-10)
-    const yyyy = detail.year;
-    const mm = String(tpl.defaultStartMonth).padStart(2, '0');
-    const dd = String(tpl.defaultStartDay).padStart(2, '0');
-    let suggested = `${yyyy}-${mm}-${dd}`;
-    // Clamp về startDate của semester nếu suggested rơi trước (vd Tết template 10/2 nhưng kỳ Spring bắt đầu 01/01 -> ok; Fall bắt đầu sau 10/2 -> clamp lên)
-    if (new Date(suggested) < new Date(detail.startDate)) {
-      suggested = detail.startDate.slice(0, 10);
-    }
-    setHolidayForm({
-      templateId: tpl.id,
-      label: tpl.label,
-      startDate: suggested,
-      durationDays: tpl.defaultDurationDays,
-      isCompensated: tpl.isCompensated,
-    });
-  };
-
   const openAddHoliday = () => {
     setHolidayError(null);
     setHolidayForm({ ...blankHolidayForm });
@@ -331,7 +317,7 @@ const AdminSemesters = () => {
     setHolidayError(null);
     if (!detail) return;
     if (!holidayForm.label.trim()) {
-      setHolidayError('Tên ngày lễ không được rỗng');
+      setHolidayError('Tên ngày nghỉ không được rỗng');
       return;
     }
     if (!holidayForm.startDate) {
@@ -352,7 +338,7 @@ const AdminSemesters = () => {
     }
     try {
       setAddingHoliday(true);
-      await api.post('/api/admin/semester-holidays', {
+      const res = await api.post<HolidayCascadeResultDto>('/api/admin/semester-holidays', {
         semesterId: detail.id,
         templateId: holidayForm.templateId,
         label: holidayForm.label.trim(),
@@ -362,24 +348,211 @@ const AdminSemesters = () => {
       });
       setShowAddHoliday(false);
       await Promise.all([loadDetail(detail.id), loadList()]);  // loadList vì EndDate có thể đổi (auto-recalc)
+      // Show cascade feedback nếu có gì shift
+      showCascadeFeedback(res.data, 'Thêm ngày nghỉ');
     } catch (err: any) {
-      setHolidayError(err?.response?.data?.message || 'Thêm ngày lễ thất bại');
+      setHolidayError(err?.response?.data?.message || 'Thêm ngày nghỉ thất bại');
     } finally {
       setAddingHoliday(false);
     }
   };
 
+  // === Xóa học kỳ ===
+  const [deletingSem, setDeletingSem] = useState(false);
+  const handleDeleteSemester = () => {
+    if (!detail) return;
+    openConfirm({
+      title: `Xóa kỳ học ${detail.code}?`,
+      message: `Sẽ xóa kỳ "${SEASON_LABEL[detail.season] ?? detail.season} ${detail.year}" cùng toàn bộ ngày nghỉ và lịch review/defence của kỳ này. ${detail.groupCount > 0 ? `⚠️ Kỳ này đang có ${detail.groupCount} nhóm — BE sẽ chặn xóa.` : 'Không có nhóm gắn vào nên xóa được.'}`,
+      variant: 'danger', confirmLabel: 'Xóa kỳ học',
+      onConfirm: async () => {
+        try {
+          setDeletingSem(true);
+          await api.delete(`/api/admin/semesters/${detail.id}`);
+          setSelectedId(null);
+          setDetail(null);
+          setHolidays([]);
+          setMilestones([]);
+          await loadList();
+        } catch (e: any) {
+          openConfirm({
+            title: 'Xóa kỳ thất bại',
+            message: e?.response?.data?.message || 'Có lỗi xảy ra. Có thể kỳ này đang có nhóm gắn vào.',
+            variant: 'danger', cancelLabel: null, confirmLabel: 'Đã hiểu',
+          });
+        } finally {
+          setDeletingSem(false);
+        }
+      },
+    });
+  };
+
+  // === Milestone CRUD (manual) ===
+  // Modal mode: 'new' = tạo mới, số = sửa id
+  const [milestoneMode, setMilestoneMode] = useState<number | 'new' | null>(null);
+  const blankMilestoneForm = {
+    type: 'Review' as MilestoneType,
+    orderIndex: 1,
+    label: '',
+    windowStart: '',
+    windowEnd: '',
+    status: 'Draft' as ReviewStatus,
+    note: '',
+  };
+  const [milestoneForm, setMilestoneForm] = useState(blankMilestoneForm);
+  const [milestoneError, setMilestoneError] = useState<string | null>(null);
+  const [savingMs, setSavingMs] = useState(false);
+
+  // Realtime preview cho timeline: project form values lên timeline ngay khi user gõ
+  const previewHoliday = useMemo(() => {
+    if (!showAddHoliday || !holidayForm.startDate || holidayForm.durationDays < 1) return null;
+    return {
+      label: holidayForm.label || '(Lễ mới)',
+      startDate: holidayForm.startDate,
+      durationDays: holidayForm.durationDays,
+      isCompensated: holidayForm.isCompensated,
+    };
+  }, [showAddHoliday, holidayForm]);
+
+  const previewMilestone = useMemo(() => {
+    if (milestoneMode === null || !milestoneForm.windowStart || !milestoneForm.windowEnd) return null;
+    if (new Date(milestoneForm.windowEnd) <= new Date(milestoneForm.windowStart)) return null;
+    return {
+      type: milestoneForm.type,
+      label: milestoneForm.label || `(${milestoneForm.type} mới)`,
+      windowStart: milestoneForm.windowStart,
+      windowEnd: milestoneForm.windowEnd,
+      // Edit mode: bỏ milestone gốc đang sửa để preview thay nó (không render trùng)
+      hiddenId: typeof milestoneMode === 'number' ? milestoneMode : null,
+    };
+  }, [milestoneMode, milestoneForm]);
+
+  const openCreateMilestone = () => {
+    if (!detail) return;
+    // Auto-suggest OrderIndex tiếp theo cho Review
+    const nextRvIdx = (milestones.filter(m => m.type === 'Review').map(m => m.orderIndex).reduce((a, b) => Math.max(a, b), 0)) + 1;
+    setMilestoneForm({
+      ...blankMilestoneForm,
+      type: 'Review',
+      orderIndex: nextRvIdx,
+      label: `Review ${nextRvIdx}`,
+      windowStart: detail.startDate.slice(0, 10),
+      windowEnd: addDaysISO(detail.startDate.slice(0, 10), 14),
+    });
+    setMilestoneError(null);
+    setMilestoneMode('new');
+  };
+
+  const openEditMilestone = (m: SemesterMilestoneDto) => {
+    setMilestoneForm({
+      type: m.type,
+      orderIndex: m.orderIndex,
+      label: m.label,
+      windowStart: m.windowStart.slice(0, 10),
+      windowEnd: m.windowEnd.slice(0, 10),
+      status: m.status ?? 'Draft',
+      note: m.note ?? '',
+    });
+    setMilestoneError(null);
+    setMilestoneMode(m.id);
+  };
+
+  // Khi đổi Type trong form, auto re-suggest OrderIndex + Label
+  const onTypeChange = (newType: MilestoneType) => {
+    if (milestoneMode !== 'new') {                              // Edit thì không auto đổi
+      setMilestoneForm(f => ({ ...f, type: newType }));
+      return;
+    }
+    const nextIdx = (milestones.filter(m => m.type === newType).map(m => m.orderIndex).reduce((a, b) => Math.max(a, b), 0)) + 1;
+    setMilestoneForm(f => ({ ...f, type: newType, orderIndex: nextIdx, label: `${newType === 'Review' ? 'Review' : 'Defence'} ${nextIdx}` }));
+  };
+
+  const handleSubmitMilestone = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setMilestoneError(null);
+    if (!detail) return;
+    if (!milestoneForm.label.trim()) { setMilestoneError('Label không được rỗng'); return; }
+    if (!milestoneForm.windowStart || !milestoneForm.windowEnd) { setMilestoneError('Phải nhập cả 2 mốc'); return; }
+    if (new Date(milestoneForm.windowEnd) <= new Date(milestoneForm.windowStart)) { setMilestoneError('WindowEnd phải sau WindowStart'); return; }
+    if (new Date(milestoneForm.windowStart) < new Date(detail.startDate)) { setMilestoneError('WindowStart phải >= ngày bắt đầu kỳ'); return; }
+    try {
+      setSavingMs(true);
+      if (milestoneMode === 'new') {
+        await api.post('/api/admin/reviews', {
+          semesterId: detail.id,
+          type: milestoneForm.type,
+          orderIndex: milestoneForm.orderIndex,
+          label: milestoneForm.label.trim(),
+          windowStart: milestoneForm.windowStart,
+          windowEnd: milestoneForm.windowEnd,
+          status: milestoneForm.status,
+          note: milestoneForm.note.trim() || null,
+        });
+      } else {
+        await api.put(`/api/admin/reviews/${milestoneMode}`, {
+          label: milestoneForm.label.trim(),
+          windowStart: milestoneForm.windowStart,
+          windowEnd: milestoneForm.windowEnd,
+          status: milestoneForm.status,
+          note: milestoneForm.note.trim() || null,
+        });
+      }
+      setMilestoneMode(null);
+      await loadDetail(detail.id);
+    } catch (err: any) {
+      setMilestoneError(err?.response?.data?.message || 'Lưu thất bại');
+    } finally {
+      setSavingMs(false);
+    }
+  };
+
+  // Chuyển status nhanh qua PATCH (Draft → Registering, etc.)
+  const handleChangeReviewStatus = async (m: SemesterMilestoneDto, newStatus: ReviewStatus) => {
+    if (!detail) return;
+    try {
+      await api.patch(`/api/admin/reviews/${m.id}/status`, { status: newStatus });
+      await loadDetail(detail.id);
+    } catch (e: any) {
+      openConfirm({
+        title: 'Đổi trạng thái thất bại',
+        message: e?.response?.data?.message || 'Có lỗi xảy ra.',
+        variant: 'danger', cancelLabel: null, confirmLabel: 'Đã hiểu',
+      });
+    }
+  };
+
+  const handleDeleteMilestone = (m: SemesterMilestoneDto) => {
+    openConfirm({
+      title: 'Xóa lịch review/defence?',
+      message: `Xóa "${m.label}" khỏi kỳ học. Hành động này không undo được.`,
+      variant: 'danger', confirmLabel: 'Xóa',
+      onConfirm: async () => {
+        try {
+          await api.delete(`/api/admin/reviews/${m.id}`);
+          if (detail) await loadDetail(detail.id);
+        } catch (e: any) {
+          openConfirm({
+            title: 'Xóa thất bại',
+            message: e?.response?.data?.message || 'Có lỗi xảy ra.',
+            variant: 'danger', cancelLabel: null, confirmLabel: 'Đã hiểu',
+          });
+        }
+      },
+    });
+  };
+
   // Xóa 1 holiday — confirm qua popup
   const handleDeleteHoliday = (h: SemesterHolidayDto) => {
     openConfirm({
-      title: 'Xóa ngày lễ?',
+      title: 'Xóa ngày nghỉ?',
       message: `Bỏ "${h.label}" khỏi kỳ học này. EndDate kỳ học có thể được tính lại nếu lễ có bù.`,
       variant: 'danger',
       confirmLabel: 'Xóa',
       onConfirm: async () => {
         try {
-          await api.delete(`/api/admin/semester-holidays/${h.id}`);
+          const res = await api.delete<HolidayCascadeResultDto>(`/api/admin/semester-holidays/${h.id}`);
           if (detail) await Promise.all([loadDetail(detail.id), loadList()]);
+          if (res.data) showCascadeFeedback(res.data, 'Xóa ngày nghỉ');
         } catch (e: any) {
           openConfirm({
             title: 'Xóa thất bại',
@@ -404,6 +577,34 @@ const AdminSemesters = () => {
   }
   const [confirmState, setConfirmState] = useState<ConfirmState | null>(null);
   const [confirmBusy, setConfirmBusy] = useState(false);
+
+  // Show popup từ cascade result (sau khi thêm/sửa/xóa lễ có bù) — chỉ show khi có gì đó shift
+  const showCascadeFeedback = (r: HolidayCascadeResultDto, actionLabel: string) => {
+    if (r.shiftedSemesters.length === 0 && r.shiftedMilestones.length === 0 && r.overflows.length === 0) return;
+    const lines: string[] = [];
+    if (r.shiftedSemesters.length > 0) {
+      lines.push(`── ${r.shiftedSemesters.length} kỳ học bị shift:`);
+      r.shiftedSemesters.forEach(s => lines.push(`  ${s.code}: ${s.oldStart.slice(0, 10)} → ${s.newStart.slice(0, 10)} (+${s.deltaDays}d)`));
+    }
+    if (r.shiftedMilestones.length > 0) {
+      lines.push(`── ${r.shiftedMilestones.length} milestone bị shift:`);
+      r.shiftedMilestones.forEach(m => lines.push(`  ${m.label}: ${m.oldWindowStart.slice(0, 10)}→${m.oldWindowEnd.slice(0, 10)} ⇒ ${m.newWindowStart.slice(0, 10)}→${m.newWindowEnd.slice(0, 10)}`));
+    }
+    if (r.overflows.length > 0) {
+      lines.push(`── ⚠ ${r.overflows.length} mục vắt biên kỳ:`);
+      r.overflows.forEach(o => lines.push(`  ${o.kind} "${o.label}" trong ${o.semesterCode} vượt ${o.overflowDays} ngày`));
+    }
+    if (r.skippedCompletedCodes.length > 0) {
+      lines.push(`── Bỏ qua (kỳ đã Completed, không shift):`);
+      r.skippedCompletedCodes.forEach(c => lines.push(`  ${c}`));
+    }
+    setConfirmState({
+      title: `${actionLabel} thành công — đã cascade`,
+      message: `Sau thao tác này hệ thống đã tự cập nhật các kỳ học và milestone liên quan:`,
+      lines,
+      variant: 'info', cancelLabel: null, confirmLabel: 'Đã hiểu',
+    });
+  };
 
   const openConfirm = (state: ConfirmState) => setConfirmState(state);
   const closeConfirm = () => { if (!confirmBusy) setConfirmState(null); };
@@ -592,9 +793,13 @@ const AdminSemesters = () => {
       if (statusFilter) params.status = statusFilter;
       const res = await api.get<SemesterListItemDto[]>('/api/admin/semesters', { params });
       setList(res.data);
-      // Auto-select item đầu nếu chưa chọn gì
-      if (res.data.length > 0 && selectedId === null) {
-        setSelectedId(res.data[0].id);
+      // Auto-select học kỳ đang diễn ra nếu có, fallback về item đầu.
+      const selectedExists = selectedId !== null && res.data.some(s => s.id === selectedId);
+      if (res.data.length > 0 && !selectedExists) {
+        const ongoing = res.data.find(s => s.status === 'Ongoing');
+        const target = ongoing ?? res.data[0];
+        setSelectedId(target.id);
+        setViewYear(target.year);
       }
     } catch (e) {
       console.error('Load semesters failed', e);
@@ -603,20 +808,27 @@ const AdminSemesters = () => {
     }
   };
 
-  // Load detail + holidays cho semester được chọn (parallel)
+  // Load detail + holidays + milestones cho semester được chọn (parallel)
   const loadDetail = async (id: number) => {
     try {
       setLoadingDetail(true);
-      const [d, h] = await Promise.all([
+      // 4 fetch parallel: detail / holidays / reviews-overlap (bảng) / all-reviews (timeline)
+      const [d, h, m, allR] = await Promise.all([
         api.get<SemesterDetailDto>(`/api/admin/semesters/${id}`),
         api.get<SemesterHolidayDto[]>(`/api/admin/semester-holidays`, { params: { semesterId: id } }),
+        api.get<SemesterMilestoneDto[]>(`/api/admin/reviews`, { params: { semesterId: id } }),
+        api.get<SemesterMilestoneDto[]>(`/api/admin/reviews/all`),
       ]);
       setDetail(d.data);
       setHolidays(h.data);
+      setMilestones(m.data);
+      setAllReviews(allR.data);
     } catch (e) {
       console.error('Load semester detail failed', e);
       setDetail(null);
       setHolidays([]);
+      setMilestones([]);
+      setAllReviews([]);
     } finally {
       setLoadingDetail(false);
     }
@@ -631,11 +843,7 @@ const AdminSemesters = () => {
     return Math.ceil(daysBetween(detail.startDate, detail.endDate) / 7);
   }, [detail]);
 
-  // Tổng số ngày để vẽ timeline (% theo ratio)
-  const totalDays = useMemo(() => {
-    if (!detail) return 1;
-    return Math.max(1, daysBetween(detail.startDate, detail.endDate));
-  }, [detail]);
+  // (Đã refactor: tính displayDays trong IIFE timeline, không cần totalDays toàn cục nữa)
 
   return (
     <div className="animate-fade-in">
@@ -744,7 +952,10 @@ const AdminSemesters = () => {
                   <div style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', padding: '0.5rem 0' }}>
                     Không có kỳ học nào trong năm {viewYear}.
                   </div>
-                ) : filteredItems.map(s => {
+                ) : (() => {
+                  // list is sorted desc by Year+Season upstream; for display we want chronological order within the year
+                  const displayItems = filteredItems.slice().reverse();
+                  return displayItems.map(s => {
                   const isActive = s.id === selectedId;
                   const meta = STATUS_META[s.status];
                   return (
@@ -768,7 +979,8 @@ const AdminSemesters = () => {
                       <span className={`badge ${meta.badge}`} style={{ padding: '0.05rem 0.45rem', fontSize: '0.65rem' }}>{meta.label}</span>
                     </button>
                   );
-                })}
+                  })
+                })()}
               </div>
 
               {/* Mũi tên → */}
@@ -812,8 +1024,22 @@ const AdminSemesters = () => {
                     </h2>
                     <p style={{ color: 'var(--text-secondary)', fontFamily: 'monospace', fontSize: '0.85rem' }}>Mã: {detail.code}</p>
                   </div>
-                  {/* Dropdown đổi trạng thái — click vào badge để mở */}
-                  <div style={{ position: 'relative' }}>
+                  {/* Action group: nút Xóa kỳ + Dropdown đổi trạng thái */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <button
+                      onClick={handleDeleteSemester}
+                      disabled={deletingSem}
+                      className="btn btn-secondary"
+                      style={{
+                        padding: '0.35rem 0.75rem', fontSize: '0.75rem',
+                        color: 'var(--danger)', border: '1px solid rgba(239, 68, 68, 0.25)',
+                      }}
+                      title="Xóa kỳ học này"
+                    >
+                      {deletingSem ? <Loader2 size={12} className="spin" /> : <X size={12} />}
+                      Xóa kỳ
+                    </button>
+                    <div style={{ position: 'relative' }}>
                     <button
                       onClick={() => setStatusMenuOpen(o => !o)}
                       disabled={updatingStatus}
@@ -874,6 +1100,7 @@ const AdminSemesters = () => {
                       </>
                     )}
                   </div>
+                  </div>{/* close action group */}
                 </div>
 
                 {/* Quick stats */}
@@ -887,30 +1114,195 @@ const AdminSemesters = () => {
 
               {/* Timeline chia theo tuần */}
               <div className="glass-card">
-                <h3 style={{ marginBottom: '1rem', color: 'var(--text-primary)' }}>Trục thời gian (theo tuần)</h3>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+                  <h3 style={{ margin: 0, color: 'var(--text-primary)' }}>Trục thời gian (theo {tlMode === 'week' ? 'tuần' : 'tháng'})</h3>
+                  {/* Toggle Week / Month — gọn hơn, fit screen */}
+                  <div style={{ display: 'inline-flex', border: '1px solid var(--border-glass)', borderRadius: 8, overflow: 'hidden' }}>
+                    {(['week', 'month'] as const).map(mode => (
+                      <button
+                        key={mode}
+                        onClick={() => setTlMode(mode)}
+                        style={{
+                          padding: '0.35rem 0.85rem', fontSize: '0.8rem',
+                          background: tlMode === mode ? 'var(--accent-primary)' : 'transparent',
+                          color: tlMode === mode ? 'white' : 'var(--text-secondary)',
+                          border: 'none', cursor: 'pointer', transition: 'background 0.05s',
+                        }}
+                      >
+                        {mode === 'week' ? 'Tuần' : 'Tháng'}
+                      </button>
+                    ))}
+                  </div>
+                </div>
 
                 {/* Container có scroll ngang nếu nhiều tuần */}
                 <div style={{ overflowX: 'auto', paddingBottom: '0.25rem' }}>
                   {(() => {
-                    // Tạo array các tuần — mỗi tuần là 1 mốc Date (tuần 1 = startDate)
-                    const start = new Date(detail.startDate);
-                    const weeks = Array.from({ length: weekCount + 1 }, (_, i) => new Date(start.getTime() + i * 7 * 86400000));
-                    const MIN_COL = 70;                           // min width / cột tuần để dd/MM đọc được
-                    const trackWidth = Math.max(weekCount * MIN_COL, 600);
+                    // === Tìm kỳ trước & sau (chỉ ở mode 'month' để có context không gian rộng hơn) ===
+                    // list đã sort desc(Year+Season) -> prev (lùi thời gian) ở idx+1, next (tiến) ở idx-1
+                    const showAdjacent = tlMode === 'month';
+                    const idx = showAdjacent ? list.findIndex(s => s.id === detail.id) : -1;
+                    const prevSem = showAdjacent && idx >= 0 ? list[idx + 1] : null;     // kỳ liền trước trong thời gian
+                    const nextSem = showAdjacent && idx >= 0 ? list[idx - 1] : null;     // kỳ liền sau trong thời gian
+                    const semStartISO = detail.startDate;
+                    const semEndISO = detail.endDate;
 
-                    // pxPerDay tính dựa vào trackWidth — dùng cho drag delta
-                    const pxPerDay = trackWidth / totalDays;
+                    // === Display range: trải rộng nếu có prev/next ===
+                    const displayStart = prevSem ? new Date(prevSem.startDate) : new Date(semStartISO);
+                    const displayEnd = nextSem ? new Date(nextSem.endDate) : new Date(semEndISO);
+                    const displayDays = Math.max(1, daysBetween(displayStart.toISOString().slice(0,10), displayEnd.toISOString().slice(0,10)) + 1);
+                    const today = new Date();
+                    const todayLabel = today.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' });
+                    const todayOffset = (today.getTime() - displayStart.getTime()) / 86400000;
+                    const todayLeftPct = (todayOffset / displayDays) * 100;
+
+                    // Helper tính %left và %width cho 1 segment dựa trên 2 mốc ISO
+                    const segPct = (sISO: string, eISO: string) => {
+                      const sOffset = daysBetween(displayStart.toISOString().slice(0, 10), sISO.slice(0, 10));
+                      const eOffset = daysBetween(displayStart.toISOString().slice(0, 10), eISO.slice(0, 10));
+                      return { leftPct: (sOffset / displayDays) * 100, widthPct: ((eOffset - sOffset) / displayDays) * 100 };
+                    };
+
+                    // === Tick generation theo mode ===
+                    // 'week': mỗi 7 ngày 1 tick, label = dd/MM
+                    // 'month': mỗi tháng 1 tick (đầu tháng đầu tiên trong kỳ), label = MM/YYYY — ít cột, fit screen
+                    let ticks: Date[];
+                    let tickLabelFn: (d: Date) => string;
+                    let MIN_COL: number;
+                    if (tlMode === 'week') {
+                      const wc = Math.ceil(displayDays / 7);
+                      ticks = Array.from({ length: wc }, (_, i) => new Date(displayStart.getTime() + i * 7 * 86400000));
+                      tickLabelFn = (d) => fmtShort(d);
+                      MIN_COL = 70;
+                    } else {
+                      const ms: Date[] = [];
+                      let cur = new Date(displayStart.getFullYear(), displayStart.getMonth(), 1);
+                      while (cur <= displayEnd) { ms.push(new Date(cur)); cur = new Date(cur.getFullYear(), cur.getMonth() + 1, 1); }
+                      ticks = ms;
+                      tickLabelFn = (d) => `${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
+                      MIN_COL = 100;
+                    }
+                    const tickCount = ticks.length;
+                    const trackWidth = Math.max(tickCount * MIN_COL, 600);
+                    const pxPerDay = trackWidth / displayDays;
+
+                    // Helper tính %left và %width cho 1 item, clip 0-100
+                    const positionItem = (itemStart: string, itemDurationDays: number) => {
+                      const startOffset = daysBetween(displayStart.toISOString().slice(0,10), itemStart.slice(0,10));
+                      const endOffset = startOffset + itemDurationDays;
+                      const clippedStart = Math.max(0, startOffset);
+                      const clippedEnd = Math.min(displayDays, endOffset);
+                      if (clippedEnd <= clippedStart) return null;   // ngoài range
+                      const leftPct = (clippedStart / displayDays) * 100;
+                      const widthPct = Math.max(0.8, ((clippedEnd - clippedStart) / displayDays) * 100);
+                      return { leftPct, widthPct, isClippedLeft: startOffset < 0, isClippedRight: endOffset > displayDays };
+                    };
+
                     return (
                       <div style={{ minWidth: trackWidth, position: 'relative' }}>
-                        {/* Bar nền + holiday overlays */}
+                        {/* === LANE 1: HOLIDAY === */}
                         <div style={{ position: 'relative', height: '52px', background: 'var(--surface-glass)', borderRadius: '8px', border: '1px solid var(--border-glass)', overflow: 'visible' }}>
-                          <div style={{
-                            position: 'absolute', inset: 0, borderRadius: '8px',
-                            background: 'linear-gradient(90deg, rgba(251, 146, 60, 0.18), rgba(251, 146, 60, 0.32))',
-                          }} />
-                          {/* Đường chia tuần (vertical lines) */}
-                          {weeks.slice(1, -1).map((_, i) => {
-                            const leftPct = ((i + 1) / weekCount) * 100;
+                          {todayLeftPct >= 0 && todayLeftPct <= 100 && (
+                            <div
+                              title={`Hôm nay: ${todayLabel}`}
+                              style={{
+                                position: 'absolute',
+                                top: '4px',
+                                bottom: '4px',
+                                left: `${todayLeftPct}%`,
+                                width: 0,
+                                borderLeft: '2px dashed rgba(59, 130, 246, 0.95)',
+                                zIndex: 20,
+                                pointerEvents: 'none',
+                                boxShadow: '0 0 0 1px rgba(59, 130, 246, 0.12)',
+                              }}
+                            />
+                          )}
+                          {/* Segment kỳ trước (xám mờ) — chỉ ở mode 'month' */}
+                          {prevSem && (() => {
+                            const p = segPct(prevSem.startDate, prevSem.endDate);
+                            return (
+                              <div style={{
+                                position: 'absolute', top: 0, bottom: 0,
+                                left: `${p.leftPct}%`, width: `${p.widthPct}%`,
+                                background: 'linear-gradient(90deg, rgba(148,163,184,0.18), rgba(148,163,184,0.28))',
+                                borderTopLeftRadius: 8, borderBottomLeftRadius: 8,
+                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                fontSize: '0.65rem', color: 'var(--text-secondary)', fontWeight: 600,
+                                pointerEvents: 'none',
+                              }}>
+                                ← {prevSem.code}
+                              </div>
+                            );
+                          })()}
+                          {/* Segment kỳ hiện tại (cam) */}
+                          {(() => {
+                            const p = segPct(semStartISO, semEndISO);
+                            return (
+                              <div style={{
+                                position: 'absolute', top: 0, bottom: 0,
+                                left: `${p.leftPct}%`, width: `${p.widthPct}%`,
+                                background: 'linear-gradient(90deg, rgba(251, 146, 60, 0.18), rgba(251, 146, 60, 0.32))',
+                              }} />
+                            );
+                          })()}
+                          {/* Segment kỳ sau (xám mờ) */}
+                          {nextSem && (() => {
+                            const p = segPct(nextSem.startDate, nextSem.endDate);
+                            return (
+                              <div style={{
+                                position: 'absolute', top: 0, bottom: 0,
+                                left: `${p.leftPct}%`, width: `${p.widthPct}%`,
+                                background: 'linear-gradient(90deg, rgba(148,163,184,0.18), rgba(148,163,184,0.28))',
+                                borderTopRightRadius: 8, borderBottomRightRadius: 8,
+                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                fontSize: '0.65rem', color: 'var(--text-secondary)', fontWeight: 600,
+                                pointerEvents: 'none',
+                              }}>
+                                {nextSem.code} →
+                              </div>
+                            );
+                          })()}
+                          {/* GAP indicator: giữa prev & current */}
+                          {prevSem && new Date(prevSem.endDate) < new Date(semStartISO) && (() => {
+                            const p = segPct(prevSem.endDate, semStartISO);
+                            if (p.widthPct < 0.5) return null;
+                            return (
+                              <div style={{
+                                position: 'absolute', top: 0, bottom: 0,
+                                left: `${p.leftPct}%`, width: `${p.widthPct}%`,
+                                background: 'repeating-linear-gradient(45deg, rgba(239,68,68,0.08) 0px, rgba(239,68,68,0.08) 6px, transparent 6px, transparent 12px)',
+                                border: '1px dashed rgba(239,68,68,0.4)',
+                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                fontSize: '0.62rem', color: 'var(--danger)', fontWeight: 700,
+                                pointerEvents: 'none',
+                              }} title={`Gap ${daysBetween(prevSem.endDate.slice(0,10), semStartISO.slice(0,10))} ngày giữa ${prevSem.code} và ${detail.code}`}>
+                                {p.widthPct > 3 ? `gap ${daysBetween(prevSem.endDate.slice(0,10), semStartISO.slice(0,10))}d` : ''}
+                              </div>
+                            );
+                          })()}
+                          {/* GAP indicator: giữa current & next */}
+                          {nextSem && new Date(semEndISO) < new Date(nextSem.startDate) && (() => {
+                            const p = segPct(semEndISO, nextSem.startDate);
+                            if (p.widthPct < 0.5) return null;
+                            return (
+                              <div style={{
+                                position: 'absolute', top: 0, bottom: 0,
+                                left: `${p.leftPct}%`, width: `${p.widthPct}%`,
+                                background: 'repeating-linear-gradient(45deg, rgba(239,68,68,0.08) 0px, rgba(239,68,68,0.08) 6px, transparent 6px, transparent 12px)',
+                                border: '1px dashed rgba(239,68,68,0.4)',
+                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                fontSize: '0.62rem', color: 'var(--danger)', fontWeight: 700,
+                                pointerEvents: 'none',
+                              }} title={`Gap ${daysBetween(semEndISO.slice(0,10), nextSem.startDate.slice(0,10))} ngày giữa ${detail.code} và ${nextSem.code}`}>
+                                {p.widthPct > 3 ? `gap ${daysBetween(semEndISO.slice(0,10), nextSem.startDate.slice(0,10))}d` : ''}
+                              </div>
+                            );
+                          })()}
+                          {/* Đường chia tick — tính % theo offset ngày thật (chuẩn cho cả week & month mode) */}
+                          {ticks.slice(1).map((t, i) => {
+                            const offset = (t.getTime() - displayStart.getTime()) / 86400000;
+                            const leftPct = (offset / displayDays) * 100;
                             return (
                               <div key={i} style={{
                                 position: 'absolute', top: 0, bottom: 0,
@@ -919,12 +1311,35 @@ const AdminSemesters = () => {
                               }} />
                             );
                           })}
+                          {/* Preview block (realtime từ form Add Holiday) */}
+                          {previewHoliday && (() => {
+                            const pos = positionItem(previewHoliday.startDate, previewHoliday.durationDays);
+                            if (!pos) return null;
+                            return (
+                              <div
+                                title={`Preview: ${previewHoliday.label} (${previewHoliday.durationDays}d${previewHoliday.isCompensated ? ', có bù' : ''})`}
+                                style={{
+                                  position: 'absolute', top: 0, bottom: 0,
+                                  left: `${pos.leftPct}%`, width: `${pos.widthPct}%`,
+                                  background: 'rgba(168, 85, 247, 0.4)',                // tím dashed -> phân biệt với data thật
+                                  border: '2px dashed #a855f7',
+                                  borderRadius: 4, zIndex: 5,
+                                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                  fontSize: '0.65rem', color: 'white', fontWeight: 700,
+                                  pointerEvents: 'none', overflow: 'hidden', whiteSpace: 'nowrap',
+                                }}
+                              >
+                                {pos.widthPct > 5 ? '👁 Preview' : ''}
+                              </div>
+                            );
+                          })()}
                           {/* Holiday overlays — drag-to-resize */}
                           {holidays.map(h => {
                             const eff = effective(h);
-                            const offsetDays = daysBetween(detail.startDate, eff.startDate);
-                            const leftPct = (offsetDays / totalDays) * 100;
-                            const widthPct = Math.max(0.8, (eff.durationDays / totalDays) * 100);
+                            const pos = positionItem(eff.startDate, eff.durationDays);
+                            if (!pos) return null;                            // không hiển thị nếu ngoài range tháng
+                            const leftPct = pos.leftPct;
+                            const widthPct = pos.widthPct;
                             const isDragging = dragState?.holidayId === h.id;
                             const isDirty = !!dirtyEdits[h.id] || isDragging;
                             const endDateISO = addDaysISO(eff.startDate, eff.durationDays);
@@ -940,7 +1355,7 @@ const AdminSemesters = () => {
                                   borderLeft: '2px solid', borderRight: '2px solid',
                                   borderColor: isDirty ? 'var(--warning)' : 'var(--danger)',
                                   cursor: 'default',
-                                  transition: dragState ? 'none' : 'background 0.15s',
+                                  transition: dragState ? 'none' : 'background 0.05s',
                                 }}
                               >
                                 {/* Left edge handle */}
@@ -993,7 +1408,7 @@ const AdminSemesters = () => {
                                     whiteSpace: 'nowrap', zIndex: 10, pointerEvents: 'none',
                                   }}>
                                     <div style={{ fontWeight: 700, marginBottom: '0.15rem' }}>{h.label}</div>
-                                    <div>📅 {fmt(eff.startDate)} → {fmt(endDateISO)}</div>
+                                    <div>📅 {fmt(eff.startDate)} to {fmt(endDateISO)}</div>
                                     <div>⏱ {eff.durationDays} ngày {h.isCompensated ? '(có bù)' : '(không bù)'}</div>
                                     {isDirty && <div style={{ color: 'var(--warning)', marginTop: '0.15rem' }}>● Chưa lưu</div>}
                                   </div>
@@ -1017,32 +1432,106 @@ const AdminSemesters = () => {
                           })}
                         </div>
 
-                        {/* Tick row — số tuần + dd/MM */}
-                        <div style={{ display: 'flex', marginTop: '0.4rem' }}>
-                          {weeks.slice(0, -1).map((d, i) => (
-                            <div key={i} style={{
-                              flex: 1,
-                              borderLeft: i === 0 ? 'none' : '1px dashed var(--border-glass)',
-                              textAlign: 'center',
-                              fontSize: '0.7rem',
-                              color: 'var(--text-secondary)',
-                              padding: '0.25rem 0',
-                            }}>
-                              <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{fmtShort(d)}</div>
-                              <div style={{ fontSize: '0.65rem', opacity: 0.7 }}>Tuần {i + 1}</div>
-                            </div>
-                          ))}
-                          {/* Tick cuối — ngày kết thúc */}
-                          <div style={{
-                            flex: 0, minWidth: '0',
-                            borderLeft: '1px solid var(--border-glass)',
-                            paddingLeft: '0.4rem',
-                            fontSize: '0.7rem', fontWeight: 600,
-                            color: 'var(--accent-primary)',
-                            display: 'flex', alignItems: 'center',
-                          }}>
-                            {fmtShort(new Date(detail.endDate))}
-                          </div>
+                        {/* === LANE 2: MILESTONE === */}
+                        <div style={{
+                          position: 'relative', height: '40px', marginTop: '0.4rem',
+                          background: 'var(--surface-glass)', borderRadius: '8px', border: '1px solid var(--border-glass)',
+                          overflow: 'visible',
+                        }}>
+                          {/* Tick line cùng vị trí (tính theo offset ngày thật) */}
+                          {ticks.slice(1).map((t, i) => {
+                            const offset = (t.getTime() - displayStart.getTime()) / 86400000;
+                            const leftPct = (offset / displayDays) * 100;
+                            return (
+                              <div key={i} style={{ position: 'absolute', top: 0, bottom: 0, left: `${leftPct}%`, width: 1, background: 'rgba(255,255,255,0.12)' }} />
+                            );
+                          })}
+                          {/* Preview milestone block (realtime từ form) */}
+                          {previewMilestone && (() => {
+                            const dur = Math.max(1, daysBetween(previewMilestone.windowStart, previewMilestone.windowEnd));
+                            const pos = positionItem(previewMilestone.windowStart, dur);
+                            if (!pos) return null;
+                            const isReview = previewMilestone.type === 'Review';
+                            return (
+                              <div
+                                title={`Preview: ${previewMilestone.label} (${dur}d)`}
+                                style={{
+                                  position: 'absolute', top: 4, bottom: 4,
+                                  left: `${pos.leftPct}%`, width: `${pos.widthPct}%`,
+                                  background: isReview ? 'rgba(59, 130, 246, 0.3)' : 'rgba(16, 185, 129, 0.3)',
+                                  border: `2px dashed ${isReview ? '#3b82f6' : '#10b981'}`,
+                                  borderRadius: 4, zIndex: 5,
+                                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                  fontSize: '0.65rem', color: 'white', fontWeight: 700,
+                                  pointerEvents: 'none', overflow: 'hidden', whiteSpace: 'nowrap',
+                                }}
+                              >
+                                {pos.widthPct > 5 ? `👁 ${previewMilestone.label}` : '👁'}
+                              </div>
+                            );
+                          })()}
+                          {/* Render TẤT CẢ review — tô màu theo SemesterId (palette cố định) */}
+                          {allReviews.filter(m => m.id !== previewMilestone?.hiddenId).map(m => {
+                            const dur = Math.max(1, daysBetween(m.windowStart.slice(0, 10), m.windowEnd.slice(0, 10)));
+                            const pos = positionItem(m.windowStart, dur);
+                            if (!pos) return null;
+                            // Palette 8 màu cố định — index theo position của semester trong list (ổn định hơn)
+                            const palette = [
+                              { bg: 'rgba(59, 130, 246, 0.55)',  border: '#3b82f6' },   // blue
+                              { bg: 'rgba(16, 185, 129, 0.55)',  border: '#10b981' },   // green
+                              { bg: 'rgba(251, 146, 60, 0.55)',  border: '#fb923c' },   // orange
+                              { bg: 'rgba(168, 85, 247, 0.55)',  border: '#a855f7' },   // purple
+                              { bg: 'rgba(236, 72, 153, 0.55)',  border: '#ec4899' },   // pink
+                              { bg: 'rgba(14, 165, 233, 0.55)',  border: '#0ea5e9' },   // sky
+                              { bg: 'rgba(234, 179, 8, 0.55)',   border: '#eab308' },   // yellow
+                              { bg: 'rgba(220, 38, 38, 0.55)',   border: '#dc2626' },   // red
+                            ];
+                            const semIdx = list.findIndex(s => s.id === m.semesterId);
+                            const paletteIdx = (semIdx >= 0 ? semIdx : m.semesterId) % palette.length;
+                            const { bg: color, border: borderColor } = palette[Math.abs(paletteIdx)];
+                            const homeSem = list.find(s => s.id === m.semesterId);
+                            return (
+                              <div
+                                key={m.id}
+                                title={`${m.label}${homeSem ? ` (kỳ ${homeSem.code})` : ''}: ${fmt(m.windowStart)} → ${fmt(m.windowEnd)}${m.note ? ` • ${m.note}` : ''}`}
+                                style={{
+                                  position: 'absolute', top: 4, bottom: 4,
+                                  left: `${pos.leftPct}%`, width: `${pos.widthPct}%`,
+                                  background: color,
+                                  borderLeft: `2px solid ${borderColor}`,
+                                  borderRight: pos.isClippedRight ? `2px dashed ${borderColor}` : `2px solid ${borderColor}`,
+                                  borderRadius: 4,
+                                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                  fontSize: '0.65rem', color: 'white', fontWeight: 700,
+                                  cursor: 'help', overflow: 'hidden', whiteSpace: 'nowrap',
+                                }}
+                              >
+                                {pos.widthPct > 5 ? m.label : ''}
+                              </div>
+                            );
+                          })}
+                        </div>
+
+                        {/* Tick row — label theo mode (dd/MM hoặc MM/YYYY) */}
+                        <div style={{ display: 'flex', marginTop: '0.4rem', position: 'relative' }}>
+                          {ticks.map((d, i) => {
+                            // Tính flex weight theo độ rộng từng tick (số ngày)
+                            const next = i < ticks.length - 1 ? ticks[i + 1] : displayEnd;
+                            const days = Math.max(1, (next.getTime() - d.getTime()) / 86400000);
+                            return (
+                              <div key={i} style={{
+                                flex: days, minWidth: 0,
+                                borderLeft: i === 0 ? 'none' : '1px dashed var(--border-glass)',
+                                textAlign: 'center',
+                                fontSize: '0.7rem',
+                                color: 'var(--text-secondary)',
+                                padding: '0.25rem 0',
+                              }}>
+                                <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{tickLabelFn(d)}</div>
+                                {tlMode === 'week' && <div style={{ fontSize: '0.65rem', opacity: 0.7 }}>Tuần {i + 1}</div>}
+                              </div>
+                            );
+                          })}
                         </div>
                       </div>
                     );
@@ -1059,12 +1548,37 @@ const AdminSemesters = () => {
                       <span style={{ width: 14, height: 10, borderRadius: 2, background: 'rgba(239, 68, 68, 0.55)' }} /> Ngày nghỉ
                     </span>
                     <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
+                      <span style={{ width: 14, height: 10, borderRadius: 2, background: 'rgba(59, 130, 246, 0.55)' }} /> Review
+                    </span>
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
+                      <span style={{ width: 14, height: 10, borderRadius: 2, background: 'rgba(16, 185, 129, 0.55)' }} /> Defence
+                    </span>
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
+                      <span style={{ width: 14, height: 10, borderRadius: 2, background: 'rgba(148, 163, 184, 0.25)', border: '1px solid rgba(148,163,184,0.6)' }} /> Ngoài kỳ đang xem
+                    </span>
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
                       <span style={{ width: 14, height: 10, borderRadius: 2, background: 'rgba(245, 158, 11, 0.55)' }} /> Chưa lưu
                     </span>
                   </div>
 
-                  {/* Save / Discard pending edits — chỉ sáng khi hasDirty */}
-                  <div style={{ display: 'flex', gap: '0.5rem' }}>
+                  {/* Save / Discard pending edits — kèm warning chip nếu có dirty */}
+                  <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                    {hasDirty && (
+                      <span
+                        style={{
+                          display: 'inline-flex', alignItems: 'center', gap: '0.35rem',
+                          padding: '0.25rem 0.6rem', borderRadius: '999px',
+                          background: 'rgba(245, 158, 11, 0.12)',
+                          color: 'var(--warning)',
+                          fontSize: '0.72rem', fontWeight: 600,
+                          border: '1px solid rgba(245, 158, 11, 0.3)',
+                          animation: 'pulse-warn 1.5s ease-in-out infinite',
+                        }}
+                        title="Bạn có thay đổi chưa lưu — nhấn 'Lưu thay đổi' để áp dụng"
+                      >
+                        ● {Object.keys(dirtyEdits).length} thay đổi chưa lưu
+                      </span>
+                    )}
                     <button
                       onClick={handleDiscardEdits}
                       disabled={!hasDirty || savingEdits}
@@ -1086,8 +1600,9 @@ const AdminSemesters = () => {
 
                 {/* CSS handle hover effect — sáng/đậm khi rê gần cạnh */}
                 <style>{`
-                  .holiday-edge { background: transparent; transition: background 0.15s; }
+                  .holiday-edge { background: transparent; transition: background 0.05s, box-shadow 0.05s; }
                   .holiday-edge:hover { background: rgba(255,255,255,0.55); box-shadow: 0 0 8px rgba(251,146,60,0.7); }
+                  @keyframes pulse-warn { 0%,100% { opacity: 1; } 50% { opacity: 0.55; } }
                 `}</style>
               </div>
 
@@ -1102,12 +1617,12 @@ const AdminSemesters = () => {
                     <h3 style={{ margin: 0 }}>Danh sách ngày nghỉ ({holidays.length})</h3>
                   </div>
                   <button className="btn btn-primary" onClick={openAddHoliday} style={{ padding: '0.45rem 0.9rem', fontSize: '0.85rem' }}>
-                    <Plus size={14} /> Thêm ngày lễ
+                    <Plus size={14} /> Thêm ngày nghỉ
                   </button>
                 </div>
                 {holidays.length === 0 ? (
                   <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-secondary)' }}>
-                    Kỳ học này chưa có ngày nghỉ. Bấm "Thêm ngày lễ" để chọn từ kho lễ chuẩn hoặc tạo mới.
+                    Kỳ học này chưa có ngày nghỉ. Bấm "Thêm ngày nghỉ" để chọn từ lễ chuẩn hoặc tạo mới.
                   </div>
                 ) : (
                   <div style={{ overflowX: 'auto' }}>
@@ -1152,6 +1667,124 @@ const AdminSemesters = () => {
                               >
                                 <X size={13} /> Xóa
                               </button>
+                            </td>
+                          </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+
+              {/* Card Lịch Review / Defence */}
+              <div className="glass-card" style={{ padding: 0, overflow: 'hidden' }}>
+                <div style={{
+                  padding: '1.25rem 1.5rem', borderBottom: '1px solid var(--border-glass)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem', flexWrap: 'wrap'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <Calendar size={18} color="var(--accent-primary)" />
+                    <h3 style={{ margin: 0 }}>Lịch Review / Defence ({milestones.length})</h3>
+                  </div>
+                  <button className="btn btn-primary" onClick={openCreateMilestone} style={{ padding: '0.45rem 0.9rem', fontSize: '0.85rem' }}>
+                    <Plus size={14} /> Thêm lịch review/defence
+                  </button>
+                </div>
+                {milestones.length === 0 ? (
+                  <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-secondary)' }}>
+                    Chưa có lịch review/defence. Admin tự thêm theo nhu cầu (vd Review 1 từ 21/5 +2w).
+                  </div>
+                ) : (
+                  <div style={{ overflowX: 'auto' }}>
+                    <table className="data-table">
+                      <thead>
+                        <tr>
+                          <th>Loại</th>
+                          <th>Window</th>
+                          <th>Số ngày</th>
+                          <th>Trạng thái</th>
+                          <th>Kỳ gốc</th>
+                          <th>Ghi chú</th>
+                          <th style={{ textAlign: 'right' }}>Thao tác</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {milestones.map(m => {
+                          const dur = Math.max(1, daysBetween(m.windowStart.slice(0,10), m.windowEnd.slice(0,10)));
+                          const isOverflow = detail && new Date(m.windowEnd) > new Date(detail.endDate);
+                          // m.semesterId là kỳ "home" — có thể khác semester đang xem (vì query overlap)
+                          const isHomeSemester = detail && m.semesterId === detail.id;
+                          const homeSem = list.find(s => s.id === m.semesterId);
+                          const stMeta = REVIEW_STATUS_META[m.status ?? 'Draft'];
+                          
+                          const palette = [
+                            { bg: 'rgba(59, 130, 246, 0.55)',  border: '#3b82f6' },
+                            { bg: 'rgba(16, 185, 129, 0.55)',  border: '#10b981' },
+                            { bg: 'rgba(251, 146, 60, 0.55)',  border: '#fb923c' },
+                            { bg: 'rgba(168, 85, 247, 0.55)',  border: '#a855f7' },
+                            { bg: 'rgba(236, 72, 153, 0.55)',  border: '#ec4899' },
+                            { bg: 'rgba(14, 165, 233, 0.55)',  border: '#0ea5e9' },
+                            { bg: 'rgba(234, 179, 8, 0.55)',   border: '#eab308' },
+                            { bg: 'rgba(220, 38, 38, 0.55)',   border: '#dc2626' },
+                          ];
+                          const semIdx = list.findIndex(s => s.id === m.semesterId);
+                          const paletteIdx = (semIdx >= 0 ? semIdx : m.semesterId) % palette.length;
+                          const { bg: color, border: borderColor } = palette[Math.abs(paletteIdx)];
+
+                          return (
+                          <tr key={m.id} style={!isHomeSemester ? { background: 'rgba(148, 163, 184, 0.04)' } : undefined}>
+                            <td>
+                              <span className="badge" style={{
+                                background: color,
+                                color: 'white',
+                                border: `1px solid ${borderColor}`,
+                                fontWeight: 700
+                              }}>
+                                {m.label}
+                              </span>
+                              {isOverflow && <span className="badge badge-warning" style={{ marginLeft: '0.4rem', fontSize: '0.6rem' }}>Vắt biên</span>}
+                            </td>
+                            <td>{fmt(m.windowStart)} → {fmt(m.windowEnd)}</td>
+                            <td>{dur} ngày</td>
+                            <td>
+                              <span className="badge" style={stMeta.style}>{stMeta.label}</span>
+                            </td>
+                            <td>
+                              {isHomeSemester
+                                ? <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>(kỳ này)</span>
+                                : <span className="badge" style={{ background: 'rgba(148, 163, 184, 0.12)', color: 'var(--text-secondary)', fontSize: '0.7rem' }} title="Review thuộc kỳ khác nhưng overlap với kỳ đang xem">
+                                    {homeSem?.code ?? `#${m.semesterId}`}
+                                  </span>}
+                            </td>
+                            <td style={{ color: 'var(--text-secondary)', fontSize: '0.8rem' }}>{m.note || '—'}</td>
+                            <td style={{ textAlign: 'right' }}>
+                              <div style={{ display: 'inline-flex', gap: '0.4rem' }}>
+                                {(m.status ?? 'Draft') === 'Draft' && (
+                                  <button
+                                    className="btn btn-primary"
+                                    style={{ padding: '0.3rem 0.55rem', fontSize: '0.75rem' }}
+                                    onClick={() => handleChangeReviewStatus(m, 'Registering')}
+                                    title="Mở đăng ký — chuyển sang Registering"
+                                  >
+                                    Bắt đầu
+                                  </button>
+                                )}
+                                <button
+                                  className="btn btn-secondary"
+                                  style={{ padding: '0.3rem 0.55rem', fontSize: '0.75rem' }}
+                                  onClick={() => openEditMilestone(m)}
+                                >
+                                  Sửa
+                                </button>
+                                <button
+                                  className="btn btn-secondary"
+                                  style={{ padding: '0.3rem 0.55rem', fontSize: '0.75rem', color: 'var(--danger)', border: '1px solid rgba(239, 68, 68, 0.25)' }}
+                                  onClick={() => handleDeleteMilestone(m)}
+                                >
+                                  <X size={13} /> Xóa
+                                </button>
+                              </div>
                             </td>
                           </tr>
                           );
@@ -1261,69 +1894,159 @@ const AdminSemesters = () => {
         );
       })()}
 
-      {/* Modal thêm ngày lễ vào kỳ */}
+      {/* Modal Add/Edit Milestone (Review/Defence) */}
+      {milestoneMode !== null && detail && (
+        <div style={{
+          position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.7)', backdropFilter: 'blur(4px)',
+          zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem'
+        }}>
+          <div className="glass-panel animate-fade-in" style={{ width: '100%', maxWidth: 560, padding: '2rem', maxHeight: '90vh', overflowY: 'auto' }}>
+            <h2 style={{ marginBottom: '0.35rem', color: 'var(--text-primary)' }}>
+              {milestoneMode === 'new' ? 'Thêm lịch Review / Defence' : 'Sửa lịch Review / Defence'}
+            </h2>
+            <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginBottom: '1.25rem' }}>
+              Window là cửa sổ thời gian admin mở cho student/lecturer book slot review/defence cụ thể.
+            </p>
+
+            <form onSubmit={handleSubmitMilestone}>
+              {milestoneMode === 'new' && (
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                  <div className="input-group">
+                    <label className="input-label">Loại <span style={{ color: 'var(--danger)' }}>*</span></label>
+                    <select
+                      className="input-field"
+                      value={milestoneForm.type}
+                      onChange={e => onTypeChange(e.target.value as MilestoneType)}
+                    >
+                      <option value="Review">Review </option>
+                      <option value="Defence">Defence </option>
+                    </select>
+                  </div>
+                  <div className="input-group">
+                    <label className="input-label">Số thứ tự <span style={{ color: 'var(--danger)' }}>*</span></label>
+                    <input
+                      type="number" required min={1} className="input-field"
+                      value={milestoneForm.orderIndex}
+                      onChange={e => setMilestoneForm({ ...milestoneForm, orderIndex: parseInt(e.target.value, 10) || 1 })}
+                    />
+                  </div>
+                </div>
+              )}
+
+              <div className="input-group">
+                <label className="input-label">Label <span style={{ color: 'var(--danger)' }}>*</span></label>
+                <input
+                  type="text" required className="input-field"
+                  placeholder="VD: Review 1, Defence 2, Final Defence..."
+                  value={milestoneForm.label}
+                  onChange={e => setMilestoneForm({ ...milestoneForm, label: e.target.value })}
+                />
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                <div className="input-group">
+                  <label className="input-label">Ngày bắt đầu <span style={{ color: 'var(--danger)' }}>*</span></label>
+                  <input
+                    type="date" required className="input-field"
+                    min={detail.startDate.slice(0, 10)}
+                    value={milestoneForm.windowStart}
+                    onChange={e => setMilestoneForm({ ...milestoneForm, windowStart: e.target.value })}
+                  />
+                </div>
+                <div className="input-group">
+                  <label className="input-label">Ngày kết thúc <span style={{ color: 'var(--danger)' }}>*</span></label>
+                  <input
+                    type="date" required className="input-field"
+                    min={milestoneForm.windowStart}
+                    value={milestoneForm.windowEnd}
+                    onChange={e => setMilestoneForm({ ...milestoneForm, windowEnd: e.target.value })}
+                  />
+                </div>
+              </div>
+
+              {/* Quick preset: +1w / +2w / +3w */}
+              <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', marginBottom: '1rem' }}>
+                <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', display: 'inline-flex', alignItems: 'center' }}>Preset duration:</span>
+                {[7, 14, 21].map(d => (
+                  <button
+                    type="button"
+                    key={d}
+                    onClick={() => {
+                      if (!milestoneForm.windowStart) return;
+                      setMilestoneForm({ ...milestoneForm, windowEnd: addDaysISO(milestoneForm.windowStart, d) });
+                    }}
+                    disabled={!milestoneForm.windowStart}
+                    style={{
+                      padding: '0.25rem 0.6rem', fontSize: '0.7rem', borderRadius: '999px',
+                      border: '1px solid var(--border-glass)', background: 'transparent',
+                      color: 'var(--text-secondary)', cursor: milestoneForm.windowStart ? 'pointer' : 'not-allowed',
+                      opacity: milestoneForm.windowStart ? 1 : 0.4,
+                    }}
+                  >
+                    +{d / 7}w ({d}d)
+                  </button>
+                ))}
+              </div>
+
+              <div className="input-group">
+                <label className="input-label">Trạng thái <span style={{ color: 'var(--danger)' }}>*</span></label>
+                <select
+                  className="input-field"
+                  value={milestoneForm.status}
+                  onChange={e => setMilestoneForm({ ...milestoneForm, status: e.target.value as ReviewStatus })}
+                >
+                  <option value="Draft">Chưa đăng ký được (chưa mở)</option>
+                  <option value="Registering">Đang đăng ký</option>
+                  <option value="Registered">Đã chốt slot</option>
+                  <option value="Ongoing">Đang diễn ra</option>
+                  <option value="Finished">Đã xong</option>
+                  <option value="Cancelled">Đã hủy</option>
+                </select>
+              </div>
+
+              <div className="input-group">
+                <label className="input-label">Ghi chú (optional)</label>
+                <input
+                  type="text" className="input-field"
+                  placeholder="VD: Phòng 305, online qua Teams..."
+                  value={milestoneForm.note}
+                  onChange={e => setMilestoneForm({ ...milestoneForm, note: e.target.value })}
+                />
+              </div>
+
+              {milestoneError && (
+                <div style={{
+                  display: 'flex', gap: '0.5rem', alignItems: 'center',
+                  background: 'rgba(239, 68, 68, 0.1)', color: 'var(--danger)',
+                  padding: '0.75rem 1rem', borderRadius: '8px', fontSize: '0.85rem',
+                  marginBottom: '1rem',
+                }}>
+                  <AlertCircle size={16} /> {milestoneError}
+                </div>
+              )}
+
+              <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end' }}>
+                <button type="button" className="btn btn-secondary" onClick={() => setMilestoneMode(null)} disabled={savingMs}>Hủy</button>
+                <button type="submit" className="btn btn-primary" disabled={savingMs}>
+                  {savingMs ? <><Loader2 size={16} className="spin" /> Đang lưu...</> : (milestoneMode === 'new' ? 'Tạo lịch' : 'Lưu thay đổi')}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal thêm ngày nghỉ vào kỳ */}
       {showAddHoliday && detail && (
         <div style={{
           position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.7)', backdropFilter: 'blur(4px)',
           zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem'
         }}>
           <div className="glass-panel animate-fade-in" style={{ width: '100%', maxWidth: 580, padding: '2rem', maxHeight: '90vh', overflowY: 'auto' }}>
-            <h2 style={{ marginBottom: '0.35rem', color: 'var(--text-primary)' }}>Thêm ngày lễ vào kỳ học</h2>
+            <h2 style={{ marginBottom: '0.35rem', color: 'var(--text-primary)' }}>Thêm ngày nghỉ vào kỳ học</h2>
             <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginBottom: '1.25rem' }}>
-              Chọn từ kho lễ chuẩn để auto-fill, hoặc tự nhập ad-hoc. Lễ chuẩn có thể chỉnh ngày cho phù hợp năm này.
+              Tự nhập thông tin ngày nghỉ cho kỳ học này.
             </p>
-
-            {/* Chip chọn template */}
-            <div className="input-group">
-              <label className="input-label" style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                <BookmarkPlus size={14} /> Chọn từ kho lễ chuẩn (tùy chọn)
-              </label>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem', padding: '0.5rem 0' }}>
-                <button
-                  type="button"
-                  onClick={() => applyTemplate(null)}
-                  style={{
-                    padding: '0.35rem 0.75rem', fontSize: '0.8rem', borderRadius: '999px',
-                    background: holidayForm.templateId === null ? 'var(--accent-primary)' : 'transparent',
-                    color: holidayForm.templateId === null ? 'white' : 'var(--text-secondary)',
-                    border: `1px solid ${holidayForm.templateId === null ? 'var(--accent-primary)' : 'var(--border-glass)'}`,
-                    cursor: 'pointer',
-                  }}
-                >
-                  Tự tạo
-                </button>
-                {eligibleTemplates.map(tpl => {
-                  const active = holidayForm.templateId === tpl.id;
-                  return (
-                    <button
-                      key={tpl.id}
-                      type="button"
-                      onClick={() => applyTemplate(tpl)}
-                      title={`Mặc định: ${tpl.defaultStartDay}/${tpl.defaultStartMonth} • ${tpl.defaultDurationDays} ngày`}
-                      style={{
-                        padding: '0.35rem 0.75rem', fontSize: '0.8rem', borderRadius: '999px',
-                        background: active ? 'var(--accent-primary)' : 'transparent',
-                        color: active ? 'white' : 'var(--text-secondary)',
-                        border: `1px solid ${active ? 'var(--accent-primary)' : 'var(--border-glass)'}`,
-                        cursor: 'pointer',
-                      }}
-                    >
-                      {tpl.label}
-                      <span style={{ marginLeft: '0.35rem', opacity: 0.75, fontSize: '0.7rem' }}>
-                        {tpl.defaultStartDay}/{tpl.defaultStartMonth}
-                      </span>
-                    </button>
-                  );
-                })}
-                {eligibleTemplates.length === 0 && (
-                  <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-                    {templates.length === 0
-                      ? 'Chưa có template nào. (Bạn vẫn có thể tự nhập bên dưới.)'
-                      : `Không có lễ chuẩn nào rơi trong khoảng ${fmt(detail.startDate)} → ${fmt(detail.endDate)}.`}
-                  </span>
-                )}
-              </div>
-            </div>
 
             <form onSubmit={handleAddHoliday}>
               <div className="input-group">
@@ -1398,7 +2121,7 @@ const AdminSemesters = () => {
                   Hủy
                 </button>
                 <button type="submit" className="btn btn-primary" disabled={addingHoliday}>
-                  {addingHoliday ? <><Loader2 size={16} className="spin" /> Đang thêm...</> : <><Plus size={16} /> Thêm ngày lễ</>}
+                  {addingHoliday ? <><Loader2 size={16} className="spin" /> Đang thêm...</> : <><Plus size={16} /> Thêm ngày nghỉ</>}
                 </button>
               </div>
             </form>
@@ -1445,24 +2168,74 @@ const AdminSemesters = () => {
                 </div>
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                <div className="input-group">
-                  <label className="input-label">Ngày bắt đầu</label>
-                  <input
-                    type="date" required className="input-field"
-                    value={createForm.start}
-                    onChange={e => setCreateForm({ ...createForm, start: e.target.value })}
-                  />
-                </div>
-                <div className="input-group">
-                  <label className="input-label">Ngày kết thúc</label>
-                  <input
-                    type="date" required className="input-field"
-                    value={createForm.end}
-                    onChange={e => setCreateForm({ ...createForm, end: e.target.value })}
-                  />
-                </div>
-              </div>
+              {/* Date range: chỉnh start → end auto-nới đủ 16w. Chỉnh end tay → giữ start, badge hiển thị chênh lệch. */}
+              {(() => {
+                const TARGET_DAYS = WEEKS_PER_SEMESTER * 7; // 112
+                const gap = createForm.start && createForm.end
+                  ? daysBetween(createForm.start, createForm.end)
+                  : 0;
+                const diff = gap - TARGET_DAYS;
+                const gapLabel = !createForm.start || !createForm.end
+                  ? '—'
+                  : diff === 0
+                    ? `+ ${WEEKS_PER_SEMESTER}w`
+                    : diff > 0
+                      ? `+ ${WEEKS_PER_SEMESTER}w + ${diff}d`
+                      : `+ ${WEEKS_PER_SEMESTER}w − ${-diff}d`;
+                const badgeColor = diff === 0 ? '#10b981' : diff > 0 ? '#0ea5e9' : '#ef4444';
+                const badgeBg = diff === 0
+                  ? 'rgba(16, 185, 129, 0.12)'
+                  : diff > 0
+                    ? 'rgba(14, 165, 233, 0.12)'
+                    : 'rgba(239, 68, 68, 0.12)';
+                return (
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr auto 1fr', gap: '0.75rem', alignItems: 'end', marginBottom: '1rem' }}>
+                    <div className="input-group" style={{ marginBottom: 0 }}>
+                      <label className="input-label">Ngày bắt đầu</label>
+                      <input
+                        type="date" required className="input-field"
+                        value={createForm.start}
+                        onChange={e => {
+                          const newStart = e.target.value;
+                          if (newStart) {
+                            // Auto-nới end để đủ 16w từ start mới
+                            const newEnd = toISO(addDays(new Date(newStart), TARGET_DAYS));
+                            setCreateForm({ ...createForm, start: newStart, end: newEnd });
+                          } else {
+                            setCreateForm({ ...createForm, start: newStart });
+                          }
+                        }}
+                      />
+                    </div>
+                    <div
+                      style={{
+                        padding: '0.4rem 0.7rem',
+                        background: badgeBg,
+                        border: `1px solid ${badgeColor}40`,
+                        borderRadius: 6,
+                        color: badgeColor,
+                        fontSize: '0.8rem',
+                        fontWeight: 600,
+                        whiteSpace: 'nowrap',
+                        marginBottom: '0.5rem',
+                        textAlign: 'center',
+                        userSelect: 'none',
+                      }}
+                      title="Khoảng cách giữa ngày bắt đầu và kết thúc"
+                    >
+                      {gapLabel}
+                    </div>
+                    <div className="input-group" style={{ marginBottom: 0 }}>
+                      <label className="input-label">Ngày kết thúc</label>
+                      <input
+                        type="date" required className="input-field"
+                        value={createForm.end}
+                        onChange={e => setCreateForm({ ...createForm, end: e.target.value })}
+                      />
+                    </div>
+                  </div>
+                );
+              })()}
 
               {/* Preview code sẽ được sinh ra (theo BE: Spring+2026 -> SP26) */}
               <div style={{
