@@ -254,6 +254,7 @@ export interface ReviewSlotDto {
   lecturerPreferenceCount: number;
   assignmentCount: number;
   isCurrentUserRegistered: boolean;   // BE compute từ JWT — slot có chứa group/lecturer của user hiện tại
+  isCurrentUserAssigned: boolean;     // GV đã được phê duyệt review slot này (ReviewAssignment active)
   groupPreferences: ReviewSlotGroupPreferenceDto[];
   lecturerPreferences: ReviewSlotLecturerPreferenceDto[];
   assignments: ReviewAssignmentDto[];
@@ -341,6 +342,43 @@ export interface HolidayCascadeResultDto {
   shiftedMilestones: ShiftedMilestoneDto[];
   overflows: OverflowItemDto[];
   skippedCompletedCodes: string[];
+}
+
+// ---- Dashboard GVHD (BE: /api/dashboard/stats, /api/dashboard/assigned-slots) ----
+export interface DashboardReviewDto {
+  id: number;
+  label: string;
+  type: ReviewType;
+  orderIndex: number;
+  windowStart: string;
+  windowEnd: string;
+  status: ReviewStatus;
+  isExpired: boolean;
+}
+
+export interface DashboardStatsDto {
+  totalGroups: number;
+  reviews: DashboardReviewDto[];
+  // BE serialize Dictionary<int,int> → key là string
+  assignedSlotCounts: Record<string, number>;
+}
+
+export interface LecturerAssignedSlotDto {
+  assignmentId: number;
+  reviewId: number;
+  reviewLabel: string;
+  reviewType: ReviewType;
+  slotDate: string;
+  slotIndex: number;
+  sessionIndex: number;
+  startTime: string;        // "HH:mm"
+  endTime: string;          // "HH:mm"
+  groupId: number;
+  groupCode: string;
+  projectName: string;
+  partnerLecturerId: number | null;
+  partnerLecturerName: string | null;
+  isExpired: boolean;
 }
 
 // Template lễ độc lập — admin sửa template chỉ ảnh hưởng năm sinh sau.

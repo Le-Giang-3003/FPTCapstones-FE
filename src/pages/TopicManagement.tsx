@@ -269,7 +269,7 @@ const TopicManagement = () => {
                         <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>{item.leaderEmail}</div>
                       </td>
                       <td>
-                        <strong>{item.lecturer1Name}</strong>
+                        {item.lecturer1Name || <span style={{ color: 'var(--text-secondary)' }}>—</span>}
                       </td>
                       <td>
                         {item.lecturer2Name ? <span>{item.lecturer2Name}</span> : <span style={{ color: 'var(--text-secondary)' }}>—</span>}
