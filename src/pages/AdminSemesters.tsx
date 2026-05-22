@@ -1307,7 +1307,7 @@ const AdminSemesters = () => {
                               <div key={i} style={{
                                 position: 'absolute', top: 0, bottom: 0,
                                 left: `${leftPct}%`, width: 1,
-                                background: 'rgba(255,255,255,0.18)',
+                                background: 'var(--border-glass)',
                               }} />
                             );
                           })}
@@ -1443,7 +1443,7 @@ const AdminSemesters = () => {
                             const offset = (t.getTime() - displayStart.getTime()) / 86400000;
                             const leftPct = (offset / displayDays) * 100;
                             return (
-                              <div key={i} style={{ position: 'absolute', top: 0, bottom: 0, left: `${leftPct}%`, width: 1, background: 'rgba(255,255,255,0.12)' }} />
+                              <div key={i} style={{ position: 'absolute', top: 0, bottom: 0, left: `${leftPct}%`, width: 1, background: 'var(--border-glass)' }} />
                             );
                           })}
                           {/* Preview milestone block (realtime từ form) */}
@@ -1815,7 +1815,7 @@ const AdminSemesters = () => {
             onClick={closeConfirm}
             style={{
               position: 'fixed', inset: 0, zIndex: 1100,
-              background: 'rgba(15, 23, 42, 0.7)', backdropFilter: 'blur(4px)',
+              background: 'var(--modal-overlay-bg)', backdropFilter: 'blur(4px)',
               display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem',
             }}
           >
@@ -1897,7 +1897,7 @@ const AdminSemesters = () => {
       {/* Modal Add/Edit Milestone (Review/Defence) */}
       {milestoneMode !== null && detail && (
         <div style={{
-          position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.7)', backdropFilter: 'blur(4px)',
+          position: 'fixed', inset: 0, background: 'var(--modal-overlay-bg)', backdropFilter: 'blur(4px)',
           zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem'
         }}>
           <div className="glass-panel animate-fade-in" style={{ width: '100%', maxWidth: 560, padding: '2rem', maxHeight: '90vh', overflowY: 'auto' }}>
@@ -2039,7 +2039,7 @@ const AdminSemesters = () => {
       {/* Modal thêm ngày nghỉ vào kỳ */}
       {showAddHoliday && detail && (
         <div style={{
-          position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.7)', backdropFilter: 'blur(4px)',
+          position: 'fixed', inset: 0, background: 'var(--modal-overlay-bg)', backdropFilter: 'blur(4px)',
           zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem'
         }}>
           <div className="glass-panel animate-fade-in" style={{ width: '100%', maxWidth: 580, padding: '2rem', maxHeight: '90vh', overflowY: 'auto' }}>
@@ -2132,7 +2132,7 @@ const AdminSemesters = () => {
       {/* Modal tạo kỳ học mới */}
       {showCreate && (
         <div style={{
-          position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.7)', backdropFilter: 'blur(4px)',
+          position: 'fixed', inset: 0, background: 'var(--modal-overlay-bg)', backdropFilter: 'blur(4px)',
           zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem'
         }}>
           <div className="glass-panel animate-fade-in" style={{ width: '100%', maxWidth: 520, padding: '2rem' }}>

@@ -21,7 +21,7 @@
 @property --input-bg          { syntax: '<color>'; inherits: true; initial-value: #fafafa; }
 @property --table-row-bg      { syntax: '<color>'; inherits: true; initial-value: #ffffff; }
 @property --table-row-hover   { syntax: '<color>'; inherits: true; initial-value: #f4f4f5; }
-@property --modal-overlay-bg  { syntax: '<color>'; inherits: true; initial-value: rgba(9, 9, 11, 0.5); }
+@property --modal-overlay-bg  { syntax: '<color>'; inherits: true; initial-value: rgba(255, 255, 255, 0.55); }
 @property --btn-hover-bg      { syntax: '<color>'; inherits: true; initial-value: #f4f4f5; }
 @property --accent-primary    { syntax: '<color>'; inherits: true; initial-value: #019d91; }
 @property --accent-hover      { syntax: '<color>'; inherits: true; initial-value: #017d73; }
@@ -54,7 +54,7 @@
   --input-bg: #fafafa;          /* Ash White */
   --table-row-bg: #ffffff;
   --table-row-hover: #f4f4f5;
-  --modal-overlay-bg: rgba(9, 9, 11, 0.5);
+  --modal-overlay-bg: rgba(255, 255, 255, 0.55);  /* mờ trắng — light mode */
   --btn-hover-bg: #f4f4f5;
 
   /* MỘT shadow nhẹ duy nhất — triết lý elevation tối giản của Lottie */

@@ -215,7 +215,7 @@ const AdminHolidayTemplates = () => {
       {/* Modal create / edit */}
       {editMode !== null && createPortal(
         <div style={{
-          position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.85)',
+          position: 'fixed', inset: 0, background: 'var(--modal-overlay-bg)',
           zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem'
         }}>
           <div className="glass-panel animate-fade-in" style={{ width: '100%', maxWidth: 560, padding: '2rem', maxHeight: '90vh', overflowY: 'auto' }}>
