@@ -16,6 +16,7 @@ import AuditLogs from './pages/AuditLogs';
 import ProjectDetail from './pages/ProjectDetail';
 import ReviewSlots from './pages/ReviewSlots';
 import AdminReviewers from './pages/AdminReviewers';
+import AdminScheduling from './pages/AdminScheduling';
 import Layout from './components/Layout';
 
 const PrivateRoute = ({ children, roles }: { children: React.ReactNode; roles?: Role[] }) => {
@@ -98,6 +99,10 @@ const App = () => {
           <Route
             path="/admin/reviewers"
             element={<PrivateRoute roles={['Admin']}><AdminReviewers /></PrivateRoute>}
+          />
+          <Route
+            path="/admin/scheduling"
+            element={<PrivateRoute roles={['Admin']}><AdminScheduling /></PrivateRoute>}
           />
         </Route>
 
