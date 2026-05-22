@@ -263,6 +263,47 @@ export interface ReviewSlotDto {
 // Số nguyện vọng tối đa cho nhóm (đồng bộ với BE ReviewSlotGroup.MaxPreferences)
 export const MAX_GROUP_PREFERENCES = 5;
 
+// ---- Scheduling (xếp lịch review) — BE: /api/admin/reviews/{id}/scheduling ----
+// BE serialize enum thành string nhờ JsonStringEnumConverter.
+export type SchedulingJobStatus = 'Pending' | 'Processing' | 'Completed' | 'Failed';
+
+// Polling DTO — GET /api/admin/reviews/scheduling/{jobId}
+export interface SchedulingStatusDto {
+  id: number;
+  reviewId: number;
+  status: SchedulingJobStatus;
+  force: boolean;
+  resultJson: string | null;   // JSON serialize từ runner (xem SchedulingResultSummary)
+  error: string | null;
+  startedAt: string | null;
+  completedAt: string | null;
+}
+
+// Nội dung parse từ resultJson. Runner serialize bằng JsonSerializer mặc định:
+// key top-level giữ nguyên (assigned, groupsScheduled, ...) nhưng record con là PascalCase.
+export interface SchedulingResultSummary {
+  assigned: number;
+  groupsScheduled: number;
+  unassignedGroups: { GroupId: number; Reason: string }[];
+  underQuotaReviewers: { LecturerId: number; SlotCount: number }[];
+  force: boolean;
+}
+
+// Kết quả xếp lịch — GET /api/admin/reviews/{id}/assignments
+export interface ReviewScheduleAssignmentDto {
+  assignmentId: number;
+  slotId: number;
+  slotDate: string;
+  slotIndex: number;
+  sessionIndex: number;
+  groupId: number;
+  groupCode: string;
+  lecturer1Id: number;
+  lecturer1Name: string;
+  lecturer2Id: number | null;
+  lecturer2Name: string | null;
+}
+
 // Kết quả cascade khi thêm/sửa/xóa lễ có bù — FE dùng để show feedback các kỳ/milestone đã shift
 export interface ShiftedSemesterDto {
   id: number;
