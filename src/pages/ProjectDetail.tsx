@@ -312,22 +312,17 @@ const ProjectDetail = () => {
                       borderRadius: 8,
                       padding: '0.75rem',
                       border: selectedVersionId === v.versionId ? '2px solid var(--accent-primary)' : '1px solid var(--border-glass)',
-                      boxShadow: selectedVersionId === v.versionId ? 'var(--shadow-glow)' : 'none',
                       cursor: 'pointer',
-                      transition: 'all 0.2s ease-in-out',
+                      transition: 'border-color 0.15s ease',
                     }}
                     onMouseEnter={(e) => {
-                      e.currentTarget.style.transform = 'translateY(-2px)';
                       if (selectedVersionId !== v.versionId) {
                         e.currentTarget.style.borderColor = 'var(--accent-primary)';
-                        e.currentTarget.style.boxShadow = 'var(--shadow-glow)';
                       }
                     }}
                     onMouseLeave={(e) => {
-                      e.currentTarget.style.transform = 'translateY(0)';
                       if (selectedVersionId !== v.versionId) {
                         e.currentTarget.style.borderColor = 'var(--border-glass)';
-                        e.currentTarget.style.boxShadow = 'none';
                       }
                     }}
                   >

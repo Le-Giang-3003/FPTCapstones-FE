@@ -138,11 +138,9 @@ const Layout = () => {
             }}
             onMouseEnter={(e) => {
               e.currentTarget.style.borderColor = 'var(--accent-primary)';
-              e.currentTarget.style.boxShadow = 'var(--shadow-glow)';
             }}
             onMouseLeave={(e) => {
               e.currentTarget.style.borderColor = 'var(--border-glass)';
-              e.currentTarget.style.boxShadow = 'var(--shadow-md)';
             }}
           >
             <div style={{

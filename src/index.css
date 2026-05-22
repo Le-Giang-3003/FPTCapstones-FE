@@ -183,12 +183,15 @@ a:hover {
   border-radius: 16px;
   padding: 2rem;
   box-shadow: var(--shadow-md);
-  transition:
-    border-color var(--transition-normal),
-    box-shadow var(--transition-normal);
+  transition: border-color var(--transition-normal);
 }
 
-.glass-card:hover {
+/* Card tĩnh không phản hồi hover — chỉ card có .is-interactive (click được) mới sáng viền */
+.glass-card.is-interactive {
+  cursor: pointer;
+}
+
+.glass-card.is-interactive:hover {
   border-color: var(--accent-primary);
 }
 
