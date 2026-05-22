@@ -494,7 +494,7 @@ const AdminUsers = () => {
             {/* Loading overlay khi đang fetch detail mới */}
             {loadingDetail && (
               <div style={{
-                position: 'absolute', inset: 0, background: 'rgba(15,23,42,0.5)',
+                position: 'absolute', inset: 0, background: 'var(--modal-overlay-bg)',
                 borderRadius: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10,
               }}>
                 <Loader2 size={28} className="spin" style={{ color: 'var(--accent-primary)' }} />
@@ -638,7 +638,7 @@ const ModalOverlay = ({ children, onClose }: { children: React.ReactNode; onClos
     <div
       style={{
         position: 'fixed', inset: 0,
-        background: 'rgba(15, 23, 42, 0.85)',
+        background: 'var(--modal-overlay-bg)',
         zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem',
       }}
       onClick={onClose}
