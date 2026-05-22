@@ -12,7 +12,8 @@ import { hasRole } from '../utils/role';
 
 // empty: chưa chọn | selected: mới chọn (xanh nước, chưa lưu) | registered: đã lưu DB (xanh lá)
 // pendingUnregister: đã lưu DB nhưng đang đánh dấu để hủy (đỏ, chưa gửi BE)
-type SlotState = 'empty' | 'selected' | 'registered' | 'pendingUnregister';
+// assigned: GV đã được admin phê duyệt review slot này (vàng, ưu tiên hơn registered)
+type SlotState = 'empty' | 'selected' | 'registered' | 'pendingUnregister' | 'assigned';
 
 const parseDateInfo = (iso: string) => {
   const d = new Date(iso);
@@ -104,6 +105,8 @@ const ReviewSlots = () => {
   const isRegistered = (s: ReviewSlotDto): boolean => s.isCurrentUserRegistered;
 
   const slotState = (s: ReviewSlotDto): SlotState => {
+    // Slot đã được admin phê duyệt → ưu tiên hiển thị vàng, không cho hủy
+    if (s.isCurrentUserAssigned) return 'assigned';
     const registered = isRegistered(s);
     if (registered && pendingRemove.has(s.id)) return 'pendingUnregister';
     if (registered) return 'registered';
@@ -128,9 +131,11 @@ const ReviewSlots = () => {
   //   empty → selected (xanh nước)         selected → empty (bỏ chọn)
   //   registered (xanh lá) → pendingUnregister (đỏ, đánh dấu hủy)
   //   pendingUnregister → registered (bỏ đánh dấu)
+  //   assigned (vàng) → không cho đổi (đã được admin chốt)
   const toggleSelect = (s: ReviewSlotDto) => {
     if (!canRegister || submitting) return;
     const state = slotState(s);
+    if (state === 'assigned') return;
     if (state === 'registered') {
       const next = new Set(pendingRemove);
       next.add(s.id);
@@ -150,11 +155,11 @@ const ReviewSlots = () => {
   };
 
   // Bulk toggle 1 nhóm slot (1 hàng / 1 cột / toàn bộ):
-  //   Lần 1 (chưa có cái nào blue trong scope): chọn hết empty → blue. Skip registered + pendingUnregister.
+  //   Lần 1 (chưa có cái nào blue trong scope): chọn hết empty → blue. Skip registered/pendingUnregister/assigned.
   //   Lần 2 (đã có blue trong scope): deselect hết blue → empty.
   const bulkToggle = (scope: ReviewSlotDto[]) => {
     if (!canRegister || submitting) return;
-    const blueInScope = scope.filter((s) => selected.has(s.id));
+    const blueInScope = scope.filter((s) => selected.has(s.id) && !s.isCurrentUserAssigned);
     const next = new Set(selected);
     if (blueInScope.length > 0) {
       for (const s of blueInScope) next.delete(s.id);
@@ -246,6 +251,15 @@ const ReviewSlots = () => {
         color: '#ef4444',
       };
     }
+    if (state === 'assigned') {
+      return {
+        ...base,
+        background: 'rgba(234, 179, 8, 0.22)',
+        border: '1.5px solid #eab308',
+        color: '#ca8a04',
+        cursor: 'not-allowed',
+      };
+    }
     return {
       ...base,
       background: 'var(--glass-card-bg)',
@@ -273,7 +287,9 @@ const ReviewSlots = () => {
         style={cellStyle(state)}
         onClick={() => toggleSelect(slot)}
         title={
-          state === 'registered'
+          state === 'assigned'
+            ? 'Slot đã được admin phê duyệt cho bạn'
+            : state === 'registered'
             ? 'Đã đăng ký — bấm để đánh dấu hủy'
             : state === 'pendingUnregister'
             ? 'Đã đánh dấu hủy — bấm để bỏ đánh dấu'
@@ -282,7 +298,8 @@ const ReviewSlots = () => {
             : 'Bấm để chọn'
         }
       >
-        {state === 'registered' ? <Check size={18} />
+        {state === 'assigned' ? <Check size={18} />
+          : state === 'registered' ? <Check size={18} />
           : state === 'selected' ? '●'
           : state === 'pendingUnregister' ? '✕'
           : ''}
@@ -430,6 +447,7 @@ const ReviewSlots = () => {
       <div style={{ display: 'flex', gap: 16, marginBottom: '0.75rem', fontSize: '0.75rem', color: 'var(--text-secondary)', flexWrap: 'wrap' }}>
         <span><span style={{ display: 'inline-block', width: 14, height: 14, background: 'rgba(14, 165, 233, 0.22)', border: '1.5px solid #0ea5e9', borderRadius: 3, verticalAlign: 'middle', marginRight: 4 }} /> Đang chọn</span>
         <span><span style={{ display: 'inline-block', width: 14, height: 14, background: 'rgba(16, 185, 129, 0.18)', border: '1.5px solid #10b981', borderRadius: 3, verticalAlign: 'middle', marginRight: 4 }} /> Đã đăng ký</span>
+        <span><span style={{ display: 'inline-block', width: 14, height: 14, background: 'rgba(234, 179, 8, 0.22)', border: '1.5px solid #eab308', borderRadius: 3, verticalAlign: 'middle', marginRight: 4 }} /> Đã phê duyệt</span>
         <span><span style={{ display: 'inline-block', width: 14, height: 14, background: 'rgba(239, 68, 68, 0.18)', border: '1.5px solid #ef4444', borderRadius: 3, verticalAlign: 'middle', marginRight: 4 }} /> Đánh dấu hủy</span>
       </div>
 

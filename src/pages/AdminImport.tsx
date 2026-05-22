@@ -149,11 +149,11 @@ const AdminImport = () => {
                 <div>
                   <strong>Báo lỗi:</strong>
                   <pre style={{
-                    background: 'rgba(15,23,42,0.4)',
+                    background: 'rgba(239, 68, 68, 0.1)',
                     padding: '1rem',
                     borderRadius: 8,
                     fontSize: '0.8rem',
-                    color: 'salmon',
+                    color: 'var(--danger)',
                     whiteSpace: 'pre-wrap',
                     marginTop: '0.5rem'
                   }}>{status.errorReport}</pre>

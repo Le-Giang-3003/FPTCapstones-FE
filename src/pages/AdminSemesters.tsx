@@ -49,8 +49,8 @@ const REVIEW_STATUS_META: Record<ReviewStatus, { label: string; style: React.CSS
 // Map enum → label tiếng Việt + màu badge
 
 const STATUS_META: Record<SemesterStatus, { label: string; badge: string }> = {
-  Pending:   { label: 'Sắp diễn ra', badge: 'badge-info' },
-  Ongoing:   { label: 'Đang diễn ra', badge: 'badge-ongoing' },
+  Pending:   { label: 'Sắp diễn ra', badge: 'badge-warning' },
+  Ongoing:   { label: 'Đang diễn ra', badge: 'badge-info' },
   Completed: { label: 'Đã kết thúc', badge: 'badge-success' },
   Cancelled: { label: 'Đã hủy',     badge: 'badge-danger' },
 };
@@ -847,7 +847,16 @@ const AdminSemesters = () => {
 
   return (
     <div className="animate-fade-in">
-      <style>{`.spin { animation: spin 1s linear infinite; } @keyframes spin { from{transform:rotate(0)} to{transform:rotate(360deg)} }`}</style>
+      <style>{`
+        .spin { animation: spin 1s linear infinite; }
+        @keyframes spin { from{transform:rotate(0)} to{transform:rotate(360deg)} }
+        .today-hitbox:hover .today-indicator { width: 4px; background: #fde047; box-shadow: 0 0 10px rgba(251, 191, 36, 0.8); }
+        .today-hitbox:hover .today-tooltip { opacity: 1 !important; margin-top: 0 !important; visibility: visible !important; pointer-events: auto; }
+
+        /* Tooltip style cho milestone */
+        .milestone-item .milestone-tooltip { opacity: 0; visibility: hidden; margin-top: 4px; transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); pointer-events: none; z-index: 9999; }
+        .milestone-item:hover .milestone-tooltip { opacity: 1 !important; margin-top: 0 !important; visibility: visible !important; }
+      `}</style>
       <div className="topbar">
         <div>
           <h1>Lịch trình học kỳ</h1>
@@ -1136,7 +1145,7 @@ const AdminSemesters = () => {
                 </div>
 
                 {/* Container có scroll ngang nếu nhiều tuần */}
-                <div style={{ overflowX: 'auto', paddingBottom: '0.25rem' }}>
+                <div style={{ overflowX: 'auto', paddingTop: '36px', paddingBottom: '0.25rem', marginTop: '-12px' }}>
                   {(() => {
                     // === Tìm kỳ trước & sau (chỉ ở mode 'month' để có context không gian rộng hơn) ===
                     // list đã sort desc(Year+Season) -> prev (lùi thời gian) ở idx+1, next (tiến) ở idx-1
@@ -1156,10 +1165,12 @@ const AdminSemesters = () => {
                     const todayOffset = (today.getTime() - displayStart.getTime()) / 86400000;
                     const todayLeftPct = (todayOffset / displayDays) * 100;
 
+                    const daysDiff = (a: string, b: string) => Math.round((new Date(b).getTime() - new Date(a).getTime()) / 86400000);
+
                     // Helper tính %left và %width cho 1 segment dựa trên 2 mốc ISO
                     const segPct = (sISO: string, eISO: string) => {
-                      const sOffset = daysBetween(displayStart.toISOString().slice(0, 10), sISO.slice(0, 10));
-                      const eOffset = daysBetween(displayStart.toISOString().slice(0, 10), eISO.slice(0, 10));
+                      const sOffset = daysDiff(displayStart.toISOString().slice(0, 10), sISO.slice(0, 10));
+                      const eOffset = daysDiff(displayStart.toISOString().slice(0, 10), eISO.slice(0, 10));
                       return { leftPct: (sOffset / displayDays) * 100, widthPct: ((eOffset - sOffset) / displayDays) * 100 };
                     };
 
@@ -1188,7 +1199,7 @@ const AdminSemesters = () => {
 
                     // Helper tính %left và %width cho 1 item, clip 0-100
                     const positionItem = (itemStart: string, itemDurationDays: number) => {
-                      const startOffset = daysBetween(displayStart.toISOString().slice(0,10), itemStart.slice(0,10));
+                      const startOffset = daysDiff(displayStart.toISOString().slice(0,10), itemStart.slice(0,10));
                       const endOffset = startOffset + itemDurationDays;
                       const clippedStart = Math.max(0, startOffset);
                       const clippedEnd = Math.min(displayDays, endOffset);
@@ -1199,25 +1210,38 @@ const AdminSemesters = () => {
                     };
 
                     return (
-                      <div style={{ minWidth: trackWidth, position: 'relative' }}>
+                      <div style={{ minWidth: trackWidth, position: 'relative', marginTop: 12, marginBottom: 12 }}>
+                        {/* Current Date Indicator (spanning across lanes) */}
+                        {todayLeftPct >= 0 && todayLeftPct <= 100 && (
+                          <div 
+                            className="today-hitbox"
+                            style={{
+                              position: 'absolute', top: -8, bottom: -8, left: `${todayLeftPct}%`,
+                              width: 16, transform: 'translateX(-8px)', zIndex: 100, cursor: 'pointer',
+                              display: 'flex', justifyContent: 'center'
+                            }}>
+                            <div className="today-indicator" style={{
+                                width: 2, height: '100%', background: '#fbbf24', borderRadius: 2,
+                                transition: 'all 0.2s ease', boxShadow: '0 0 6px rgba(251, 191, 36, 0.4)'
+                            }} />
+                            <div className="today-tooltip" style={{
+                                position: 'absolute', top: '-34px', left: '50%', transform: 'translateX(-50%)',
+                                background: '#fbbf24', color: '#18181b', fontWeight: 700, fontSize: '0.75rem', /* tăng size chữ 1 xíu cho rõ */
+                                padding: '4px 10px', borderRadius: 6, whiteSpace: 'nowrap',
+                                opacity: 0, visibility: 'hidden', marginTop: '4px', transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)', pointerEvents: 'none',
+                                boxShadow: '0 4px 12px rgba(251, 191, 36, 0.3)', zIndex: 9999
+                            }}>
+                                Hôm nay: {todayLabel}
+                                {/* Mũi tên trỏ xuống của tooltip */}
+                                <svg width="10" height="5" viewBox="0 0 10 5" style={{ position: 'absolute', bottom: '-5px', left: '50%', transform: 'translateX(-50%)', fill: '#fbbf24' }}>
+                                    <polygon points="0,0 5,5 10,0" />
+                                </svg>
+                            </div>
+                          </div>
+                        )}
+
                         {/* === LANE 1: HOLIDAY === */}
                         <div style={{ position: 'relative', height: '52px', background: 'var(--surface-glass)', borderRadius: '8px', border: '1px solid var(--border-glass)', overflow: 'visible' }}>
-                          {todayLeftPct >= 0 && todayLeftPct <= 100 && (
-                            <div
-                              title={`Hôm nay: ${todayLabel}`}
-                              style={{
-                                position: 'absolute',
-                                top: '4px',
-                                bottom: '4px',
-                                left: `${todayLeftPct}%`,
-                                width: 0,
-                                borderLeft: '2px dashed rgba(59, 130, 246, 0.95)',
-                                zIndex: 20,
-                                pointerEvents: 'none',
-                                boxShadow: '0 0 0 1px rgba(59, 130, 246, 0.12)',
-                              }}
-                            />
-                          )}
                           {/* Segment kỳ trước (xám mờ) — chỉ ở mode 'month' */}
                           {prevSem && (() => {
                             const p = segPct(prevSem.startDate, prevSem.endDate);
@@ -1307,7 +1331,7 @@ const AdminSemesters = () => {
                               <div key={i} style={{
                                 position: 'absolute', top: 0, bottom: 0,
                                 left: `${leftPct}%`, width: 1,
-                                background: 'rgba(255,255,255,0.18)',
+                                background: 'var(--border-glass)',
                               }} />
                             );
                           })}
@@ -1443,7 +1467,7 @@ const AdminSemesters = () => {
                             const offset = (t.getTime() - displayStart.getTime()) / 86400000;
                             const leftPct = (offset / displayDays) * 100;
                             return (
-                              <div key={i} style={{ position: 'absolute', top: 0, bottom: 0, left: `${leftPct}%`, width: 1, background: 'rgba(255,255,255,0.12)' }} />
+                              <div key={i} style={{ position: 'absolute', top: 0, bottom: 0, left: `${leftPct}%`, width: 1, background: 'var(--border-glass)' }} />
                             );
                           })}
                           {/* Preview milestone block (realtime từ form) */}
@@ -1470,30 +1494,36 @@ const AdminSemesters = () => {
                               </div>
                             );
                           })()}
-                          {/* Render TẤT CẢ review — tô màu theo SemesterId (palette cố định) */}
+                          {/* Render TẤT CẢ block milestone theo template chuẩn */}
                           {allReviews.filter(m => m.id !== previewMilestone?.hiddenId).map(m => {
                             const dur = Math.max(1, daysBetween(m.windowStart.slice(0, 10), m.windowEnd.slice(0, 10)));
                             const pos = positionItem(m.windowStart, dur);
                             if (!pos) return null;
-                            // Palette 8 màu cố định — index theo position của semester trong list (ổn định hơn)
-                            const palette = [
-                              { bg: 'rgba(59, 130, 246, 0.55)',  border: '#3b82f6' },   // blue
-                              { bg: 'rgba(16, 185, 129, 0.55)',  border: '#10b981' },   // green
-                              { bg: 'rgba(251, 146, 60, 0.55)',  border: '#fb923c' },   // orange
-                              { bg: 'rgba(168, 85, 247, 0.55)',  border: '#a855f7' },   // purple
-                              { bg: 'rgba(236, 72, 153, 0.55)',  border: '#ec4899' },   // pink
-                              { bg: 'rgba(14, 165, 233, 0.55)',  border: '#0ea5e9' },   // sky
-                              { bg: 'rgba(234, 179, 8, 0.55)',   border: '#eab308' },   // yellow
-                              { bg: 'rgba(220, 38, 38, 0.55)',   border: '#dc2626' },   // red
-                            ];
-                            const semIdx = list.findIndex(s => s.id === m.semesterId);
-                            const paletteIdx = (semIdx >= 0 ? semIdx : m.semesterId) % palette.length;
-                            const { bg: color, border: borderColor } = palette[Math.abs(paletteIdx)];
+                            
+                            // Phân màu thống nhất theo Legend ở dưới (Review = Blue, Defence = Green, Out of scope = Gray)
+                            const isCurrentSem = m.semesterId === detail.id;
+                            let color = 'rgba(148, 163, 184, 0.25)';
+                            let borderColor = '#94a3b8';
+                            
+                            if (isCurrentSem) {
+                              if (m.type === 'Review') {
+                                color = 'rgba(59, 130, 246, 0.55)';
+                                borderColor = '#3b82f6';
+                              } else if (m.type === 'Defence') {
+                                color = 'rgba(16, 185, 129, 0.55)';
+                                borderColor = '#10b981';
+                              }
+                            } else {
+                              color = 'rgba(148, 163, 184, 0.25)';
+                              borderColor = 'rgba(148, 163, 184, 0.6)';
+                            }
+
                             const homeSem = list.find(s => s.id === m.semesterId);
+                            const tLabel = `${m.label}${homeSem ? ` (kỳ ${homeSem.code})` : ''}: ${fmt(m.windowStart)} → ${fmt(m.windowEnd)}${m.note ? ` • ${m.note}` : ''}`;
                             return (
                               <div
                                 key={m.id}
-                                title={`${m.label}${homeSem ? ` (kỳ ${homeSem.code})` : ''}: ${fmt(m.windowStart)} → ${fmt(m.windowEnd)}${m.note ? ` • ${m.note}` : ''}`}
+                                className="milestone-item"
                                 style={{
                                   position: 'absolute', top: 4, bottom: 4,
                                   left: `${pos.leftPct}%`, width: `${pos.widthPct}%`,
@@ -1503,10 +1533,24 @@ const AdminSemesters = () => {
                                   borderRadius: 4,
                                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                                   fontSize: '0.65rem', color: 'white', fontWeight: 700,
-                                  cursor: 'help', overflow: 'hidden', whiteSpace: 'nowrap',
+                                  cursor: 'pointer', whiteSpace: 'nowrap',
                                 }}
                               >
-                                {pos.widthPct > 5 ? m.label : ''}
+                                <div style={{ overflow: 'hidden', width: '100%', textOverflow: 'ellipsis', textAlign: 'center' }}>
+                                    {pos.widthPct > 5 ? m.label : ''}
+                                </div>
+                                <div className="milestone-tooltip" style={{
+                                    position: 'absolute', top: '-34px', left: '50%', transform: 'translateX(-50%)',
+                                    background: color, color: 'white', fontWeight: 700, fontSize: '0.75rem', 
+                                    padding: '4px 10px', borderRadius: 6, whiteSpace: 'nowrap',
+                                    boxShadow: `0 4px 12px ${color}`, border: `1px solid ${borderColor}`,
+                                    backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)'
+                                }}>
+                                    {tLabel}
+                                    <svg width="10" height="5" viewBox="0 0 10 5" style={{ position: 'absolute', bottom: '-5px', left: '50%', transform: 'translateX(-50%)', fill: color }}>
+                                        <polygon points="0,0 5,5 10,0" />
+                                    </svg>
+                                </div>
                               </div>
                             );
                           })}
@@ -1718,19 +1762,22 @@ const AdminSemesters = () => {
                           const homeSem = list.find(s => s.id === m.semesterId);
                           const stMeta = REVIEW_STATUS_META[m.status ?? 'Draft'];
                           
-                          const palette = [
-                            { bg: 'rgba(59, 130, 246, 0.55)',  border: '#3b82f6' },
-                            { bg: 'rgba(16, 185, 129, 0.55)',  border: '#10b981' },
-                            { bg: 'rgba(251, 146, 60, 0.55)',  border: '#fb923c' },
-                            { bg: 'rgba(168, 85, 247, 0.55)',  border: '#a855f7' },
-                            { bg: 'rgba(236, 72, 153, 0.55)',  border: '#ec4899' },
-                            { bg: 'rgba(14, 165, 233, 0.55)',  border: '#0ea5e9' },
-                            { bg: 'rgba(234, 179, 8, 0.55)',   border: '#eab308' },
-                            { bg: 'rgba(220, 38, 38, 0.55)',   border: '#dc2626' },
-                          ];
-                          const semIdx = list.findIndex(s => s.id === m.semesterId);
-                          const paletteIdx = (semIdx >= 0 ? semIdx : m.semesterId) % palette.length;
-                          const { bg: color, border: borderColor } = palette[Math.abs(paletteIdx)];
+                          // Phân màu thống nhất theo Legend ở dưới (Review = Blue, Defence = Green, Out of scope = Gray)
+                          let color = 'rgba(148, 163, 184, 0.25)';
+                          let borderColor = '#94a3b8';
+                          
+                          if (isHomeSemester) {
+                            if (m.type === 'Review') {
+                              color = 'rgba(59, 130, 246, 0.55)';
+                              borderColor = '#3b82f6';
+                            } else if (m.type === 'Defence') {
+                              color = 'rgba(16, 185, 129, 0.55)';
+                              borderColor = '#10b981';
+                            }
+                          } else {
+                            color = 'rgba(148, 163, 184, 0.25)';
+                            borderColor = 'rgba(148, 163, 184, 0.6)';
+                          }
 
                           return (
                           <tr key={m.id} style={!isHomeSemester ? { background: 'rgba(148, 163, 184, 0.04)' } : undefined}>
@@ -1815,7 +1862,7 @@ const AdminSemesters = () => {
             onClick={closeConfirm}
             style={{
               position: 'fixed', inset: 0, zIndex: 1100,
-              background: 'rgba(15, 23, 42, 0.7)', backdropFilter: 'blur(4px)',
+              background: 'var(--modal-overlay-bg)', backdropFilter: 'blur(4px)',
               display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem',
             }}
           >
@@ -1897,7 +1944,7 @@ const AdminSemesters = () => {
       {/* Modal Add/Edit Milestone (Review/Defence) */}
       {milestoneMode !== null && detail && (
         <div style={{
-          position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.7)', backdropFilter: 'blur(4px)',
+          position: 'fixed', inset: 0, background: 'var(--modal-overlay-bg)', backdropFilter: 'blur(4px)',
           zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem'
         }}>
           <div className="glass-panel animate-fade-in" style={{ width: '100%', maxWidth: 560, padding: '2rem', maxHeight: '90vh', overflowY: 'auto' }}>
@@ -2039,7 +2086,7 @@ const AdminSemesters = () => {
       {/* Modal thêm ngày nghỉ vào kỳ */}
       {showAddHoliday && detail && (
         <div style={{
-          position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.7)', backdropFilter: 'blur(4px)',
+          position: 'fixed', inset: 0, background: 'var(--modal-overlay-bg)', backdropFilter: 'blur(4px)',
           zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem'
         }}>
           <div className="glass-panel animate-fade-in" style={{ width: '100%', maxWidth: 580, padding: '2rem', maxHeight: '90vh', overflowY: 'auto' }}>
@@ -2132,7 +2179,7 @@ const AdminSemesters = () => {
       {/* Modal tạo kỳ học mới */}
       {showCreate && (
         <div style={{
-          position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.7)', backdropFilter: 'blur(4px)',
+          position: 'fixed', inset: 0, background: 'var(--modal-overlay-bg)', backdropFilter: 'blur(4px)',
           zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem'
         }}>
           <div className="glass-panel animate-fade-in" style={{ width: '100%', maxWidth: 520, padding: '2rem' }}>

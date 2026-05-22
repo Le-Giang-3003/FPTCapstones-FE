@@ -103,7 +103,7 @@ const AuditLogs = () => {
       </div>
 
       {err && (
-        <div className="glass-card" style={{ marginBottom: '2rem', color: 'salmon' }}>{err}</div>
+        <div className="glass-card" style={{ marginBottom: '2rem', color: 'var(--danger)' }}>{err}</div>
       )}
 
       <div className="glass-card" style={{ padding: 0, overflow: 'hidden' }}>
