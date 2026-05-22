@@ -1,4 +1,4 @@
-export type Role = 'Admin' | 'Lecturer' | 'StudentLeader' | 'GroupMember' | 'Student';
+export type Role = 'Admin' | 'Lecturer' | 'StudentLeader' | 'GroupMember' | 'Student' | 'Reviewer';
 
 export interface User {
   userId?: number;
@@ -134,6 +134,15 @@ export interface LecturerListItemDto {
   fullName: string;
   code: string | null;
   isActive: boolean;
+}
+
+// Reviewer — lecturer hiện đang có cờ Reviewer (global, BE: ReviewerDto)
+export interface ReviewerDto {
+  lecturerId: number;
+  userId: number;
+  email: string;
+  fullName: string;
+  code: string | null;
 }
 
 export interface LecturerImportError {

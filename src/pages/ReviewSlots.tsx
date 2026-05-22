@@ -24,8 +24,8 @@ const parseDateInfo = (iso: string) => {
 const ReviewSlots = () => {
   const { user, refreshMe } = useAuth();
   const role = user?.role;
-  // Quyền cơ bản theo role — sẽ bị khóa thêm nếu review không ở trạng thái Registering (xem canRegister bên dưới)
-  const roleAllowsRegister = hasRole(role, 'StudentLeader') || hasRole(role, 'Lecturer');
+  // Quyền cơ bản theo role — Reviewer (GV được admin chỉ định) hoặc StudentLeader. Lecturer thường không đăng ký được.
+  const roleAllowsRegister = hasRole(role, 'StudentLeader') || hasRole(role, 'Reviewer');
 
   // Khi vào trang, refresh thông tin user để đảm bảo có lecturerId/groupId mới nhất.
   useEffect(() => { refreshMe().catch(() => {}); }, []);
@@ -182,6 +182,7 @@ const ReviewSlots = () => {
       const slot = slots.find((x) => x.id === slotId);
       if (!slot) continue;
       const subpath = hasRole(role, 'StudentLeader') ? 'groups/me' : 'lecturers/me';
+      // StudentLeader → groups, Reviewer → lecturers
       try {
         await api.delete(`/api/admin/reviews/${slot.reviewId}/slots/${slot.id}/${subpath}`);
       } catch (e: any) {
@@ -319,8 +320,13 @@ const ReviewSlots = () => {
             {hasRole(role, 'StudentLeader') && (
               <>Chọn tối đa <b>{MAX_GROUP_PREFERENCES} slot</b> mong muốn cho nhóm.</>
             )}
-            {hasRole(role, 'Lecturer') && (
+            {hasRole(role, 'Reviewer') && (
               <>Chọn các slot mong muốn được dùng để chấm review (không giới hạn).</>
+            )}
+            {!hasRole(role, 'Reviewer') && !hasRole(role, 'StudentLeader')
+              && !hasRole(role, 'GroupMember') && !hasRole(role, 'Admin')
+              && hasRole(role, 'Lecturer') && (
+              <>Bạn chưa được chỉ định làm reviewer cho đợt review này — chỉ xem.</>
             )}
             {hasRole(role, 'GroupMember') && <>Bạn chỉ xem được lịch. Liên hệ nhóm trưởng để đăng ký.</>}
             {hasRole(role, 'Admin') && <>Bạn là Admin — chế độ chỉ xem.</>}
