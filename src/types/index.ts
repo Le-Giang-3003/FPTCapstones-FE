@@ -356,11 +356,18 @@ export interface DashboardReviewDto {
   isExpired: boolean;
 }
 
+export interface DashboardMyGroupDto {
+  groupId: number;
+  groupCode: string;
+}
+
 export interface DashboardStatsDto {
   totalGroups: number;
   reviews: DashboardReviewDto[];
   // BE serialize Dictionary<int,int> → key là string
   assignedSlotCounts: Record<string, number>;
+  myGroup: DashboardMyGroupDto | null;
+  viewerRole: 'Lecturer' | 'Student' | 'Admin';
 }
 
 export interface LecturerAssignedSlotDto {
@@ -376,7 +383,11 @@ export interface LecturerAssignedSlotDto {
   groupId: number;
   groupCode: string;
   projectName: string;
-  partnerLecturerId: number | null;
+  lecturer1Id: number;
+  lecturer1Name: string;
+  lecturer2Id: number | null;
+  lecturer2Name: string | null;
+  partnerLecturerId: number | null;     // chỉ set cho lecturer view
   partnerLecturerName: string | null;
   isExpired: boolean;
 }

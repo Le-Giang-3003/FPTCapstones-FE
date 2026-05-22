@@ -1,7 +1,7 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from './contexts/AuthContext';
-import { hasRole, hasAnyRole } from './utils/role';
+import { hasAnyRole } from './utils/role';
 import type { Role } from './types';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
@@ -30,7 +30,9 @@ const PrivateRoute = ({ children, roles }: { children: React.ReactNode; roles?: 
 const HomeRedirect = () => {
   const { user } = useAuth();
   if (!user) return <Navigate to="/login" replace />;
-  if (hasRole(user.role, 'Admin') || hasRole(user.role, 'Lecturer')) return <Navigate to="/dashboard" replace />;
+  // Mọi user có quyền xem dashboard đều landing ở /dashboard (Admin/Lecturer/Reviewer/Student)
+  if (hasAnyRole(user.role, ['Admin', 'Lecturer', 'Reviewer', 'StudentLeader', 'GroupMember']))
+    return <Navigate to="/dashboard" replace />;
   if (user.groupId) return <Navigate to={`/projects/${user.groupId}`} replace />;
   return <Navigate to="/no-project" replace />;
 };
@@ -53,7 +55,7 @@ const App = () => {
           <Route path="/no-project" element={<NoProject />} />
           <Route
             path="/dashboard"
-            element={<PrivateRoute roles={['Admin', 'Lecturer']}><Dashboard /></PrivateRoute>}
+            element={<PrivateRoute roles={['Admin', 'Lecturer', 'Reviewer', 'StudentLeader', 'GroupMember']}><Dashboard /></PrivateRoute>}
           />
           <Route
             path="/topics"

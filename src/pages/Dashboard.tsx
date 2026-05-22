@@ -21,7 +21,7 @@ const formatDate = (iso: string) => {
 const Dashboard = () => {
   const { user } = useAuth();
   const role = user?.role;
-  const canViewLecturerDashboard = hasAnyRole(role, ['Lecturer', 'Reviewer', 'Admin']);
+  const canViewDashboard = hasAnyRole(role, ['Lecturer', 'Reviewer', 'Admin', 'StudentLeader', 'GroupMember']);
 
   const [stats, setStats] = useState<DashboardStatsDto | null>(null);
   const [assignedSlots, setAssignedSlots] = useState<LecturerAssignedSlotDto[]>([]);
@@ -32,7 +32,7 @@ const Dashboard = () => {
   const [detailSlot, setDetailSlot] = useState<LecturerAssignedSlotDto | null>(null);
 
   useEffect(() => {
-    if (!canViewLecturerDashboard) {
+    if (!canViewDashboard) {
       setLoading(false);
       return;
     }
@@ -56,7 +56,7 @@ const Dashboard = () => {
         setLoading(false);
       }
     })();
-  }, [canViewLecturerDashboard]);
+  }, [canViewDashboard]);
 
   // Số slot đã được phê duyệt cho đợt đang chọn — fallback tổng tất cả khi chưa chọn
   const selectedReviewSlotCount = useMemo(() => {
@@ -78,21 +78,26 @@ const Dashboard = () => {
     return assignedSlots.filter((s) => s.reviewId === selectedReviewId);
   }, [assignedSlots, selectedReviewId]);
 
-  if (!canViewLecturerDashboard) {
+  if (!canViewDashboard) {
     return (
       <div className="animate-fade-in" style={{ padding: '2rem' }}>
         <h1>Dashboard</h1>
-        <p style={{ color: 'var(--text-secondary)' }}>Bạn không có quyền xem dashboard giảng viên.</p>
+        <p style={{ color: 'var(--text-secondary)' }}>Bạn không có quyền xem dashboard.</p>
       </div>
     );
   }
+
+  const viewerRole = stats?.viewerRole;
+  const isStudentView = viewerRole === 'Student';
 
   return (
     <div className="animate-fade-in">
       <div className="topbar">
         <div>
           <h1>Dashboard</h1>
-          <p style={{ color: 'var(--text-secondary)' }}>Tổng quan hoạt động giảng viên</p>
+          <p style={{ color: 'var(--text-secondary)' }}>
+            {isStudentView ? 'Tổng quan lịch review của nhóm' : 'Tổng quan hoạt động giảng viên'}
+          </p>
         </div>
       </div>
 
@@ -116,12 +121,18 @@ const Dashboard = () => {
         gap: '1.5rem',
         marginBottom: '2rem',
       }}>
-        {/* Tổng nhóm */}
+        {/* Tổng nhóm (lecturer) hoặc Nhóm của tôi (student) */}
         <KpiCard
           icon={<Users size={24} />}
           color="#f59e0b"
-          label="Tổng nhóm hướng dẫn"
-          value={loading ? '—' : String(stats?.totalGroups ?? 0)}
+          label={isStudentView ? 'Nhóm của tôi' : 'Tổng nhóm hướng dẫn'}
+          value={
+            loading
+              ? '—'
+              : isStudentView
+              ? (stats?.myGroup?.groupCode ?? 'Chưa có nhóm')
+              : String(stats?.totalGroups ?? 0)
+          }
         />
 
         {/* Danh sách đợt review (chip) */}
@@ -195,7 +206,7 @@ const Dashboard = () => {
         <KpiCard
           icon={<ClipboardCheck size={24} />}
           color="#10b981"
-          label={`Slot đã được phê duyệt (${selectedReviewLabel})`}
+          label={`${isStudentView ? 'Số buổi review của nhóm' : 'Slot đã được phê duyệt'} (${selectedReviewLabel})`}
           value={loading ? '—' : String(selectedReviewSlotCount)}
         />
       </div>
@@ -234,7 +245,13 @@ const Dashboard = () => {
       )}
 
       {/* Popup chi tiết slot */}
-      {detailSlot && <SlotDetailModal slot={detailSlot} onClose={() => setDetailSlot(null)} />}
+      {detailSlot && (
+        <SlotDetailModal
+          slot={detailSlot}
+          isStudentView={isStudentView}
+          onClose={() => setDetailSlot(null)}
+        />
+      )}
     </div>
   );
 };
@@ -299,7 +316,11 @@ const AssignedSlotCard = ({ slot, onOpen }: { slot: LecturerAssignedSlotDto; onO
 };
 
 // Modal full chi tiết slot
-const SlotDetailModal = ({ slot, onClose }: { slot: LecturerAssignedSlotDto; onClose: () => void }) => {
+const SlotDetailModal = ({ slot, isStudentView, onClose }: {
+  slot: LecturerAssignedSlotDto;
+  isStudentView: boolean;
+  onClose: () => void;
+}) => {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
     document.addEventListener('keydown', onKey);
@@ -416,15 +437,30 @@ const SlotDetailModal = ({ slot, onClose }: { slot: LecturerAssignedSlotDto; onC
             label="Đề tài"
             value={slot.projectName}
           />
-          <DetailRow
-            icon={<UserCheck size={15} />}
-            label="Đồng GV"
-            value={
-              slot.partnerLecturerName
-                ? <span>{slot.partnerLecturerName}</span>
-                : <span style={{ color: 'var(--text-secondary)', fontStyle: 'italic' }}>Chưa có đồng giảng viên</span>
-            }
-          />
+          {isStudentView ? (
+            <DetailRow
+              icon={<UserCheck size={15} />}
+              label="Hội đồng"
+              value={
+                <span>
+                  <b>{slot.lecturer1Name}</b>
+                  {slot.lecturer2Name ? <> &amp; <b>{slot.lecturer2Name}</b></> : (
+                    <span style={{ color: 'var(--text-secondary)', fontStyle: 'italic' }}> (chưa có GV 2)</span>
+                  )}
+                </span>
+              }
+            />
+          ) : (
+            <DetailRow
+              icon={<UserCheck size={15} />}
+              label="Đồng GV"
+              value={
+                slot.partnerLecturerName
+                  ? <span>{slot.partnerLecturerName}</span>
+                  : <span style={{ color: 'var(--text-secondary)', fontStyle: 'italic' }}>Chưa có đồng giảng viên</span>
+              }
+            />
+          )}
         </div>
       </div>
     </div>
