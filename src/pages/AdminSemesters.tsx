@@ -2168,24 +2168,74 @@ const AdminSemesters = () => {
                 </div>
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                <div className="input-group">
-                  <label className="input-label">Ngày bắt đầu</label>
-                  <input
-                    type="date" required className="input-field"
-                    value={createForm.start}
-                    onChange={e => setCreateForm({ ...createForm, start: e.target.value })}
-                  />
-                </div>
-                <div className="input-group">
-                  <label className="input-label">Ngày kết thúc</label>
-                  <input
-                    type="date" required className="input-field"
-                    value={createForm.end}
-                    onChange={e => setCreateForm({ ...createForm, end: e.target.value })}
-                  />
-                </div>
-              </div>
+              {/* Date range: chỉnh start → end auto-nới đủ 16w. Chỉnh end tay → giữ start, badge hiển thị chênh lệch. */}
+              {(() => {
+                const TARGET_DAYS = WEEKS_PER_SEMESTER * 7; // 112
+                const gap = createForm.start && createForm.end
+                  ? daysBetween(createForm.start, createForm.end)
+                  : 0;
+                const diff = gap - TARGET_DAYS;
+                const gapLabel = !createForm.start || !createForm.end
+                  ? '—'
+                  : diff === 0
+                    ? `+ ${WEEKS_PER_SEMESTER}w`
+                    : diff > 0
+                      ? `+ ${WEEKS_PER_SEMESTER}w + ${diff}d`
+                      : `+ ${WEEKS_PER_SEMESTER}w − ${-diff}d`;
+                const badgeColor = diff === 0 ? '#10b981' : diff > 0 ? '#0ea5e9' : '#ef4444';
+                const badgeBg = diff === 0
+                  ? 'rgba(16, 185, 129, 0.12)'
+                  : diff > 0
+                    ? 'rgba(14, 165, 233, 0.12)'
+                    : 'rgba(239, 68, 68, 0.12)';
+                return (
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr auto 1fr', gap: '0.75rem', alignItems: 'end', marginBottom: '1rem' }}>
+                    <div className="input-group" style={{ marginBottom: 0 }}>
+                      <label className="input-label">Ngày bắt đầu</label>
+                      <input
+                        type="date" required className="input-field"
+                        value={createForm.start}
+                        onChange={e => {
+                          const newStart = e.target.value;
+                          if (newStart) {
+                            // Auto-nới end để đủ 16w từ start mới
+                            const newEnd = toISO(addDays(new Date(newStart), TARGET_DAYS));
+                            setCreateForm({ ...createForm, start: newStart, end: newEnd });
+                          } else {
+                            setCreateForm({ ...createForm, start: newStart });
+                          }
+                        }}
+                      />
+                    </div>
+                    <div
+                      style={{
+                        padding: '0.4rem 0.7rem',
+                        background: badgeBg,
+                        border: `1px solid ${badgeColor}40`,
+                        borderRadius: 6,
+                        color: badgeColor,
+                        fontSize: '0.8rem',
+                        fontWeight: 600,
+                        whiteSpace: 'nowrap',
+                        marginBottom: '0.5rem',
+                        textAlign: 'center',
+                        userSelect: 'none',
+                      }}
+                      title="Khoảng cách giữa ngày bắt đầu và kết thúc"
+                    >
+                      {gapLabel}
+                    </div>
+                    <div className="input-group" style={{ marginBottom: 0 }}>
+                      <label className="input-label">Ngày kết thúc</label>
+                      <input
+                        type="date" required className="input-field"
+                        value={createForm.end}
+                        onChange={e => setCreateForm({ ...createForm, end: e.target.value })}
+                      />
+                    </div>
+                  </div>
+                );
+              })()}
 
               {/* Preview code sẽ được sinh ra (theo BE: Spring+2026 -> SP26) */}
               <div style={{
