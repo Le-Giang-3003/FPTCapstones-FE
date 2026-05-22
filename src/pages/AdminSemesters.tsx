@@ -852,15 +852,6 @@ const AdminSemesters = () => {
         @keyframes spin { from{transform:rotate(0)} to{transform:rotate(360deg)} }
         .today-hitbox:hover .today-indicator { width: 4px; background: #fde047; box-shadow: 0 0 10px rgba(251, 191, 36, 0.8); }
         .today-hitbox:hover .today-tooltip { opacity: 1 !important; margin-top: 0 !important; visibility: visible !important; pointer-events: auto; }
-        
-        /* Test hover sáng viền nhẹ cho phần tử dạng card/panel (glass-card) ở trang này */
-        .glass-card {
-          transition: all 0.3s ease;
-        }
-        .glass-card:hover {
-          border-color: rgba(251, 146, 60, 0.6) !important;
-          box-shadow: 0 0 20px rgba(251, 146, 60, 0.15) !important;
-        }
 
         /* Tooltip style cho milestone */
         .milestone-item .milestone-tooltip { opacity: 0; visibility: hidden; margin-top: 4px; transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); pointer-events: none; z-index: 9999; }
