@@ -219,15 +219,41 @@ const ProjectDetail = () => {
             </div>
 
             {isStudentLeader && isDraftEditable && isSelectedVersionDraft && (
-              <div style={{ display: 'flex', gap: '1rem', marginBottom: '1.5rem', alignItems: 'flex-end' }}>
-                <div className="input-group" style={{ marginBottom: 0, flex: 1 }}>
-                  <label className="input-label">Upload file (tối đa 50MB, định dạng: .pdf .docx .doc .xlsx .pptx .zip)</label>
-                  <input id="file-input" type="file" className="input-field" style={{ padding: '0.5rem' }}
-                    onChange={e => setFile(e.target.files?.[0] || null)} />
+              <div style={{ marginBottom: '1.5rem' }}>
+                <div style={{
+                  marginBottom: '0.75rem',
+                  padding: '0.75rem 1rem',
+                  borderRadius: 8,
+                  background: 'rgba(245, 158, 11, 0.12)',
+                  border: '1px solid rgba(245, 158, 11, 0.45)',
+                  color: 'rgb(251, 191, 36)',
+                  fontSize: '0.9rem',
+                  fontWeight: 500,
+                }}>
+                  Chức năng upload tài liệu đang trong quá trình phát triển và tạm thời bị vô hiệu.
                 </div>
-                <button className="btn btn-secondary" onClick={handleUpload} disabled={!file || uploading}>
-                  <FileUp size={16} /> {uploading ? 'Đang upload...' : 'Upload'}
-                </button>
+                <div style={{ display: 'flex', gap: '1rem', alignItems: 'flex-end' }}>
+                  <div className="input-group" style={{ marginBottom: 0, flex: 1 }}>
+                    <label className="input-label">Upload file (tối đa 50MB, định dạng: .pdf .docx .doc .xlsx .pptx .zip)</label>
+                    <input
+                      id="file-input"
+                      type="file"
+                      className="input-field"
+                      style={{ padding: '0.5rem', opacity: 0.6, cursor: 'not-allowed' }}
+                      disabled
+                      onChange={e => setFile(e.target.files?.[0] || null)}
+                    />
+                  </div>
+                  <button
+                    className="btn btn-secondary"
+                    onClick={handleUpload}
+                    disabled
+                    title="Tính năng đang phát triển"
+                    style={{ opacity: 0.6, cursor: 'not-allowed' }}
+                  >
+                    <FileUp size={16} /> Upload
+                  </button>
+                </div>
               </div>
             )}
 
