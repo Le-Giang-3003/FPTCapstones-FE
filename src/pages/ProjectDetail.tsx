@@ -26,7 +26,7 @@ const ProjectDetail = () => {
   const [editDesc, setEditDesc] = useState('');
 
   const [file, setFile] = useState<File | null>(null);
-  const [uploading, setUploading] = useState(false);
+  const [_uploading, setUploading] = useState(false);
 
   const isStudentLeader = hasRole(user?.role, 'StudentLeader');
   const isAdmin = hasRole(user?.role, 'Admin');
