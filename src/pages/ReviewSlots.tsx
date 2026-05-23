@@ -300,7 +300,6 @@ const ReviewSlots = () => {
       >
         {state === 'assigned' ? <Check size={18} />
           : state === 'registered' ? <Check size={18} />
-          : state === 'selected' ? '●'
           : state === 'pendingUnregister' ? '✕'
           : ''}
       </div>
