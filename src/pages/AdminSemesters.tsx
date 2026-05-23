@@ -390,6 +390,7 @@ const AdminSemesters = () => {
   // === Milestone CRUD (manual) ===
   // Modal mode: 'new' = tạo mới, số = sửa id
   const [milestoneMode, setMilestoneMode] = useState<number | 'new' | null>(null);
+  const [hoverMilestoneId, setHoverMilestoneId] = useState<number | null>(null);
   const blankMilestoneForm = {
     type: 'Review' as MilestoneType,
     orderIndex: 1,
@@ -473,8 +474,8 @@ const AdminSemesters = () => {
     if (!detail) return;
     if (!milestoneForm.label.trim()) { setMilestoneError('Label không được rỗng'); return; }
     if (!milestoneForm.windowStart || !milestoneForm.windowEnd) { setMilestoneError('Phải nhập cả 2 mốc'); return; }
-    if (new Date(milestoneForm.windowEnd) <= new Date(milestoneForm.windowStart)) { setMilestoneError('WindowEnd phải sau WindowStart'); return; }
-    if (new Date(milestoneForm.windowStart) < new Date(detail.startDate)) { setMilestoneError('WindowStart phải >= ngày bắt đầu kỳ'); return; }
+    if (new Date(milestoneForm.windowEnd) <= new Date(milestoneForm.windowStart)) { setMilestoneError('Ngày kết thúc phải sau ngày bắt đầu'); return; }
+    if (new Date(milestoneForm.windowStart) < new Date(detail.startDate)) { setMilestoneError('Ngày bắt đầu phải >= ngày bắt đầu kỳ'); return; }
     try {
       setSavingMs(true);
       if (milestoneMode === 'new') {
@@ -1745,7 +1746,7 @@ const AdminSemesters = () => {
                       <thead>
                         <tr>
                           <th>Loại</th>
-                          <th>Window</th>
+                          <th>Ngày</th>
                           <th>Số ngày</th>
                           <th>Trạng thái</th>
                           <th>Kỳ gốc</th>
@@ -1805,7 +1806,7 @@ const AdminSemesters = () => {
                                   </span>}
                             </td>
                             <td style={{ color: 'var(--text-secondary)', fontSize: '0.8rem' }}>{m.note || '—'}</td>
-                            <td style={{ textAlign: 'right' }}>
+                            <td style={{ textAlign: 'right', position: 'relative' }}>
                               <div style={{ display: 'inline-flex', gap: '0.4rem' }}>
                                 {(m.status ?? 'Draft') === 'Draft' && (
                                   <button
@@ -1817,13 +1818,25 @@ const AdminSemesters = () => {
                                     Bắt đầu
                                   </button>
                                 )}
-                                <button
-                                  className="btn btn-secondary"
-                                  style={{ padding: '0.3rem 0.55rem', fontSize: '0.75rem' }}
-                                  onClick={() => openEditMilestone(m)}
+                                <span
+                                  title={m.status !== 'Draft' ? 'Không thể chỉnh sửa khi đã bắt đầu' : undefined}
+                                  style={{ display: 'inline-flex', cursor: m.status !== 'Draft' ? 'not-allowed' : undefined }}
+                                  onMouseEnter={() => { if (m.status !== 'Draft') setHoverMilestoneId(m.id); }}
+                                  onMouseLeave={() => { if (hoverMilestoneId === m.id) setHoverMilestoneId(null); }}
                                 >
-                                  Sửa
-                                </button>
+                                  <button
+                                    className="btn btn-secondary"
+                                    style={{
+                                      padding: '0.3rem 0.55rem',
+                                      fontSize: '0.75rem',
+                                      ...(m.status !== 'Draft' ? { opacity: 0.4, cursor: 'not-allowed', pointerEvents: 'none' } : {}),
+                                    }}
+                                    disabled={m.status !== 'Draft'}
+                                    onClick={() => openEditMilestone(m)}
+                                  >
+                                    Sửa
+                                  </button>
+                                </span>
                                 <button
                                   className="btn btn-secondary"
                                   style={{ padding: '0.3rem 0.55rem', fontSize: '0.75rem', color: 'var(--danger)', border: '1px solid rgba(239, 68, 68, 0.25)' }}
@@ -1832,6 +1845,25 @@ const AdminSemesters = () => {
                                   <X size={13} /> Xóa
                                 </button>
                               </div>
+                              {hoverMilestoneId === m.id && m.status !== 'Draft' && (
+                                <div style={{
+                                  position: 'absolute',
+                                  right: 'calc(100% + 8px)',
+                                  top: '50%',
+                                  transform: 'translateY(-50%)',
+                                  background: 'var(--surface-glass)',
+                                  border: '1px solid var(--border-glass)',
+                                  padding: '0.6rem 0.75rem',
+                                  borderRadius: 8,
+                                  boxShadow: '0 6px 24px rgba(0,0,0,0.5)',
+                                  width: 260,
+                                  zIndex: 40,
+                                }}>
+                                  <div style={{ fontWeight: 700, marginBottom: 6 }}>{m.label}</div>
+                                  <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: 6 }}>{fmt(m.windowStart)} → {fmt(m.windowEnd)}</div>
+                                  <div style={{ fontSize: '0.82rem', color: 'var(--text-secondary)' }}>Không thể chỉnh sửa khi đã bắt đầu</div>
+                                </div>
+                              )}
                             </td>
                           </tr>
                           );
@@ -1952,7 +1984,7 @@ const AdminSemesters = () => {
               {milestoneMode === 'new' ? 'Thêm lịch Review / Defence' : 'Sửa lịch Review / Defence'}
             </h2>
             <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginBottom: '1.25rem' }}>
-              Window là cửa sổ thời gian admin mở cho student/lecturer book slot review/defence cụ thể.
+              "Ngày" là khoảng thời gian admin mở để student/lecturer đặt slot review/defence.
             </p>
 
             <form onSubmit={handleSubmitMilestone}>
