@@ -84,6 +84,24 @@ const SEASON_INDEX: Record<SemesterSeason, number> = { Spring: 0, Summer: 1, Fal
 const toISO = (d: Date) => d.toISOString().slice(0, 10);
 const addDays = (d: Date, days: number) => new Date(d.getTime() + days * 86400000);
 
+// Tính ngày kết thúc cho window dài `days` ngày (INCLUSIVE: end = start + days - 1).
+// Nếu kết quả rơi vào Chủ Nhật → lùi về Thứ 7 (bỏ ngày CN, không dời sang Thứ 2).
+// VD: start = Thứ 2 (25/5), days=7 → 25+6=31/5 (CN) → lùi về 30/5 (Thứ 7).
+const addWorkingDaysISO = (iso: string, days: number): string => {
+  const d = new Date(iso + 'T00:00:00Z');
+  d.setUTCDate(d.getUTCDate() + days - 1);    // inclusive: window dài `days` ngày
+  if (d.getUTCDay() === 0) d.setUTCDate(d.getUTCDate() - 1);  // CN → Thứ 7
+  return d.toISOString().slice(0, 10);
+};
+
+// Map review status → config nút chuyển trạng thái tiếp theo.
+const REVIEW_NEXT_STATUS: Partial<Record<ReviewStatus, { next: ReviewStatus; label: string; title: string }>> = {
+  Draft:       { next: 'Registering', label: 'Bắt đầu',    title: 'Mở đăng ký — chuyển sang Registering' },
+  Registering: { next: 'Registered',  label: 'Chốt slot',   title: 'Chốt đăng ký — chuyển sang Registered' },
+  Registered:  { next: 'Ongoing',     label: 'Mở review',   title: 'Bắt đầu chấm — chuyển sang Ongoing' },
+  Ongoing:     { next: 'Finished',    label: 'Kết thúc',    title: 'Kết thúc đợt review — chuyển sang Finished' },
+};
+
 // Quy tắc derive status từ ngày: Cancelled giữ nguyên — còn lại auto theo today UTC
 const deriveStatus = (
   current: SemesterStatus,
@@ -539,6 +557,17 @@ const AdminSemesters = () => {
           });
         }
       },
+    });
+  };
+
+  // Hủy bỏ 1 milestone — confirm trước khi chuyển sang Cancelled
+  const handleCancelMilestone = (m: SemesterMilestoneDto) => {
+    openConfirm({
+      title: `Hủy bỏ "${m.label}"?`,
+      message: 'Hành động này sẽ chuyển đợt review sang trạng thái Cancelled. Không thể khôi phục về trạng thái trước.',
+      variant: 'danger',
+      confirmLabel: 'Hủy bỏ đợt review',
+      onConfirm: () => handleChangeReviewStatus(m, 'Cancelled'),
     });
   };
 
@@ -1807,45 +1836,62 @@ const AdminSemesters = () => {
                             </td>
                             <td style={{ color: 'var(--text-secondary)', fontSize: '0.8rem' }}>{m.note || '—'}</td>
                             <td style={{ textAlign: 'right', position: 'relative' }}>
-                              <div style={{ display: 'inline-flex', gap: '0.4rem' }}>
+                              <div style={{ display: 'inline-flex', gap: '0.4rem', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                                {/* Nút chuyển trạng thái tiếp theo */}
+                                {(() => {
+                                  const cfg = REVIEW_NEXT_STATUS[m.status ?? 'Draft'];
+                                  if (!cfg) return null;
+                                  const isDraftAdvance = (m.status ?? 'Draft') === 'Draft';
+                                  return (
+                                    <span
+                                      style={{ display: 'inline-flex' }}
+                                      onMouseEnter={() => { if (isDraftAdvance) setHoverMilestoneId(m.id); }}
+                                      onMouseLeave={() => { if (hoverMilestoneId === m.id) setHoverMilestoneId(null); }}
+                                    >
+                                      <button
+                                        className="btn btn-primary"
+                                        style={{ padding: '0.3rem 0.55rem', fontSize: '0.75rem' }}
+                                        onClick={() => handleChangeReviewStatus(m, cfg.next)}
+                                        title={cfg.title}
+                                      >
+                                        {cfg.label}
+                                      </button>
+                                    </span>
+                                  );
+                                })()}
+                                {/* Draft: nút Sửa + Xóa thay cho Hủy bỏ */}
                                 {(m.status ?? 'Draft') === 'Draft' && (
-                                  <button
-                                    className="btn btn-primary"
-                                    style={{ padding: '0.3rem 0.55rem', fontSize: '0.75rem' }}
-                                    onClick={() => handleChangeReviewStatus(m, 'Registering')}
-                                    title="Mở đăng ký — chuyển sang Registering"
-                                  >
-                                    Bắt đầu
-                                  </button>
+                                  <>
+                                    <button
+                                      className="btn btn-secondary"
+                                      style={{ padding: '0.3rem 0.55rem', fontSize: '0.75rem' }}
+                                      onClick={() => openEditMilestone(m)}
+                                    >
+                                      Sửa
+                                    </button>
+                                    <button
+                                      className="btn btn-secondary"
+                                      style={{ padding: '0.3rem 0.55rem', fontSize: '0.75rem', color: 'var(--danger)', border: '1px solid rgba(239, 68, 68, 0.25)' }}
+                                      onClick={() => handleDeleteMilestone(m)}
+                                    >
+                                      <X size={13} /> Xóa
+                                    </button>
+                                  </>
                                 )}
-                                <span
-                                  title={m.status !== 'Draft' ? 'Không thể chỉnh sửa khi đã bắt đầu' : undefined}
-                                  style={{ display: 'inline-flex', cursor: m.status !== 'Draft' ? 'not-allowed' : undefined }}
-                                  onMouseEnter={() => { if (m.status !== 'Draft') setHoverMilestoneId(m.id); }}
-                                  onMouseLeave={() => { if (hoverMilestoneId === m.id) setHoverMilestoneId(null); }}
-                                >
+                                {/* Registering trở đi: nút Hủy bỏ (→ Cancelled) */}
+                                {(['Registering', 'Registered', 'Ongoing'] as ReviewStatus[]).includes(m.status ?? 'Draft') && (
                                   <button
                                     className="btn btn-secondary"
-                                    style={{
-                                      padding: '0.3rem 0.55rem',
-                                      fontSize: '0.75rem',
-                                      ...(m.status !== 'Draft' ? { opacity: 0.4, cursor: 'not-allowed', pointerEvents: 'none' } : {}),
-                                    }}
-                                    disabled={m.status !== 'Draft'}
-                                    onClick={() => openEditMilestone(m)}
+                                    style={{ padding: '0.3rem 0.55rem', fontSize: '0.75rem', color: 'var(--danger)', border: '1px solid rgba(239, 68, 68, 0.25)' }}
+                                    onClick={() => handleCancelMilestone(m)}
+                                    title="Hủy bỏ đợt review — chuyển sang Cancelled"
                                   >
-                                    Sửa
+                                    Hủy bỏ
                                   </button>
-                                </span>
-                                <button
-                                  className="btn btn-secondary"
-                                  style={{ padding: '0.3rem 0.55rem', fontSize: '0.75rem', color: 'var(--danger)', border: '1px solid rgba(239, 68, 68, 0.25)' }}
-                                  onClick={() => handleDeleteMilestone(m)}
-                                >
-                                  <X size={13} /> Xóa
-                                </button>
+                                )}
                               </div>
-                              {hoverMilestoneId === m.id && m.status !== 'Draft' && (
+                              {/* Tooltip popup khi hover nút "Bắt đầu" (Draft→Registering) */}
+                              {hoverMilestoneId === m.id && (m.status ?? 'Draft') === 'Draft' && (
                                 <div style={{
                                   position: 'absolute',
                                   right: 'calc(100% + 8px)',
@@ -1861,7 +1907,7 @@ const AdminSemesters = () => {
                                 }}>
                                   <div style={{ fontWeight: 700, marginBottom: 6 }}>{m.label}</div>
                                   <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: 6 }}>{fmt(m.windowStart)} → {fmt(m.windowEnd)}</div>
-                                  <div style={{ fontSize: '0.82rem', color: 'var(--text-secondary)' }}>Không thể chỉnh sửa khi đã bắt đầu</div>
+                                  <div style={{ fontSize: '0.82rem', color: 'var(--warning)' }}>⚠ Sau khi bắt đầu, không thể chỉnh sửa thông tin đợt review nữa.</div>
                                 </div>
                               )}
                             </td>
@@ -2043,16 +2089,16 @@ const AdminSemesters = () => {
                 </div>
               </div>
 
-              {/* Quick preset: +1w / +2w / +3w */}
+              {/* Quick preset: +1w / +2w / +3w — tính ngày làm việc (bỏ CN) nên luôn đủ slot */}
               <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', marginBottom: '1rem' }}>
                 <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', display: 'inline-flex', alignItems: 'center' }}>Preset duration:</span>
-                {[7, 14, 21].map(d => (
+                {([{ w: 1, d: 7 }, { w: 2, d: 14 }, { w: 3, d: 21 }]).map(({ w, d }) => (
                   <button
                     type="button"
                     key={d}
                     onClick={() => {
                       if (!milestoneForm.windowStart) return;
-                      setMilestoneForm({ ...milestoneForm, windowEnd: addDaysISO(milestoneForm.windowStart, d) });
+                      setMilestoneForm({ ...milestoneForm, windowEnd: addWorkingDaysISO(milestoneForm.windowStart, d) });
                     }}
                     disabled={!milestoneForm.windowStart}
                     style={{
@@ -2061,8 +2107,9 @@ const AdminSemesters = () => {
                       color: 'var(--text-secondary)', cursor: milestoneForm.windowStart ? 'pointer' : 'not-allowed',
                       opacity: milestoneForm.windowStart ? 1 : 0.4,
                     }}
+                    title={`${d} ngày làm việc — bỏ qua Chủ Nhật`}
                   >
-                    +{d / 7}w ({d}d)
+                    +{w} week
                   </button>
                 ))}
               </div>

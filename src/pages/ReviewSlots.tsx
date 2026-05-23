@@ -61,6 +61,7 @@ const ReviewSlots = () => {
   const [loadingSlots, setLoadingSlots] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [datePage, setDatePage] = useState(0);
   const [dragAnchor, setDragAnchor] = useState<DragCellCoord | null>(null);
   const [dragCurrent, setDragCurrent] = useState<DragCellCoord | null>(null);
   const [isDragging, setIsDragging] = useState(false);
@@ -109,6 +110,10 @@ const ReviewSlots = () => {
     if (reviewId != null) fetchSlots(reviewId);
   }, [reviewId]);
 
+  useEffect(() => {
+    setDatePage(0);
+  }, [reviewId]);
+
   const { dates, slotIndices, getSlot } = useMemo(() => {
     const dateSet = new Set<string>();
     const idxSet = new Set<number>();
@@ -137,6 +142,19 @@ const ReviewSlots = () => {
     slotIndices.forEach((idx, i) => map.set(idx, i));
     return map;
   }, [slotIndices]);
+
+  const datesPerPage = 6;
+  const pageCount = Math.max(1, Math.ceil(dates.length / datesPerPage));
+  const safeDatePage = Math.min(datePage, pageCount - 1);
+  const pagedDates = useMemo(
+    () => {
+      const slice = dates.slice(safeDatePage * datesPerPage, safeDatePage * datesPerPage + datesPerPage);
+      return Array.from({ length: datesPerPage }, (_, index) => slice[index] ?? null);
+    },
+    [dates, safeDatePage],
+  );
+  const pageStart = dates.length === 0 ? 0 : safeDatePage * datesPerPage + 1;
+  const pageEnd = Math.min(dates.length, pageStart + pagedDates.filter(Boolean).length - 1);
 
   // BE đã tính sẵn flag dựa trên JWT — FE chỉ đọc
   const isRegistered = (s: ReviewSlotDto): boolean => s.isCurrentUserRegistered;
@@ -656,11 +674,63 @@ const ReviewSlots = () => {
       )}
 
       {/* Legend */}
-      <div style={{ display: 'flex', gap: 16, marginBottom: '0.75rem', fontSize: '0.75rem', color: 'var(--text-secondary)', flexWrap: 'wrap' }}>
-        <span><span style={{ display: 'inline-block', width: 14, height: 14, background: 'rgba(14, 165, 233, 0.22)', border: '1.5px solid #0ea5e9', borderRadius: 3, verticalAlign: 'middle', marginRight: 4 }} /> Đang chọn</span>
-        <span><span style={{ display: 'inline-block', width: 14, height: 14, background: 'rgba(16, 185, 129, 0.18)', border: '1.5px solid #10b981', borderRadius: 3, verticalAlign: 'middle', marginRight: 4 }} /> Đã đăng ký</span>
-        <span><span style={{ display: 'inline-block', width: 14, height: 14, background: 'rgba(234, 179, 8, 0.22)', border: '1.5px solid #eab308', borderRadius: 3, verticalAlign: 'middle', marginRight: 4 }} /> Đã phê duyệt</span>
-        <span><span style={{ display: 'inline-block', width: 14, height: 14, background: 'rgba(239, 68, 68, 0.18)', border: '1.5px solid #ef4444', borderRadius: 3, verticalAlign: 'middle', marginRight: 4 }} /> Đánh dấu hủy</span>
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          gap: '1rem',
+          marginBottom: '0.75rem',
+          fontSize: '0.75rem',
+          color: 'var(--text-secondary)',
+          flexWrap: 'wrap',
+        }}
+      >
+        <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+          <span><span style={{ display: 'inline-block', width: 14, height: 14, background: 'rgba(14, 165, 233, 0.22)', border: '1.5px solid #0ea5e9', borderRadius: 3, verticalAlign: 'middle', marginRight: 4 }} /> Đang chọn</span>
+          <span><span style={{ display: 'inline-block', width: 14, height: 14, background: 'rgba(16, 185, 129, 0.18)', border: '1.5px solid #10b981', borderRadius: 3, verticalAlign: 'middle', marginRight: 4 }} /> Đã đăng ký</span>
+          <span><span style={{ display: 'inline-block', width: 14, height: 14, background: 'rgba(234, 179, 8, 0.22)', border: '1.5px solid #eab308', borderRadius: 3, verticalAlign: 'middle', marginRight: 4 }} /> Đã phê duyệt</span>
+          <span><span style={{ display: 'inline-block', width: 14, height: 14, background: 'rgba(239, 68, 68, 0.18)', border: '1.5px solid #ef4444', borderRadius: 3, verticalAlign: 'middle', marginRight: 4 }} /> Đánh dấu hủy</span>
+        </div>
+
+        {dates.length > datesPerPage && (
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
+            <span style={{ marginRight: 4 }}>Đang hiển thị ngày {pageStart}-{pageEnd} / {dates.length}</span>
+            <button
+              className="btn btn-secondary"
+              disabled={safeDatePage === 0}
+              onClick={() => setDatePage((v) => Math.max(0, v - 1))}
+              style={{ padding: '0.35rem 0.65rem', fontSize: '0.75rem' }}
+            >
+              ‹
+            </button>
+            {Array.from({ length: pageCount }, (_, i) => i).map((page) => (
+              <button
+                key={`date_page_${page}`}
+                className="btn"
+                onClick={() => setDatePage(page)}
+                style={{
+                  padding: '0.35rem 0.65rem',
+                  fontSize: '0.75rem',
+                  minWidth: 32,
+                  ...(page === safeDatePage
+                    ? { background: 'rgba(255, 122, 51, 0.18)', color: 'var(--accent-primary)', border: '1px solid rgba(255, 122, 51, 0.35)' }
+                    : { background: 'transparent', color: 'var(--text-secondary)', border: '1px solid var(--border-glass)' }),
+                }}
+              >
+                {page + 1}
+              </button>
+            ))}
+            <button
+              className="btn btn-secondary"
+              disabled={safeDatePage >= pageCount - 1}
+              onClick={() => setDatePage((v) => Math.min(pageCount - 1, v + 1))}
+              style={{ padding: '0.35rem 0.65rem', fontSize: '0.75rem' }}
+            >
+              ›
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Grid */}
@@ -677,9 +747,9 @@ const ReviewSlots = () => {
           <div
             style={{
               display: 'grid',
-              gridTemplateColumns: `96px repeat(${dates.length}, minmax(96px, 1fr))`,
+              gridTemplateColumns: `96px repeat(${pagedDates.length}, minmax(96px, 1fr))`,
               gap: 6,
-              minWidth: 96 + dates.length * 102,
+              minWidth: 96 + pagedDates.length * 102,
             }}
           >
             {/* Ô góc trên-trái — bulk select toàn bộ */}
@@ -708,7 +778,31 @@ const ReviewSlots = () => {
             </div>
 
             {/* Header ngày — click chọn cả cột */}
-            {dates.map((date) => {
+            {pagedDates.map((date, pageIndex) => {
+              if (!date) {
+                return (
+                  <div
+                    key={`hdr_empty_${pageIndex}`}
+                    style={{
+                      padding: '0.4rem',
+                      fontWeight: 600,
+                      color: 'var(--text-tertiary)',
+                      textAlign: 'center',
+                      background: 'var(--surface-glass)',
+                      borderRadius: 6,
+                      fontSize: '0.8rem',
+                      userSelect: 'none',
+                      opacity: 0.45,
+                      minHeight: 51,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                  >
+                    —
+                  </div>
+                );
+              }
               const info = parseDateInfo(date);
               return (
                 <div
@@ -769,7 +863,23 @@ const ReviewSlots = () => {
                     {getReviewSlotTimeRange(idx)}
                   </div>
                 </div>
-                {dates.map((date) => renderCell(date, idx))}
+                {pagedDates.map((date, pageIndex) => (
+                  <Fragment key={`cell_${idx}_${pageIndex}`}>
+                    {date ? renderCell(date, idx) : (
+                      <div
+                        style={{
+                          ...cellStyle('empty'),
+                          cursor: 'default',
+                          opacity: 0.25,
+                          pointerEvents: 'none',
+                        }}
+                        aria-hidden="true"
+                      >
+                        —
+                      </div>
+                    )}
+                  </Fragment>
+                ))}
               </Fragment>
             ))}
           </div>
