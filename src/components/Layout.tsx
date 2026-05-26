@@ -4,6 +4,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { hasAnyRole } from '../utils/role';
 import { useTheme } from '../contexts/ThemeContext';
 import { LayoutDashboard, Users, FolderKanban, LogOut, Upload, ClipboardList, Sun, Moon, ChevronDown, GraduationCap, CalendarRange, ChevronLeft, ChevronRight, BookOpen, CalendarCheck, UserCheck, CalendarClock } from 'lucide-react';
+import { Tooltip } from './Tooltip';
 const Layout = () => {
   const { user, logout } = useAuth();
   const { isDark, toggleTheme } = useTheme();
@@ -83,9 +84,8 @@ const Layout = () => {
             .filter(item => user && hasAnyRole(user?.role, item.roles as import('../types').Role[]))
             .map(item => {
               const isActive = location.pathname === item.path || location.pathname.startsWith(item.path + '/');
-              return (
+              const linkElement = (
                 <Link
-                  key={item.path}
                   to={item.path}
                   style={{
                     display: 'flex',
@@ -99,12 +99,20 @@ const Layout = () => {
                     transition: 'all 0.2s',
                     textDecoration: 'none',
                   }}
-                  title={isSidebarCollapsed ? item.label : undefined}
                 >
                   {item.icon}
                   {!isSidebarCollapsed && <span style={{ fontWeight: 500, whiteSpace: 'nowrap' }}>{item.label}</span>}
                 </Link>
               );
+              
+              if (isSidebarCollapsed) {
+                return (
+                  <Tooltip key={item.path} content={item.label} variant="glass-card" placement="right">
+                    {linkElement}
+                  </Tooltip>
+                );
+              }
+              return <div key={item.path}>{linkElement}</div>;
             })}
         </nav>
       </aside>

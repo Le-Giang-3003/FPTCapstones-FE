@@ -221,16 +221,6 @@ export type SemesterMilestoneDto = ReviewDto;
 // ---- Slot review (BE: /api/admin/reviews/{id}/slots) ----
 // Đăng ký giờ là NGUYỆN VỌNG: nhóm tối đa 5 slot/đợt, GV không giới hạn.
 // Slot thực tế của 1 lần review = ReviewAssignment (sinh sau thuật toán xếp lịch).
-export interface ReviewSlotGroupPreferenceDto {
-  groupId: number;
-  groupCode: string;
-}
-
-export interface ReviewSlotLecturerPreferenceDto {
-  lecturerId: number;
-  lecturerName: string;
-}
-
 export interface ReviewAssignmentDto {
   id: number;
   sessionIndex: number;
@@ -255,8 +245,6 @@ export interface ReviewSlotDto {
   assignmentCount: number;
   isCurrentUserRegistered: boolean;   // BE compute từ JWT — slot có chứa group/lecturer của user hiện tại
   isCurrentUserAssigned: boolean;     // GV đã được phê duyệt review slot này (ReviewAssignment active)
-  groupPreferences: ReviewSlotGroupPreferenceDto[];
-  lecturerPreferences: ReviewSlotLecturerPreferenceDto[];
   assignments: ReviewAssignmentDto[];
   note: string | null;
 }

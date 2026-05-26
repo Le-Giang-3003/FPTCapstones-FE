@@ -4,6 +4,7 @@ import api from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
 import { hasAnyRole } from '../utils/role';
 import type { DashboardStatsDto, LecturerAssignedSlotDto } from '../types';
+import { Tooltip } from '../components/Tooltip';
 
 // Dashboard GVHD/Reviewer:
 //   - 3 ô KPI: Tổng nhóm, Danh sách đợt review (chip — đợt hết hạn tô xám), Slot đã được phê duyệt trong đợt đang chọn
@@ -164,10 +165,14 @@ const Dashboard = () => {
               {stats.reviews.map((r) => {
                 const isSelected = r.id === selectedReviewId;
                 return (
-                  <button
+                  <Tooltip
                     key={r.id}
+                    content={`${formatDate(r.windowStart)} → ${formatDate(r.windowEnd)} (${r.status})`}
+                    variant="glass-card"
+                    style={{ display: 'inline-flex' }}
+                  >
+                  <button
                     onClick={() => setSelectedReviewId(isSelected ? null : r.id)}
-                    title={`${formatDate(r.windowStart)} → ${formatDate(r.windowEnd)} (${r.status})`}
                     style={{
                       padding: '0.3rem 0.7rem',
                       borderRadius: 999,
@@ -196,6 +201,7 @@ const Dashboard = () => {
                   >
                     {r.label}
                   </button>
+                  </Tooltip>
                 );
               })}
             </div>
@@ -264,29 +270,38 @@ const AssignedSlotCard = ({ slot, onOpen }: { slot: LecturerAssignedSlotDto; onO
   const dow = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'][new Date(slot.slotDate).getUTCDay()];
 
   return (
-    <div
+    <Tooltip
+      content="Bấm để xem chi tiết"
+      variant="glass-card"
+      placement="top"
       className="glass-card"
-      onClick={onOpen}
       style={{
-        padding: '1rem',
-        cursor: 'pointer',
-        transition: 'all 0.15s ease',
-        opacity: slot.isExpired ? 0.55 : 1,
+        padding: 0,
+        border: 'none',
+        background: 'transparent',
       }}
-      title="Bấm để xem chi tiết"
     >
       <div
+        onClick={onOpen}
         style={{
-          display: 'flex',
-          justifyContent: 'flex-start',
-          alignItems: 'center',
-          gap: 8,
-          marginBottom: '0.6rem',
+          padding: '1rem',
+          cursor: 'pointer',
+          transition: 'all 0.15s ease',
+          opacity: slot.isExpired ? 0.55 : 1,
         }}
       >
-        <strong style={{ color: 'var(--text-primary)', fontSize: '0.9rem', whiteSpace: 'nowrap' }}>
-          {dow} - {formatDate(slot.slotDate)} · Slot {slot.sessionIndex}
-        </strong>
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'flex-start',
+            alignItems: 'center',
+            gap: 8,
+            marginBottom: '0.6rem',
+          }}
+        >
+          <strong style={{ color: 'var(--text-primary)', fontSize: '0.9rem', whiteSpace: 'nowrap' }}>
+            {dow} - {formatDate(slot.slotDate)} · Slot {slot.sessionIndex}
+          </strong>
       </div>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
@@ -311,7 +326,8 @@ const AssignedSlotCard = ({ slot, onOpen }: { slot: LecturerAssignedSlotDto; onO
           <b style={{ color: 'var(--accent-primary)' }}>{slot.endTime}</b>
         </span>
       </div>
-    </div>
+      </div>
+    </Tooltip>
   );
 };
 

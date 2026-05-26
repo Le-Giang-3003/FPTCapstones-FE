@@ -446,7 +446,7 @@ const AdminSemesters = () => {
 
   // Vị trí drawer được tính từ rect của timeline (cùng left/width, top ngay dưới timeline + gap).
   // Track lại trên scroll/resize để drawer luôn dính theo timeline.
-  const [drawerPos, setDrawerPos] = useState<{ left: number; width: number; top: number } | null>(null);
+  const [, setDrawerPos] = useState<{ left: number; width: number; top: number } | null>(null);
   const blankMilestoneForm = {
     type: 'Review' as MilestoneType,
     orderIndex: 1,
