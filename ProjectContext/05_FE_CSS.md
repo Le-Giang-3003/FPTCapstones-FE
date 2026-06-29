@@ -376,6 +376,7 @@ input[type="checkbox"]:disabled {
   overflow-y: auto;
   position: relative;
   min-height: 0;
+  scroll-behavior: smooth;
 }
 
 .topbar {

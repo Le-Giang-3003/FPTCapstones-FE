@@ -1637,7 +1637,7 @@ export default AdminScheduling;
 ## File: src\pages\AdminSemesters.tsx
 ```typescript
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import api from '../services/api';
 import type {
   SemesterListItemDto,
@@ -1727,10 +1727,33 @@ const addDays = (d: Date, days: number) => new Date(d.getTime() + days * 8640000
 // Náº¿u káº¿t quáº£ rÆ¡i vÃ o Chá»§ Nháº­t â†’ lÃ¹i vá» Thá»© 7 (bá» ngÃ y CN, khÃ´ng dá»i sang Thá»© 2).
 // VD: start = Thá»© 2 (25/5), days=7 â†’ 25+6=31/5 (CN) â†’ lÃ¹i vá» 30/5 (Thá»© 7).
 const addWorkingDaysISO = (iso: string, days: number): string => {
+  if (!iso) return iso;                          // guard: empty input â†’ giá»¯ rá»—ng (caller pháº£i check)
   const d = new Date(iso + 'T00:00:00Z');
-  d.setUTCDate(d.getUTCDate() + days - 1);    // inclusive: window dÃ i `days` ngÃ y
+  if (isNaN(d.getTime())) return iso;            // guard: invalid date â†’ bypass
+  d.setUTCDate(d.getUTCDate() + days - 1);       // inclusive: window dÃ i `days` ngÃ y
   if (d.getUTCDay() === 0) d.setUTCDate(d.getUTCDate() - 1);  // CN â†’ Thá»© 7
   return d.toISOString().slice(0, 10);
+};
+
+// Cá»™ng/trá»« N ngÃ y dÃ¹ng JS Date â€” tá»± rollover sang thÃ¡ng/nÄƒm káº¿ (xá»­ lÃ½ Ä‘Ãºng 30-day months + Feb nhuáº­n).
+// VD: 30/6 + 1 = 1/7 (khÃ´ng bá»‹ káº¹t á»Ÿ 31/6 invalid); 28/2/2027 + 1 = 1/3 (2027 khÃ´ng nhuáº­n).
+const shiftDateISO = (iso: string, delta: number): string => {
+  if (!iso) return iso;
+  const d = new Date(iso + 'T00:00:00Z');
+  if (isNaN(d.getTime())) return iso;
+  d.setUTCDate(d.getUTCDate() + delta);
+  return d.toISOString().slice(0, 10);
+};
+
+// Validate ISO date trong khoáº£ng nÄƒm há»£p lÃ½ â€” cháº·n Chrome bug:
+// khi spinner year Ä‘áº©y xuá»‘ng dÆ°á»›i `min` attribute, Chrome cÃ³ thá»ƒ wrap vá» year max cá»§a JS Date (275760).
+// CÅ©ng cháº·n nÄƒm < 1900 (gÃµ tay 2 chá»¯ sá»‘ cháº³ng háº¡n).
+const isReasonableDateISO = (iso: string): boolean => {
+  if (!iso) return false;
+  const d = new Date(iso + 'T00:00:00Z');
+  if (isNaN(d.getTime())) return false;
+  const y = d.getUTCFullYear();
+  return y >= 1900 && y <= 2200;
 };
 
 // Map review status â†’ config nÃºt chuyá»ƒn tráº¡ng thÃ¡i tiáº¿p theo.
@@ -1967,6 +1990,7 @@ const AdminSemesters = () => {
     setHolidayError(null);
     setHolidayForm({ ...blankHolidayForm });
     setShowAddHoliday(true);
+    scrollTimelineIntoView();
   };
 
   const handleAddHoliday = async (e: React.FormEvent) => {
@@ -2048,6 +2072,20 @@ const AdminSemesters = () => {
   // Modal mode: 'new' = táº¡o má»›i, sá»‘ = sá»­a id
   const [milestoneMode, setMilestoneMode] = useState<number | 'new' | null>(null);
   const [hoverMilestoneId, setHoverMilestoneId] = useState<number | null>(null);
+
+  // Ref Ä‘áº¿n card timeline â€” dÃ¹ng Ä‘á»ƒ auto-scroll khi má»Ÿ drawer thÃªm/sá»­a milestone (drawer bottom).
+  const timelineRef = useRef<HTMLDivElement | null>(null);
+  const scrollTimelineIntoView = () => {
+    setTimeout(() => {
+      if (timelineRef.current) {
+        timelineRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    }, 100);
+  };
+
+  // Vá»‹ trÃ­ drawer Ä‘Æ°á»£c tÃ­nh tá»« rect cá»§a timeline (cÃ¹ng left/width, top ngay dÆ°á»›i timeline + gap).
+  // Track láº¡i trÃªn scroll/resize Ä‘á»ƒ drawer luÃ´n dÃ­nh theo timeline.
+  const [, setDrawerPos] = useState<{ left: number; width: number; top: number } | null>(null);
   const blankMilestoneForm = {
     type: 'Review' as MilestoneType,
     orderIndex: 1,
@@ -2074,7 +2112,8 @@ const AdminSemesters = () => {
 
   const previewMilestone = useMemo(() => {
     if (milestoneMode === null || !milestoneForm.windowStart || !milestoneForm.windowEnd) return null;
-    if (new Date(milestoneForm.windowEnd) <= new Date(milestoneForm.windowStart)) return null;
+    // Cho phÃ©p start = end (window 1 ngÃ y) â†’ váº«n render preview. Chá»‰ skip khi end < start.
+    if (new Date(milestoneForm.windowEnd) < new Date(milestoneForm.windowStart)) return null;
     return {
       type: milestoneForm.type,
       label: milestoneForm.label || `(${milestoneForm.type} má»›i)`,
@@ -2095,10 +2134,11 @@ const AdminSemesters = () => {
       orderIndex: nextRvIdx,
       label: `Review ${nextRvIdx}`,
       windowStart: detail.startDate.slice(0, 10),
-      windowEnd: addDaysISO(detail.startDate.slice(0, 10), 14),
+      windowEnd: addDaysISO(detail.startDate.slice(0, 10), 7),  // Default gap = 1 tuáº§n (7 ngÃ y)
     });
     setMilestoneError(null);
     setMilestoneMode('new');
+    scrollTimelineIntoView();
   };
 
   const openEditMilestone = (m: SemesterMilestoneDto) => {
@@ -2113,6 +2153,7 @@ const AdminSemesters = () => {
     });
     setMilestoneError(null);
     setMilestoneMode(m.id);
+    scrollTimelineIntoView();
   };
 
   // Khi Ä‘á»•i Type trong form, auto re-suggest OrderIndex + Label
@@ -2506,6 +2547,24 @@ const AdminSemesters = () => {
   useEffect(() => { loadList(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [statusFilter]);
   useEffect(() => { if (selectedId !== null) loadDetail(selectedId); }, [selectedId]);
 
+  // Äo vá»‹ trÃ­ card timeline má»—i khi drawer má»Ÿ + láº¯ng nghe scroll/resize Ä‘á»ƒ drawer luÃ´n cÄƒn theo timeline.
+  useEffect(() => {
+    if (milestoneMode === null) { setDrawerPos(null); return; }
+    const measure = () => {
+      const el = timelineRef.current;
+      if (!el) return;
+      const rect = el.getBoundingClientRect();
+      setDrawerPos({ left: rect.left, width: rect.width, top: rect.bottom + 12 });
+    };
+    measure();
+    window.addEventListener('resize', measure);
+    window.addEventListener('scroll', measure, true);
+    return () => {
+      window.removeEventListener('resize', measure);
+      window.removeEventListener('scroll', measure, true);
+    };
+  }, [milestoneMode]);
+
   // TÃ­nh sá»‘ tuáº§n cá»§a semester (rounded up)
   const weekCount = useMemo(() => {
     if (!detail) return 0;
@@ -2790,8 +2849,20 @@ const AdminSemesters = () => {
                 </div>
               </div>
 
-              {/* Timeline chia theo tuáº§n */}
-              <div className="glass-card">
+              {/* Timeline chia theo tuáº§n â€” khi drawer má»Ÿ, elevate z-index Ä‘á»ƒ timeline KHÃ”NG bá»‹ blur backdrop */}
+              <div
+                className="glass-card"
+                ref={timelineRef}
+                style={{
+                  scrollMarginTop: 12,
+                  ...(milestoneMode !== null || showAddHoliday
+                    ? {
+                        position: 'relative',
+                        zIndex: 950,
+                      }
+                    : {}),
+                }}
+              >
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.5rem' }}>
                   <h3 style={{ margin: 0, color: 'var(--text-primary)' }}>Trá»¥c thá»i gian (theo {tlMode === 'week' ? 'tuáº§n' : 'thÃ¡ng'})</h3>
                   {/* Toggle Week / Month â€” gá»n hÆ¡n, fit screen */}
@@ -3014,6 +3085,7 @@ const AdminSemesters = () => {
                                 style={{
                                   position: 'absolute', top: 0, bottom: 0,
                                   left: `${pos.leftPct}%`, width: `${pos.widthPct}%`,
+                                  transition: 'left 0.3s ease, width 0.3s ease',
                                   background: 'rgba(168, 85, 247, 0.4)',                // tÃ­m dashed -> phÃ¢n biá»‡t vá»›i data tháº­t
                                   border: '2px dashed #a855f7',
                                   borderRadius: 4, zIndex: 5,
@@ -3048,7 +3120,7 @@ const AdminSemesters = () => {
                                   borderLeft: '2px solid', borderRight: '2px solid',
                                   borderColor: isDirty ? 'var(--warning)' : 'var(--danger)',
                                   cursor: 'default',
-                                  transition: dragState ? 'none' : 'background 0.05s',
+                                  transition: dragState ? 'none' : 'left 0.3s ease, width 0.3s ease, background 0.2s',
                                 }}
                               >
                                 {/* Left edge handle */}
@@ -3151,6 +3223,7 @@ const AdminSemesters = () => {
                                 style={{
                                   position: 'absolute', top: 4, bottom: 4,
                                   left: `${pos.leftPct}%`, width: `${pos.widthPct}%`,
+                                  transition: 'left 0.3s ease, width 0.3s ease',
                                   background: isReview ? 'rgba(59, 130, 246, 0.3)' : 'rgba(16, 185, 129, 0.3)',
                                   border: `2px dashed ${isReview ? '#3b82f6' : '#10b981'}`,
                                   borderRadius: 4, zIndex: 5,
@@ -3196,6 +3269,7 @@ const AdminSemesters = () => {
                                 style={{
                                   position: 'absolute', top: 4, bottom: 4,
                                   left: `${pos.leftPct}%`, width: `${pos.widthPct}%`,
+                                  transition: 'left 0.3s ease, width 0.3s ease, background 0.3s ease',
                                   background: color,
                                   borderLeft: `2px solid ${borderColor}`,
                                   borderRight: pos.isClippedRight ? `2px dashed ${borderColor}` : `2px solid ${borderColor}`,
@@ -3319,6 +3393,8 @@ const AdminSemesters = () => {
                 `}</style>
               </div>
 
+              {/* Wrapper column-reverse: hiá»ƒn thá»‹ Review/Defence TRÆ¯á»šC, Holidays SAU (lá»‹ch nghá»‰ Ã­t dÃ¹ng â†’ Ä‘áº©y xuá»‘ng) */}
+              <div style={{ display: 'flex', flexDirection: 'column-reverse', gap: '1.25rem' }}>
               {/* Holidays table */}
               <div className="glass-card" style={{ padding: 0, overflow: 'hidden' }}>
                 <div style={{
@@ -3426,6 +3502,12 @@ const AdminSemesters = () => {
                         {milestones.map(m => {
                           const dur = Math.max(1, daysBetween(m.windowStart.slice(0,10), m.windowEnd.slice(0,10)));
                           const isOverflow = detail && new Date(m.windowEnd) > new Date(detail.endDate);
+                          // TÃ¬m ká»³ chá»©a windowEnd Ä‘á»ƒ hiá»‡n "â†’ <code ká»³>" khi váº¯t biÃªn (vd â†’ FA26)
+                          const overflowToSem = isOverflow
+                            ? list.find(s =>
+                                new Date(m.windowEnd) >= new Date(s.startDate) &&
+                                new Date(m.windowEnd) <= new Date(s.endDate))
+                            : null;
                           // m.semesterId lÃ  ká»³ "home" â€” cÃ³ thá»ƒ khÃ¡c semester Ä‘ang xem (vÃ¬ query overlap)
                           const isHomeSemester = detail && m.semesterId === detail.id;
                           const homeSem = list.find(s => s.id === m.semesterId);
@@ -3459,7 +3541,17 @@ const AdminSemesters = () => {
                               }}>
                                 {m.label}
                               </span>
-                              {isOverflow && <span className="badge badge-warning" style={{ marginLeft: '0.4rem', fontSize: '0.6rem' }}>Váº¯t biÃªn</span>}
+                              {isOverflow && (
+                                <span
+                                  className="badge badge-warning"
+                                  style={{ marginLeft: '0.4rem', fontSize: '0.6rem' }}
+                                  title={overflowToSem
+                                    ? `Window kÃ©o dÃ i sang ká»³ ${overflowToSem.code}`
+                                    : 'Window vÆ°á»£t khá»i ká»³ há»c nÃ y'}
+                                >
+                                  â†’ {overflowToSem?.code ?? 'TrÃ n ká»³'}
+                                </span>
+                              )}
                             </td>
                             <td>{fmt(m.windowStart)} â†’ {fmt(m.windowEnd)}</td>
                             <td>{dur} ngÃ y</td>
@@ -3558,6 +3650,7 @@ const AdminSemesters = () => {
                   </div>
                 )}
               </div>
+              </div>{/* /Wrapper column-reverse */}
             </>
           )}
         </div>
@@ -3658,162 +3751,351 @@ const AdminSemesters = () => {
         );
       })()}
 
-      {/* Modal Add/Edit Milestone (Review/Defence) */}
+      {/* Popup Add/Edit Milestone */}
       {milestoneMode !== null && detail && (
-        <div style={{
-          position: 'fixed', inset: 0, background: 'var(--modal-overlay-bg)', backdropFilter: 'blur(4px)',
-          zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem'
-        }}>
-          <div className="glass-panel animate-fade-in" style={{ width: '100%', maxWidth: 560, padding: '2rem', maxHeight: '90vh', overflowY: 'auto' }}>
-            <h2 style={{ marginBottom: '0.35rem', color: 'var(--text-primary)' }}>
-              {milestoneMode === 'new' ? 'ThÃªm lá»‹ch Review / Defence' : 'Sá»­a lá»‹ch Review / Defence'}
-            </h2>
-            <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginBottom: '1.25rem' }}>
-              "NgÃ y" lÃ  khoáº£ng thá»i gian admin má»Ÿ Ä‘á»ƒ student/lecturer Ä‘áº·t slot review/defence.
-            </p>
-
-            <form onSubmit={handleSubmitMilestone}>
-              {milestoneMode === 'new' && (
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                  <div className="input-group">
-                    <label className="input-label">Loáº¡i <span style={{ color: 'var(--danger)' }}>*</span></label>
-                    <select
-                      className="input-field"
-                      value={milestoneForm.type}
-                      onChange={e => onTypeChange(e.target.value as MilestoneType)}
-                    >
-                      <option value="Review">Review </option>
-                      <option value="Defence">Defence </option>
-                    </select>
-                  </div>
-                  <div className="input-group">
-                    <label className="input-label">Sá»‘ thá»© tá»± <span style={{ color: 'var(--danger)' }}>*</span></label>
-                    <input
-                      type="number" required min={1} className="input-field"
-                      value={milestoneForm.orderIndex}
-                      onChange={e => setMilestoneForm({ ...milestoneForm, orderIndex: parseInt(e.target.value, 10) || 1 })}
-                    />
-                  </div>
+        <>
+          {/* Lá»›p backdrop má» á»Ÿ dÆ°á»›i (zIndex: 800) Ä‘á»ƒ div timeline (zIndex: 950) ná»•i lÃªn trÃªn vÃ  khÃ´ng bá»‹ má» */}
+          <div
+            style={{
+              position: 'fixed', inset: 0, zIndex: 800,
+              background: 'var(--modal-overlay-bg)', backdropFilter: 'blur(4px)',
+              WebkitBackdropFilter: 'blur(4px)', pointerEvents: 'none',
+            }}
+          />
+          {/* Lá»›p wrapper cho popup náº±m á»Ÿ zIndex: 1000 Ä‘á»ƒ báº¯t click ra ngoÃ i Ä‘Ã³ng popup */}
+          <div
+            onClick={() => setMilestoneMode(null)}
+            style={{
+              position: 'fixed', inset: 0, zIndex: 1000, 
+              display: 'flex', alignItems: 'flex-end', justifyContent: 'center', 
+              padding: '1rem', paddingBottom: '2rem',
+            }}
+          >
+            <div
+              className="glass-panel animate-fade-in"
+              onClick={e => e.stopPropagation()}
+              style={{
+                width: '100%',
+                maxWidth: 820,
+                padding: '1.5rem 1.5rem 1.25rem',
+                maxHeight: '50vh',
+                overflowY: 'auto',
+                boxShadow: '0 16px 48px rgba(0, 0, 0, 0.55)',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', marginBottom: '0.75rem' }}>
+                <div>
+                  <h2 style={{ margin: 0, color: 'var(--text-primary)', fontSize: '1.05rem' }}>
+                    {milestoneMode === 'new' ? 'ThÃªm lá»‹ch Review / Defence' : 'Sá»­a lá»‹ch Review / Defence'}
+                  </h2>
+                  <p style={{ color: 'var(--text-secondary)', fontSize: '0.75rem', margin: '0.15rem 0 0' }}>
+                    Preview hiá»ƒn thá»‹ realtime trÃªn timeline phÃ­a trÃªn.
+                  </p>
                 </div>
-              )}
-
-              <div className="input-group">
-                <label className="input-label">Label <span style={{ color: 'var(--danger)' }}>*</span></label>
-                <input
-                  type="text" required className="input-field"
-                  placeholder="VD: Review 1, Defence 2, Final Defence..."
-                  value={milestoneForm.label}
-                  onChange={e => setMilestoneForm({ ...milestoneForm, label: e.target.value })}
-                />
-              </div>
-
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                <div className="input-group">
-                  <label className="input-label">NgÃ y báº¯t Ä‘áº§u <span style={{ color: 'var(--danger)' }}>*</span></label>
-                  <input
-                    type="date" required className="input-field"
-                    min={detail.startDate.slice(0, 10)}
-                    value={milestoneForm.windowStart}
-                    onChange={e => setMilestoneForm({ ...milestoneForm, windowStart: e.target.value })}
-                  />
-                </div>
-                <div className="input-group">
-                  <label className="input-label">NgÃ y káº¿t thÃºc <span style={{ color: 'var(--danger)' }}>*</span></label>
-                  <input
-                    type="date" required className="input-field"
-                    min={milestoneForm.windowStart}
-                    value={milestoneForm.windowEnd}
-                    onChange={e => setMilestoneForm({ ...milestoneForm, windowEnd: e.target.value })}
-                  />
-                </div>
-              </div>
-
-              {/* Quick preset: +1w / +2w / +3w â€” tÃ­nh ngÃ y lÃ m viá»‡c (bá» CN) nÃªn luÃ´n Ä‘á»§ slot */}
-              <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', marginBottom: '1rem' }}>
-                <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', display: 'inline-flex', alignItems: 'center' }}>Preset duration:</span>
-                {([{ w: 1, d: 7 }, { w: 2, d: 14 }, { w: 3, d: 21 }]).map(({ w, d }) => (
-                  <button
-                    type="button"
-                    key={d}
-                    onClick={() => {
-                      if (!milestoneForm.windowStart) return;
-                      setMilestoneForm({ ...milestoneForm, windowEnd: addWorkingDaysISO(milestoneForm.windowStart, d) });
-                    }}
-                    disabled={!milestoneForm.windowStart}
-                    style={{
-                      padding: '0.25rem 0.6rem', fontSize: '0.7rem', borderRadius: '999px',
-                      border: '1px solid var(--border-glass)', background: 'transparent',
-                      color: 'var(--text-secondary)', cursor: milestoneForm.windowStart ? 'pointer' : 'not-allowed',
-                      opacity: milestoneForm.windowStart ? 1 : 0.4,
-                    }}
-                    title={`${d} ngÃ y lÃ m viá»‡c â€” bá» qua Chá»§ Nháº­t`}
-                  >
-                    +{w} week
-                  </button>
-                ))}
-              </div>
-
-              <div className="input-group">
-                <label className="input-label">Tráº¡ng thÃ¡i <span style={{ color: 'var(--danger)' }}>*</span></label>
-                <select
-                  className="input-field"
-                  value={milestoneForm.status}
-                  onChange={e => setMilestoneForm({ ...milestoneForm, status: e.target.value as ReviewStatus })}
+                <button
+                  type="button"
+                  onClick={() => setMilestoneMode(null)}
+                  disabled={savingMs}
+                  style={{
+                    background: 'transparent', border: '1px solid var(--border-glass)',
+                    color: 'var(--text-secondary)', padding: '0.3rem 0.55rem', borderRadius: 6,
+                    cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: '0.78rem',
+                  }}
+                  title="ÄÃ³ng"
                 >
-                  <option value="Draft">ChÆ°a Ä‘Äƒng kÃ½ Ä‘Æ°á»£c (chÆ°a má»Ÿ)</option>
-                  <option value="Registering">Äang Ä‘Äƒng kÃ½</option>
-                  <option value="Registered">ÄÃ£ chá»‘t slot</option>
-                  <option value="Ongoing">Äang diá»…n ra</option>
-                  <option value="Finished">ÄÃ£ xong</option>
-                  <option value="Cancelled">ÄÃ£ há»§y</option>
-                </select>
+                  <X size={14} /> ÄÃ³ng
+                </button>
               </div>
 
-              <div className="input-group">
-                <label className="input-label">Ghi chÃº (optional)</label>
-                <input
-                  type="text" className="input-field"
-                  placeholder="VD: PhÃ²ng 305, online qua Teams..."
-                  value={milestoneForm.note}
-                  onChange={e => setMilestoneForm({ ...milestoneForm, note: e.target.value })}
-                />
+              <form onSubmit={handleSubmitMilestone}>
+              {/* Row 1: Type + OrderIndex + Label (new) | Label only (edit) */}
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: milestoneMode === 'new' ? '140px 100px 1fr' : '1fr',
+                gap: '0.75rem',
+                marginBottom: '0.65rem',
+              }}>
+                {milestoneMode === 'new' && (
+                  <>
+                    <div className="input-group" style={{ marginBottom: 0 }}>
+                      <label className="input-label">Loáº¡i *</label>
+                      <select
+                        className="input-field"
+                        value={milestoneForm.type}
+                        onChange={e => onTypeChange(e.target.value as MilestoneType)}
+                      >
+                        <option value="Review">Review</option>
+                        <option value="Defence">Defence</option>
+                      </select>
+                    </div>
+                    <div className="input-group" style={{ marginBottom: 0 }}>
+                      <label className="input-label">STT *</label>
+                      <input
+                        type="number" required min={1} className="input-field"
+                        value={milestoneForm.orderIndex}
+                        onChange={e => setMilestoneForm({ ...milestoneForm, orderIndex: parseInt(e.target.value, 10) || 1 })}
+                      />
+                    </div>
+                  </>
+                )}
+                <div className="input-group" style={{ marginBottom: 0 }}>
+                  <label className="input-label">Label *</label>
+                  <input
+                    type="text" required className="input-field"
+                    placeholder="VD: Review 1, Defence 2..."
+                    value={milestoneForm.label}
+                    onChange={e => setMilestoneForm({ ...milestoneForm, label: e.target.value })}
+                  />
+                </div>
+              </div>
+
+              {/* Row 2: Start + End + Preset chips */}
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: '1fr 1fr auto',
+                gap: '0.75rem',
+                alignItems: 'end',
+                marginBottom: '0.65rem',
+              }}>
+                <div className="input-group" style={{ marginBottom: 0 }}>
+                  <label className="input-label">NgÃ y báº¯t Ä‘áº§u *</label>
+                  <div style={{ display: 'flex', gap: 4, alignItems: 'stretch' }}>
+                    <input
+                      type="date" required className="input-field"
+                      style={{ flex: 1, minWidth: 0 }}
+                      min={detail.startDate.slice(0, 10)}
+                      value={milestoneForm.windowStart}
+                      onChange={e => {
+                        const newStart = e.target.value;
+                        // Guard: browser reject invalid (vd 31/6) â†’ "" â†’ giá»¯ state cÅ©.
+                        // CÅ©ng cháº·n Chrome bug: spin year xuá»‘ng dÆ°á»›i min wrap vá» 275760.
+                        if (!isReasonableDateISO(newStart)) return;
+                        // Giá»¯ nguyÃªn khoáº£ng cÃ¡ch (gap) giá»¯a startâ†”end. VD gap=12 ngÃ y â†’ end shift theo start.
+                        const oldStart = milestoneForm.windowStart;
+                        const oldEnd = milestoneForm.windowEnd;
+                        let newEnd = oldEnd;
+                        if (oldStart && oldEnd) {
+                          const gapDays = Math.round(
+                            (new Date(oldEnd).getTime() - new Date(oldStart).getTime()) / 86400000
+                          );
+                          // Giá»¯ gap (ká»ƒ cáº£ 0 = window 1 ngÃ y). Chá»‰ fallback 7 ngÃ y khi gap Ã¢m (state lá»—i).
+                          const gapToApply = gapDays >= 0 ? gapDays : 7;
+                          newEnd = addDaysISO(newStart, gapToApply);
+                        }
+                        setMilestoneForm({ ...milestoneForm, windowStart: newStart, windowEnd: newEnd });
+                      }}
+                    />
+                    {/* NÃºt dá»‹ch -1/+1 ngÃ y: dÃ¹ng JS Date â†’ tá»± rollover sang thÃ¡ng/nÄƒm káº¿ (xá»­ lÃ½ Ä‘Ãºng cuá»‘i thÃ¡ng + Feb nhuáº­n) */}
+                    <button
+                      type="button"
+                      title="LÃ¹i 1 ngÃ y"
+                      onClick={() => {
+                        const old = milestoneForm.windowStart;
+                        if (!old) return;
+                        const newStart = shiftDateISO(old, -1);
+                        const oldEnd = milestoneForm.windowEnd;
+                        let newEnd = oldEnd;
+                        if (oldEnd) {
+                          const gapDays = Math.round((new Date(oldEnd).getTime() - new Date(old).getTime()) / 86400000);
+                          const gap = gapDays >= 0 ? gapDays : 7;
+                          newEnd = addDaysISO(newStart, gap);
+                        }
+                        setMilestoneForm({ ...milestoneForm, windowStart: newStart, windowEnd: newEnd });
+                      }}
+                      style={{
+                        padding: '0 0.5rem', fontSize: '0.9rem', borderRadius: 6,
+                        border: '1px solid var(--border-glass)', background: 'var(--surface-glass)',
+                        color: 'var(--text-primary)', cursor: 'pointer',
+                      }}
+                    >âˆ’</button>
+                    <button
+                      type="button"
+                      title="Tá»›i 1 ngÃ y (tá»± rollover sang thÃ¡ng káº¿)"
+                      onClick={() => {
+                        const old = milestoneForm.windowStart;
+                        if (!old) return;
+                        const newStart = shiftDateISO(old, 1);
+                        const oldEnd = milestoneForm.windowEnd;
+                        let newEnd = oldEnd;
+                        if (oldEnd) {
+                          const gapDays = Math.round((new Date(oldEnd).getTime() - new Date(old).getTime()) / 86400000);
+                          const gap = gapDays >= 0 ? gapDays : 7;
+                          newEnd = addDaysISO(newStart, gap);
+                        }
+                        setMilestoneForm({ ...milestoneForm, windowStart: newStart, windowEnd: newEnd });
+                      }}
+                      style={{
+                        padding: '0 0.5rem', fontSize: '0.9rem', borderRadius: 6,
+                        border: '1px solid var(--border-glass)', background: 'var(--surface-glass)',
+                        color: 'var(--text-primary)', cursor: 'pointer',
+                      }}
+                    >+</button>
+                  </div>
+                </div>
+                <div className="input-group" style={{ marginBottom: 0 }}>
+                  <label className="input-label">NgÃ y káº¿t thÃºc *</label>
+                  <div style={{ display: 'flex', gap: 4, alignItems: 'stretch' }}>
+                    <input
+                      type="date" required className="input-field"
+                      style={{ flex: 1, minWidth: 0 }}
+                      min={milestoneForm.windowStart}
+                      value={milestoneForm.windowEnd}
+                      onChange={e => {
+                        const newEnd = e.target.value;
+                        // Guard: invalid hoáº·c Chrome wrap year (275760) â†’ giá»¯ state cÅ©.
+                        if (!isReasonableDateISO(newEnd)) return;
+                        setMilestoneForm({ ...milestoneForm, windowEnd: newEnd });
+                      }}
+                    />
+                    <button
+                      type="button"
+                      title="LÃ¹i 1 ngÃ y"
+                      onClick={() => {
+                        if (!milestoneForm.windowEnd) return;
+                        setMilestoneForm({ ...milestoneForm, windowEnd: shiftDateISO(milestoneForm.windowEnd, -1) });
+                      }}
+                      style={{
+                        padding: '0 0.5rem', fontSize: '0.9rem', borderRadius: 6,
+                        border: '1px solid var(--border-glass)', background: 'var(--surface-glass)',
+                        color: 'var(--text-primary)', cursor: 'pointer',
+                      }}
+                    >âˆ’</button>
+                    <button
+                      type="button"
+                      title="Tá»›i 1 ngÃ y (tá»± rollover sang thÃ¡ng káº¿)"
+                      onClick={() => {
+                        if (!milestoneForm.windowEnd) return;
+                        setMilestoneForm({ ...milestoneForm, windowEnd: shiftDateISO(milestoneForm.windowEnd, 1) });
+                      }}
+                      style={{
+                        padding: '0 0.5rem', fontSize: '0.9rem', borderRadius: 6,
+                        border: '1px solid var(--border-glass)', background: 'var(--surface-glass)',
+                        color: 'var(--text-primary)', cursor: 'pointer',
+                      }}
+                    >+</button>
+                  </div>
+                </div>
+                {/* Preset chips bÃªn pháº£i */}
+                <div style={{ display: 'flex', gap: '0.3rem', flexWrap: 'wrap', paddingBottom: 6 }}>
+                  {([{ w: 1, d: 7 }, { w: 2, d: 14 }, { w: 3, d: 21 }]).map(({ w, d }) => (
+                    <button
+                      type="button"
+                      key={d}
+                      onClick={() => {
+                        if (!milestoneForm.windowStart) return;
+                        setMilestoneForm({ ...milestoneForm, windowEnd: addWorkingDaysISO(milestoneForm.windowStart, d) });
+                      }}
+                      disabled={!milestoneForm.windowStart}
+                      style={{
+                        padding: '0.3rem 0.55rem', fontSize: '0.7rem', borderRadius: 999,
+                        border: '1px solid var(--border-glass)', background: 'transparent',
+                        color: 'var(--text-secondary)',
+                        cursor: milestoneForm.windowStart ? 'pointer' : 'not-allowed',
+                        opacity: milestoneForm.windowStart ? 1 : 0.4,
+                        whiteSpace: 'nowrap',
+                      }}
+                      title={`${d} ngÃ y lÃ m viá»‡c â€” bá» qua Chá»§ Nháº­t`}
+                    >
+                      +{w} week
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Row 3: Status + Note */}
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: '260px 1fr',
+                gap: '0.75rem',
+                marginBottom: milestoneError ? '0.65rem' : '0.85rem',
+              }}>
+                <div className="input-group" style={{ marginBottom: 0 }}>
+                  <label className="input-label">Tráº¡ng thÃ¡i *</label>
+                  <select
+                    className="input-field"
+                    value={milestoneForm.status}
+                    onChange={e => setMilestoneForm({ ...milestoneForm, status: e.target.value as ReviewStatus })}
+                  >
+                    <option value="Draft">ChÆ°a Ä‘Äƒng kÃ½ Ä‘Æ°á»£c</option>
+                    <option value="Registering">Äang Ä‘Äƒng kÃ½</option>
+                    <option value="Registered">ÄÃ£ chá»‘t slot</option>
+                    <option value="Ongoing">Äang diá»…n ra</option>
+                    <option value="Finished">ÄÃ£ xong</option>
+                    <option value="Cancelled">ÄÃ£ há»§y</option>
+                  </select>
+                </div>
+                <div className="input-group" style={{ marginBottom: 0 }}>
+                  <label className="input-label">Ghi chÃº</label>
+                  <input
+                    type="text" className="input-field"
+                    placeholder="VD: PhÃ²ng 305, online qua Teams..."
+                    value={milestoneForm.note}
+                    onChange={e => setMilestoneForm({ ...milestoneForm, note: e.target.value })}
+                  />
+                </div>
               </div>
 
               {milestoneError && (
                 <div style={{
                   display: 'flex', gap: '0.5rem', alignItems: 'center',
                   background: 'rgba(239, 68, 68, 0.1)', color: 'var(--danger)',
-                  padding: '0.75rem 1rem', borderRadius: '8px', fontSize: '0.85rem',
-                  marginBottom: '1rem',
+                  padding: '0.55rem 0.85rem', borderRadius: 8, fontSize: '0.82rem',
+                  marginBottom: '0.75rem',
                 }}>
-                  <AlertCircle size={16} /> {milestoneError}
+                  <AlertCircle size={14} /> {milestoneError}
                 </div>
               )}
 
-              <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end' }}>
+              <div style={{ display: 'flex', gap: '0.6rem', justifyContent: 'flex-end' }}>
                 <button type="button" className="btn btn-secondary" onClick={() => setMilestoneMode(null)} disabled={savingMs}>Há»§y</button>
                 <button type="submit" className="btn btn-primary" disabled={savingMs}>
-                  {savingMs ? <><Loader2 size={16} className="spin" /> Äang lÆ°u...</> : (milestoneMode === 'new' ? 'Táº¡o lá»‹ch' : 'LÆ°u thay Ä‘á»•i')}
+                  {savingMs ? <><Loader2 size={14} className="spin" /> Äang lÆ°u...</> : (milestoneMode === 'new' ? 'Táº¡o lá»‹ch' : 'LÆ°u thay Ä‘á»•i')}
                 </button>
               </div>
-            </form>
+              </form>
+            </div>
           </div>
-        </div>
+        </>
       )}
 
       {/* Modal thÃªm ngÃ y nghá»‰ vÃ o ká»³ */}
       {showAddHoliday && detail && (
-        <div style={{
-          position: 'fixed', inset: 0, background: 'var(--modal-overlay-bg)', backdropFilter: 'blur(4px)',
-          zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem'
-        }}>
-          <div className="glass-panel animate-fade-in" style={{ width: '100%', maxWidth: 580, padding: '2rem', maxHeight: '90vh', overflowY: 'auto' }}>
-            <h2 style={{ marginBottom: '0.35rem', color: 'var(--text-primary)' }}>ThÃªm ngÃ y nghá»‰ vÃ o ká»³ há»c</h2>
-            <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginBottom: '1.25rem' }}>
-              Tá»± nháº­p thÃ´ng tin ngÃ y nghá»‰ cho ká»³ há»c nÃ y.
-            </p>
+        <>
+          {/* Lá»›p backdrop má» á»Ÿ dÆ°á»›i (zIndex: 800) Ä‘á»ƒ div timeline (zIndex: 950) ná»•i lÃªn trÃªn vÃ  khÃ´ng bá»‹ má» */}
+          <div
+            style={{
+              position: 'fixed', inset: 0, zIndex: 800,
+              background: 'var(--modal-overlay-bg)', backdropFilter: 'blur(4px)',
+              WebkitBackdropFilter: 'blur(4px)', pointerEvents: 'none',
+            }}
+          />
+          {/* Lá»›p wrapper cho popup náº±m á»Ÿ zIndex: 1000 Ä‘á»ƒ báº¯t click ra ngoÃ i Ä‘Ã³ng popup */}
+          <div
+            onClick={() => setShowAddHoliday(false)}
+            style={{
+              position: 'fixed', inset: 0, zIndex: 1000, 
+              display: 'flex', alignItems: 'flex-end', justifyContent: 'center', 
+              padding: '1rem', paddingBottom: '2rem',
+            }}
+          >
+            <div
+              className="glass-panel animate-fade-in"
+              onClick={e => e.stopPropagation()}
+              style={{
+                width: '100%',
+                maxWidth: 580,
+                padding: '2rem',
+                maxHeight: '50vh',
+                overflowY: 'auto',
+                boxShadow: '0 16px 48px rgba(0, 0, 0, 0.55)',
+              }}
+            >
+              <h2 style={{ marginBottom: '0.35rem', color: 'var(--text-primary)' }}>ThÃªm ngÃ y nghá»‰ vÃ o ká»³ há»c</h2>
+              <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginBottom: '1.25rem' }}>
+                Tá»± nháº­p thÃ´ng tin ngÃ y nghá»‰ cho ká»³ há»c nÃ y.
+              </p>
 
-            <form onSubmit={handleAddHoliday}>
+              <form onSubmit={handleAddHoliday}>
               <div className="input-group">
                 <label className="input-label">TÃªn dá»‹p <span style={{ color: 'var(--danger)' }}>*</span></label>
                 <input
@@ -3892,6 +4174,7 @@ const AdminSemesters = () => {
             </form>
           </div>
         </div>
+        </>
       )}
 
       {/* Modal táº¡o ká»³ há»c má»›i */}
@@ -4982,6 +5265,7 @@ import api from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
 import { hasAnyRole } from '../utils/role';
 import type { DashboardStatsDto, LecturerAssignedSlotDto } from '../types';
+import { Tooltip } from '../components/Tooltip';
 
 // Dashboard GVHD/Reviewer:
 //   - 3 Ã´ KPI: Tá»•ng nhÃ³m, Danh sÃ¡ch Ä‘á»£t review (chip â€” Ä‘á»£t háº¿t háº¡n tÃ´ xÃ¡m), Slot Ä‘Ã£ Ä‘Æ°á»£c phÃª duyá»‡t trong Ä‘á»£t Ä‘ang chá»n
@@ -5142,10 +5426,14 @@ const Dashboard = () => {
               {stats.reviews.map((r) => {
                 const isSelected = r.id === selectedReviewId;
                 return (
-                  <button
+                  <Tooltip
                     key={r.id}
+                    content={`${formatDate(r.windowStart)} â†’ ${formatDate(r.windowEnd)} (${r.status})`}
+                    variant="glass-card"
+                    style={{ display: 'inline-flex' }}
+                  >
+                  <button
                     onClick={() => setSelectedReviewId(isSelected ? null : r.id)}
-                    title={`${formatDate(r.windowStart)} â†’ ${formatDate(r.windowEnd)} (${r.status})`}
                     style={{
                       padding: '0.3rem 0.7rem',
                       borderRadius: 999,
@@ -5174,6 +5462,7 @@ const Dashboard = () => {
                   >
                     {r.label}
                   </button>
+                  </Tooltip>
                 );
               })}
             </div>
@@ -5242,29 +5531,38 @@ const AssignedSlotCard = ({ slot, onOpen }: { slot: LecturerAssignedSlotDto; onO
   const dow = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'][new Date(slot.slotDate).getUTCDay()];
 
   return (
-    <div
+    <Tooltip
+      content="Báº¥m Ä‘á»ƒ xem chi tiáº¿t"
+      variant="glass-card"
+      placement="top"
       className="glass-card"
-      onClick={onOpen}
       style={{
-        padding: '1rem',
-        cursor: 'pointer',
-        transition: 'all 0.15s ease',
-        opacity: slot.isExpired ? 0.55 : 1,
+        padding: 0,
+        border: 'none',
+        background: 'transparent',
       }}
-      title="Báº¥m Ä‘á»ƒ xem chi tiáº¿t"
     >
       <div
+        onClick={onOpen}
         style={{
-          display: 'flex',
-          justifyContent: 'flex-start',
-          alignItems: 'center',
-          gap: 8,
-          marginBottom: '0.6rem',
+          padding: '1rem',
+          cursor: 'pointer',
+          transition: 'all 0.15s ease',
+          opacity: slot.isExpired ? 0.55 : 1,
         }}
       >
-        <strong style={{ color: 'var(--text-primary)', fontSize: '0.9rem', whiteSpace: 'nowrap' }}>
-          {dow} - {formatDate(slot.slotDate)} Â· Slot {slot.sessionIndex}
-        </strong>
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'flex-start',
+            alignItems: 'center',
+            gap: 8,
+            marginBottom: '0.6rem',
+          }}
+        >
+          <strong style={{ color: 'var(--text-primary)', fontSize: '0.9rem', whiteSpace: 'nowrap' }}>
+            {dow} - {formatDate(slot.slotDate)} Â· Slot {slot.sessionIndex}
+          </strong>
       </div>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
@@ -5289,7 +5587,8 @@ const AssignedSlotCard = ({ slot, onOpen }: { slot: LecturerAssignedSlotDto; onO
           <b style={{ color: 'var(--accent-primary)' }}>{slot.endTime}</b>
         </span>
       </div>
-    </div>
+      </div>
+    </Tooltip>
   );
 };
 
@@ -5575,6 +5874,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { hasRole } from '../utils/role';
 import type { ProjectDetailDto } from '../types';
 import { Save, FileUp, Trash2, Download, Send, CheckCircle, XCircle, Crown, FileText } from 'lucide-react';
+import { Tooltip } from '../components/Tooltip';
 
 const fmtSize = (b: number) => {
   if (b < 1024) return `${b} B`;
@@ -5596,7 +5896,7 @@ const ProjectDetail = () => {
   const [editDesc, setEditDesc] = useState('');
 
   const [file, setFile] = useState<File | null>(null);
-  const [_uploading, setUploading] = useState(false);
+  const [, setUploading] = useState(false);
 
   const isStudentLeader = hasRole(user?.role, 'StudentLeader');
   const isAdmin = hasRole(user?.role, 'Admin');
@@ -5814,15 +6114,16 @@ const ProjectDetail = () => {
                       onChange={e => setFile(e.target.files?.[0] || null)}
                     />
                   </div>
-                  <button
-                    className="btn btn-secondary"
-                    onClick={handleUpload}
-                    disabled
-                    title="TÃ­nh nÄƒng Ä‘ang phÃ¡t triá»ƒn"
-                    style={{ opacity: 0.6, cursor: 'not-allowed' }}
-                  >
-                    <FileUp size={16} /> Upload
-                  </button>
+                  <Tooltip content="TÃ­nh nÄƒng Ä‘ang phÃ¡t triá»ƒn" variant="glass-card" className="no-tooltip-hover" style={{ display: 'flex' }}>
+                    <button
+                      className="btn btn-secondary"
+                      onClick={handleUpload}
+                      disabled
+                      style={{ opacity: 0.6, cursor: 'not-allowed' }}
+                    >
+                      <FileUp size={16} /> Upload
+                    </button>
+                  </Tooltip>
                 </div>
               </div>
             )}
@@ -5847,13 +6148,17 @@ const ProjectDetail = () => {
                       <td style={{ color: 'var(--text-secondary)' }}>{new Date(d.createdAt).toLocaleString('vi-VN')}</td>
                       <td style={{ textAlign: 'right' }}>
                         <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
-                          <button className="btn btn-secondary" style={{ padding: '0.3rem' }} onClick={() => handleDownloadDoc(d.id, d.fileName)} title="Download">
-                            <Download size={14} />
-                          </button>
-                          {isStudentLeader && isDraftEditable && isSelectedVersionDraft && (
-                            <button className="btn btn-danger" style={{ padding: '0.3rem' }} onClick={() => handleDeleteDoc(d.id)} title="XÃ³a">
-                              <Trash2 size={14} />
+                          <Tooltip content="Download" variant="glass-card">
+                            <button className="btn btn-secondary" style={{ padding: '0.3rem' }} onClick={() => handleDownloadDoc(d.id, d.fileName)}>
+                              <Download size={14} />
                             </button>
+                          </Tooltip>
+                          {isStudentLeader && isDraftEditable && isSelectedVersionDraft && (
+                            <Tooltip content="XÃ³a" variant="glass-card">
+                              <button className="btn btn-danger" style={{ padding: '0.3rem' }} onClick={() => handleDeleteDoc(d.id)}>
+                                <Trash2 size={14} />
+                              </button>
+                            </Tooltip>
                           )}
                         </div>
                       </td>
@@ -5970,6 +6275,7 @@ import { MAX_GROUP_PREFERENCES, type ReviewDto, type ReviewSlotDto } from '../ty
 import { CalendarRange, Loader2, AlertCircle, Check } from 'lucide-react';
 import { hasRole } from '../utils/role';
 import { getReviewSlotTimeRange } from '../utils/reviewSlotTime';
+import { Tooltip } from '../components/Tooltip';
 
 // Trang Ä‘Äƒng kÃ½ nguyá»‡n vá»ng slot review.
 //   - StudentLeader: chá»n tá»‘i Ä‘a MAX_GROUP_PREFERENCES slot/Ä‘á»£t cho nhÃ³m mÃ¬nh
@@ -6300,42 +6606,27 @@ const ReviewSlots = () => {
     return () => window.removeEventListener('mouseup', onMouseUp);
   }, [isDragging, dragAnchor, dragCurrent, selected, slots, datePosMap, slotIndexPosMap, canRegister, submitting, pendingRemove]);
 
-  // LÆ°u â€” 1 láº§n báº¥m: gá»­i táº¥t cáº£ register + unregister Ä‘ang pending
+  // LÆ°u â€” 1 request bulk gá»­i cáº£ register + unregister cho BE xá»­ lÃ½ trong 1 transaction
   const submitChanges = async () => {
-    if (!canRegister || !hasChanges || overLimit || submitting) return;
+    if (!canRegister || !hasChanges || overLimit || submitting || reviewId == null) return;
     setSubmitting(true);
     setError(null);
-    const failed: string[] = [];
 
-    // 1. Há»§y cÃ¡c slot Ä‘Ã¡nh dáº¥u Ä‘á» â€” BE tá»± suy group/lecturer tá»« JWT qua route .../me
-    for (const slotId of pendingRemove) {
-      const slot = slots.find((x) => x.id === slotId);
-      if (!slot) continue;
-      const subpath = hasRole(role, 'StudentLeader') ? 'groups/me' : 'lecturers/me';
-      // StudentLeader â†’ groups, Reviewer â†’ lecturers
-      try {
-        await api.delete(`/api/admin/reviews/${slot.reviewId}/slots/${slot.id}/${subpath}`);
-      } catch (e: any) {
-        failed.push(`Há»§y slot ${slot.slotIndex} ngÃ y ${slot.slotDate.substring(0, 10)}: ${e?.response?.data?.message || 'lá»—i'}`);
-      }
+    const registerIds = Array.from(selected);
+    const unregisterIds = Array.from(pendingRemove);
+    const subpath = hasRole(role, 'StudentLeader') ? 'groups' : 'lecturers';
+
+    try {
+      await api.post(`/api/admin/reviews/${reviewId}/slots/${subpath}/bulk`, {
+        register: registerIds,
+        unregister: unregisterIds,
+      });
+      await fetchSlots(reviewId);
+    } catch (e: any) {
+      setError(e?.response?.data?.message || 'KhÃ´ng lÆ°u Ä‘Æ°á»£c thay Ä‘á»•i');
+    } finally {
+      setSubmitting(false);
     }
-
-    // 2. ÄÄƒng kÃ½ cÃ¡c slot xanh nÆ°á»›c â€” body rá»—ng, BE tá»± suy
-    for (const slotId of selected) {
-      const slot = slots.find((x) => x.id === slotId);
-      if (!slot) continue;
-      const subpath = hasRole(role, 'StudentLeader') ? 'groups' : 'lecturers';
-      try {
-        await api.post(`/api/admin/reviews/${slot.reviewId}/slots/${slot.id}/${subpath}`, {});
-      } catch (e: any) {
-        failed.push(`ÄÄƒng kÃ½ slot ${slot.slotIndex} ngÃ y ${slot.slotDate.substring(0, 10)}: ${e?.response?.data?.message || 'lá»—i'}`);
-      }
-    }
-
-    if (reviewId != null) await fetchSlots(reviewId);
-
-    setSubmitting(false);
-    if (failed.length > 0) setError('Má»™t sá»‘ thay Ä‘á»•i khÃ´ng lÆ°u Ä‘Æ°á»£c:\n' + failed.join('\n'));
   };
 
   // ----------- styles theo state -----------
@@ -6408,34 +6699,9 @@ const ReviewSlots = () => {
     const state = slotState(slot);
     const inDragRect = isCoordInDragRect(date, idx);
     return (
-      <div
+      <Tooltip
         key={slot.id}
-        style={{
-          ...cellStyle(state),
-          ...(inDragRect && (state === 'empty' || state === 'selected')
-            ? { boxShadow: 'inset 0 0 0 1.5px #0ea5e9', background: 'rgba(14, 165, 233, 0.14)' }
-            : {}),
-        }}
-        onMouseDown={(e) => {
-          if (e.button !== 0 || !canRegister || submitting) return;
-          setDragAnchor({ date, idx });
-          setDragCurrent({ date, idx });
-          setIsDragging(true);
-          suppressNextClickRef.current = false;
-          e.preventDefault();
-        }}
-        onMouseEnter={() => {
-          if (!isDragging) return;
-          setDragCurrent({ date, idx });
-        }}
-        onClick={() => {
-          if (suppressNextClickRef.current) {
-            suppressNextClickRef.current = false;
-            return;
-          }
-          toggleSelect(slot);
-        }}
-        title={
+        content={
           state === 'assigned'
             ? 'Slot Ä‘Ã£ Ä‘Æ°á»£c admin phÃª duyá»‡t cho báº¡n'
             : state === 'registered'
@@ -6446,12 +6712,46 @@ const ReviewSlots = () => {
             ? 'Äang chá»n â€” báº¥m "LÆ°u" Ä‘á»ƒ xÃ¡c nháº­n'
             : 'Báº¥m Ä‘á»ƒ chá»n'
         }
+        variant="glass-card"
+        placement="top"
+        className={!canRegister && state !== 'assigned' && state !== 'registered' ? 'no-tooltip-hover' : ''}
+        style={{ display: 'block', width: '100%', height: '100%' }}
       >
-        {state === 'assigned' ? <Check size={18} />
-          : state === 'registered' ? <Check size={18} />
-          : state === 'pendingUnregister' ? 'âœ•'
-          : ''}
-      </div>
+        <div
+          style={{
+            ...cellStyle(state),
+            ...(inDragRect && (state === 'empty' || state === 'selected')
+              ? { boxShadow: 'inset 0 0 0 1.5px #0ea5e9', background: 'rgba(14, 165, 233, 0.14)' }
+              : {}),
+            width: '100%',
+            height: '100%',
+          }}
+          onMouseDown={(e) => {
+            if (e.button !== 0 || !canRegister || submitting) return;
+            setDragAnchor({ date, idx });
+            setDragCurrent({ date, idx });
+            setIsDragging(true);
+            suppressNextClickRef.current = false;
+            e.preventDefault();
+          }}
+          onMouseEnter={() => {
+            if (!isDragging) return;
+            setDragCurrent({ date, idx });
+          }}
+          onClick={() => {
+            if (suppressNextClickRef.current) {
+              suppressNextClickRef.current = false;
+              return;
+            }
+            toggleSelect(slot);
+          }}
+        >
+          {state === 'assigned' ? <Check size={18} />
+            : state === 'registered' ? <Check size={18} />
+            : state === 'pendingUnregister' ? 'âœ•'
+            : ''}
+        </div>
+      </Tooltip>
     );
   };
 
@@ -6718,29 +7018,38 @@ const ReviewSlots = () => {
             }}
           >
             {/* Ã” gÃ³c trÃªn-trÃ¡i â€” bulk select toÃ n bá»™ */}
-            <div
-              onClick={canRegister ? markAllRegisteredAsPendingRemove : undefined}
-              title={canRegister ? 'Báº¥m Ä‘á»ƒ báº­t/táº¯t Ä‘Ã¡nh dáº¥u há»§y toÃ n bá»™ slot Ä‘Ã£ Ä‘Äƒng kÃ½ (xanh lÃ¡)' : ''}
-              style={{
-                padding: '0.4rem',
-                fontWeight: 700,
-                color: 'var(--accent-primary)',
-                textAlign: 'center',
-                background: 'var(--surface-glass)',
-                borderRadius: 6,
-                fontSize: '0.75rem',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                cursor: canRegister ? 'pointer' : 'default',
-                transition: 'background 0.15s ease',
-                userSelect: 'none',
-              }}
-              onMouseEnter={(e) => { if (canRegister) e.currentTarget.style.background = 'rgba(14, 165, 233, 0.15)'; }}
-              onMouseLeave={(e) => { e.currentTarget.style.background = 'var(--surface-glass)'; }}
+            <Tooltip
+              content={canRegister ? 'Báº¥m Ä‘á»ƒ báº­t/táº¯t Ä‘Ã¡nh dáº¥u há»§y toÃ n bá»™ slot Ä‘Ã£ Ä‘Äƒng kÃ½ (xanh lÃ¡)' : ''}
+              variant="glass-card"
+              placement="top"
+              className={!canRegister ? 'no-tooltip-hover' : ''}
+              style={{ display: 'block', width: '100%', height: '100%' }}
             >
-              âœ¦
-            </div>
+              <div
+                onClick={canRegister ? markAllRegisteredAsPendingRemove : undefined}
+                style={{
+                  padding: '0.4rem',
+                  fontWeight: 700,
+                  color: 'var(--accent-primary)',
+                  textAlign: 'center',
+                  background: 'var(--surface-glass)',
+                  borderRadius: 6,
+                  fontSize: '0.75rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: canRegister ? 'pointer' : 'default',
+                  transition: 'background 0.15s ease',
+                  userSelect: 'none',
+                  width: '100%',
+                  height: '100%',
+                }}
+                onMouseEnter={(e) => { if (canRegister) e.currentTarget.style.background = 'rgba(14, 165, 233, 0.15)'; }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = 'var(--surface-glass)'; }}
+              >
+                âœ¦
+              </div>
+            </Tooltip>
 
             {/* Header ngÃ y â€” click chá»n cáº£ cá»™t */}
             {pagedDates.map((date, pageIndex) => {
@@ -6762,6 +7071,8 @@ const ReviewSlots = () => {
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
+                      width: '100%',
+                      height: '100%',
                     }}
                   >
                     â€”
@@ -6770,64 +7081,82 @@ const ReviewSlots = () => {
               }
               const info = parseDateInfo(date);
               return (
-                <div
+                <Tooltip
                   key={`hdr_${date}`}
-                  onClick={canRegister ? () => bulkToggle(slotsInCol(date)) : undefined}
-                  title={canRegister ? `Báº¥m Ä‘á»ƒ chá»n / bá» chá»n cáº£ cá»™t ${info.dateStr}` : ''}
-                  style={{
-                    padding: '0.4rem',
-                    fontWeight: 600,
-                    color: 'var(--text-primary)',
-                    textAlign: 'center',
-                    background: 'var(--surface-glass)',
-                    borderRadius: 6,
-                    fontSize: '0.8rem',
-                    cursor: canRegister ? 'pointer' : 'default',
-                    transition: 'background 0.15s ease',
-                    userSelect: 'none',
-                  }}
-                  onMouseEnter={(e) => { if (canRegister) e.currentTarget.style.background = 'rgba(14, 165, 233, 0.15)'; }}
-                  onMouseLeave={(e) => { e.currentTarget.style.background = 'var(--surface-glass)'; }}
+                  content={canRegister ? `Báº¥m Ä‘á»ƒ chá»n / bá» chá»n cáº£ cá»™t ${info.dateStr}` : ''}
+                  variant="glass-card"
+                  placement="top"
+                  className={!canRegister ? 'no-tooltip-hover' : ''}
+                  style={{ display: 'block', width: '100%', height: '100%' }}
                 >
-                  <div>{info.dow}</div>
-                  <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>{info.dateStr}</div>
-                </div>
+                  <div
+                    onClick={canRegister ? () => bulkToggle(slotsInCol(date)) : undefined}
+                    style={{
+                      padding: '0.4rem',
+                      fontWeight: 600,
+                      color: 'var(--text-primary)',
+                      textAlign: 'center',
+                      background: 'var(--surface-glass)',
+                      borderRadius: 6,
+                      fontSize: '0.8rem',
+                      cursor: canRegister ? 'pointer' : 'default',
+                      transition: 'background 0.15s ease',
+                      userSelect: 'none',
+                      width: '100%',
+                      height: '100%',
+                    }}
+                    onMouseEnter={(e) => { if (canRegister) e.currentTarget.style.background = 'rgba(14, 165, 233, 0.15)'; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.background = 'var(--surface-glass)'; }}
+                  >
+                    <div>{info.dow}</div>
+                    <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>{info.dateStr}</div>
+                  </div>
+                </Tooltip>
               );
             })}
 
             {slotIndices.map((idx) => (
               <Fragment key={`row_${idx}`}>
                 {/* Label "Slot N" â€” click chá»n cáº£ hÃ ng */}
-                <div
-                  onClick={canRegister ? () => bulkToggle(slotsInRow(idx)) : undefined}
-                  title={canRegister ? `Báº¥m Ä‘á»ƒ chá»n / bá» chá»n cáº£ hÃ ng Slot ${idx}` : ''}
-                  style={{
-                    padding: '0.4rem',
-                    minHeight: 42,
-                    minWidth: 96,
-                    fontWeight: 600,
-                    color: 'var(--text-primary)',
-                    background: 'var(--surface-glass)',
-                    borderRadius: 6,
-                    fontSize: '0.8rem',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: 2,
-                    cursor: canRegister ? 'pointer' : 'default',
-                    transition: 'background 0.15s ease',
-                    userSelect: 'none',
-                    lineHeight: 1.1,
-                  }}
-                  onMouseEnter={(e) => { if (canRegister) e.currentTarget.style.background = 'rgba(14, 165, 233, 0.15)'; }}
-                  onMouseLeave={(e) => { e.currentTarget.style.background = 'var(--surface-glass)'; }}
+                <Tooltip
+                  content={canRegister ? `Báº¥m Ä‘á»ƒ chá»n / bá» chá»n cáº£ hÃ ng Slot ${idx}` : ''}
+                  variant="glass-card"
+                  placement="top"
+                  className={!canRegister ? 'no-tooltip-hover' : ''}
+                  style={{ display: 'block', width: '100%', height: '100%' }}
                 >
-                  Slot {idx}
-                  <div style={{ fontSize: '0.68rem', fontWeight: 500, color: 'var(--text-secondary)', marginTop: 2, lineHeight: 1.1 }}>
-                    {getReviewSlotTimeRange(idx)}
+                  <div
+                    onClick={canRegister ? () => bulkToggle(slotsInRow(idx)) : undefined}
+                    style={{
+                      padding: '0.4rem',
+                      minHeight: 42,
+                      minWidth: 96,
+                      fontWeight: 600,
+                      color: 'var(--text-primary)',
+                      background: 'var(--surface-glass)',
+                      borderRadius: 6,
+                      fontSize: '0.8rem',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: 2,
+                      cursor: canRegister ? 'pointer' : 'default',
+                      transition: 'background 0.15s ease',
+                      userSelect: 'none',
+                      lineHeight: 1.1,
+                      width: '100%',
+                      height: '100%',
+                    }}
+                    onMouseEnter={(e) => { if (canRegister) e.currentTarget.style.background = 'rgba(14, 165, 233, 0.15)'; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.background = 'var(--surface-glass)'; }}
+                  >
+                    Slot {idx}
+                    <div style={{ fontSize: '0.68rem', fontWeight: 500, color: 'var(--text-secondary)', marginTop: 2, lineHeight: 1.1 }}>
+                      {getReviewSlotTimeRange(idx)}
+                    </div>
                   </div>
-                </div>
+                </Tooltip>
                 {pagedDates.map((date, pageIndex) => (
                   <Fragment key={`cell_${idx}_${pageIndex}`}>
                     {date ? renderCell(date, idx) : (
@@ -6894,6 +7223,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { hasRole } from '../utils/role';
 import { Search, Eye, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Link2, AlertCircle, Download } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { Tooltip } from '../components/Tooltip';
 
 const TopicManagement = () => {
   const [data, setData] = useState<DashboardItem[]>([]);
@@ -7053,20 +7383,21 @@ const TopicManagement = () => {
         </div>
 
         <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
-          <select
-            className="input-field"
-            value={semesterId}
-            onChange={(e) => setSemesterId(e.target.value)}
-            style={{ width: 'auto' }}
-            title="Lá»c theo há»c ká»³"
-          >
-            <option value="">Táº¥t cáº£ há»c ká»³</option>
-            {semesters.map(s => (
-              <option key={s.id} value={s.id}>
-                {s.code} ({s.status})
-              </option>
-            ))}
-          </select>
+          <Tooltip content="Lá»c theo há»c ká»³" variant="glass-card">
+            <select
+              className="input-field"
+              value={semesterId}
+              onChange={(e) => setSemesterId(e.target.value)}
+              style={{ width: 'auto' }}
+            >
+              <option value="">Táº¥t cáº£ há»c ká»³</option>
+              {semesters.map(s => (
+                <option key={s.id} value={s.id}>
+                  {s.code} ({s.status})
+                </option>
+              ))}
+            </select>
+          </Tooltip>
 
           <select className="input-field" value={finalized} onChange={(e) => setFinalized(e.target.value)} style={{ width: 'auto' }}>
             <option value="">Táº¥t cáº£ tráº¡ng thÃ¡i</option>
@@ -7080,16 +7411,17 @@ const TopicManagement = () => {
           </select>
 
           {(isAdmin || hasRole(user?.role, 'Lecturer') || hasRole(user?.role, 'StudentLeader')) && (
-            <button
-              className="btn btn-primary"
-              onClick={handleExport}
-              disabled={exporting || loading}
-              style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.6rem 1.2rem' }}
-              title="Export danh sÃ¡ch Ä‘á» tÃ i ra file ZIP"
-            >
-              <Download size={16} />
-              {exporting ? 'Äang export...' : 'Export'}
-            </button>
+            <Tooltip content="Export danh sÃ¡ch Ä‘á» tÃ i ra file ZIP" variant="glass-card">
+              <button
+                className="btn btn-primary"
+                onClick={handleExport}
+                disabled={exporting || loading}
+                style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.6rem 1.2rem' }}
+              >
+                <Download size={16} />
+                {exporting ? 'Äang export...' : 'Export'}
+              </button>
+            </Tooltip>
           )}
         </div>
       </div>
@@ -7204,18 +7536,19 @@ const TopicManagement = () => {
                 </span>
                 
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                  <button
-                    onClick={() => {
-                      const blockIndex = Math.floor((currentPage - 1) / 10);
-                      setCurrentPage(Math.max(1, blockIndex * 10));
-                    }}
-                    disabled={currentPage <= 10}
-                    className="btn btn-secondary"
-                    style={{ padding: '0.4rem 0.6rem', border: '1px solid var(--border-glass)', opacity: currentPage <= 10 ? 0.5 : 1, cursor: currentPage <= 10 ? 'not-allowed' : 'pointer' }}
-                    title="Cá»¥m trÆ°á»›c"
-                  >
-                    <ChevronsLeft size={16} />
-                  </button>
+                  <Tooltip content="Cá»¥m trÆ°á»›c" variant="glass-card" className={currentPage <= 10 ? 'no-tooltip-hover' : ''} style={{ display: 'flex' }}>
+                    <button
+                      onClick={() => {
+                        const blockIndex = Math.floor((currentPage - 1) / 10);
+                        setCurrentPage(Math.max(1, blockIndex * 10));
+                      }}
+                      disabled={currentPage <= 10}
+                      className="btn btn-secondary"
+                      style={{ padding: '0.4rem 0.6rem', border: '1px solid var(--border-glass)', opacity: currentPage <= 10 ? 0.5 : 1, cursor: currentPage <= 10 ? 'not-allowed' : 'pointer' }}
+                    >
+                      <ChevronsLeft size={16} />
+                    </button>
+                  </Tooltip>
 
                   <button
                     onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
@@ -7252,19 +7585,20 @@ const TopicManagement = () => {
                     <ChevronRight size={16} />
                   </button>
 
-                  <button
-                    onClick={() => {
-                      const blockIndex = Math.floor((currentPage - 1) / 10);
-                      const nextBlockPage = (blockIndex + 1) * 10 + 1;
-                      setCurrentPage(Math.min(totalPages, nextBlockPage));
-                    }}
-                    disabled={Math.floor((totalPages - 1) / 10) === Math.floor((currentPage - 1) / 10)}
-                    className="btn btn-secondary"
-                    style={{ padding: '0.4rem 0.6rem', border: '1px solid var(--border-glass)', opacity: (Math.floor((totalPages - 1) / 10) === Math.floor((currentPage - 1) / 10)) ? 0.5 : 1, cursor: (Math.floor((totalPages - 1) / 10) === Math.floor((currentPage - 1) / 10)) ? 'not-allowed' : 'pointer' }}
-                    title="Cá»¥m sau"
-                  >
-                    <ChevronsRight size={16} />
-                  </button>
+                  <Tooltip content="Cá»¥m sau" variant="glass-card" className={Math.floor((totalPages - 1) / 10) === Math.floor((currentPage - 1) / 10) ? 'no-tooltip-hover' : ''} style={{ display: 'flex' }}>
+                    <button
+                      onClick={() => {
+                        const blockIndex = Math.floor((currentPage - 1) / 10);
+                        const nextBlockPage = (blockIndex + 1) * 10 + 1;
+                        setCurrentPage(Math.min(totalPages, nextBlockPage));
+                      }}
+                      disabled={Math.floor((totalPages - 1) / 10) === Math.floor((currentPage - 1) / 10)}
+                      className="btn btn-secondary"
+                      style={{ padding: '0.4rem 0.6rem', border: '1px solid var(--border-glass)', opacity: (Math.floor((totalPages - 1) / 10) === Math.floor((currentPage - 1) / 10)) ? 0.5 : 1, cursor: (Math.floor((totalPages - 1) / 10) === Math.floor((currentPage - 1) / 10)) ? 'not-allowed' : 'pointer' }}
+                    >
+                      <ChevronsRight size={16} />
+                    </button>
+                  </Tooltip>
                 </div>
               </div>
             )}

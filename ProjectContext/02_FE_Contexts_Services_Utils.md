@@ -380,16 +380,6 @@ export type SemesterMilestoneDto = ReviewDto;
 // ---- Slot review (BE: /api/admin/reviews/{id}/slots) ----
 // ÄÄƒng kÃ½ giá» lÃ  NGUYá»†N Vá»ŒNG: nhÃ³m tá»‘i Ä‘a 5 slot/Ä‘á»£t, GV khÃ´ng giá»›i háº¡n.
 // Slot thá»±c táº¿ cá»§a 1 láº§n review = ReviewAssignment (sinh sau thuáº­t toÃ¡n xáº¿p lá»‹ch).
-export interface ReviewSlotGroupPreferenceDto {
-  groupId: number;
-  groupCode: string;
-}
-
-export interface ReviewSlotLecturerPreferenceDto {
-  lecturerId: number;
-  lecturerName: string;
-}
-
 export interface ReviewAssignmentDto {
   id: number;
   sessionIndex: number;
@@ -414,8 +404,6 @@ export interface ReviewSlotDto {
   assignmentCount: number;
   isCurrentUserRegistered: boolean;   // BE compute tá»« JWT â€” slot cÃ³ chá»©a group/lecturer cá»§a user hiá»‡n táº¡i
   isCurrentUserAssigned: boolean;     // GV Ä‘Ã£ Ä‘Æ°á»£c phÃª duyá»‡t review slot nÃ y (ReviewAssignment active)
-  groupPreferences: ReviewSlotGroupPreferenceDto[];
-  lecturerPreferences: ReviewSlotLecturerPreferenceDto[];
   assignments: ReviewAssignmentDto[];
   note: string | null;
 }

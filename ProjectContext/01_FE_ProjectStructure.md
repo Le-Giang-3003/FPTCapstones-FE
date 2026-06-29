@@ -6,7 +6,7 @@
 ```text
 
 Folder PATH listing for volume Data
-Volume serial number is 00000192 D82C:8210
+Volume serial number is 00000197 D82C:8210
 D:\CODING\01_PROJECTS\SCHOOL\FPT-CAPSTONES-PROJECT\FPTCAPSTONES-FE
 |   .env
 |   .env.development
@@ -23,6 +23,10 @@ D:\CODING\01_PROJECTS\SCHOOL\FPT-CAPSTONES-PROJECT\FPTCAPSTONES-FE
 |   vercel.json
 |   vite.config.ts
 |   
++---.continue
+|   \---agents
+|           new-config.yaml
+|           
 |   |   ProjectSettings.json
 |   |   slnx.sqlite
 |   |   VSWorkspaceState.json
@@ -11374,12 +11378,7 @@ D:\CODING\01_PROJECTS\SCHOOL\FPT-CAPSTONES-PROJECT\FPTCAPSTONES-FE
 |               index.mjs
 |               index.mjs.map
 |               
-|       00_FullSourceCode.md
-|       01_ProjectStructure.md
-|       02_Contexts_Services_Utils.md
-|       03_Components.md
-|       04_Pages.md
-|       05_CSS.md
+|       01_FE_ProjectStructure.md
 |       
 +---public
 |       favicon.svg
@@ -11398,6 +11397,8 @@ D:\CODING\01_PROJECTS\SCHOOL\FPT-CAPSTONES-PROJECT\FPTCAPSTONES-FE
     |       
     +---components
     |       Layout.tsx
+    |       Tooltip.css
+    |       Tooltip.tsx
     |       
     +---contexts
     |       AuthContext.tsx
