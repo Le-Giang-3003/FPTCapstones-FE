@@ -1,6 +1,7 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from './contexts/AuthContext';
+import { ToastProvider } from './contexts/ToastContext';
 import { hasAnyRole } from './utils/role';
 import type { Role } from './types';
 import Login from './pages/Login';
@@ -46,71 +47,73 @@ const NoProject = () => (
 
 const App = () => {
   return (
-    <Router>
-      <Routes>
-        <Route path="/login" element={<Login />} />
+    <ToastProvider>
+      <Router>
+        <Routes>
+          <Route path="/login" element={<Login />} />
 
-        <Route element={<PrivateRoute><Layout /></PrivateRoute>}>
-          <Route path="/" element={<HomeRedirect />} />
-          <Route path="/no-project" element={<NoProject />} />
-          <Route
-            path="/dashboard"
-            element={<PrivateRoute roles={['Admin', 'Lecturer', 'Reviewer', 'StudentLeader', 'GroupMember']}><Dashboard /></PrivateRoute>}
-          />
-          <Route
-            path="/topics"
-            element={<PrivateRoute roles={['Admin', 'Lecturer']}><TopicManagement /></PrivateRoute>}
-          />
-          <Route
-            path="/topic-ideas"
-            element={<PrivateRoute roles={['Lecturer']}><TopicIdeas /></PrivateRoute>}
-          />
-          <Route
-            path="/admin/users"
-            element={<PrivateRoute roles={['Admin']}><AdminUsers /></PrivateRoute>}
-          />
-          <Route
-            path="/admin/lecturers"
-            element={<PrivateRoute roles={['Admin']}><AdminLecturers /></PrivateRoute>}
-          />
-          <Route
-            path="/admin/import"
-            element={<PrivateRoute roles={['Admin']}><AdminImport /></PrivateRoute>}
-          />
-          <Route
-            path="/admin/semesters"
-            element={<PrivateRoute roles={['Admin']}><AdminSemesters /></PrivateRoute>}
-          />
-          <Route
-            path="/admin/holiday-templates"
-            element={<PrivateRoute roles={['Admin']}><AdminHolidayTemplates /></PrivateRoute>}
-          />
-          <Route
-            path="/audit-logs"
-            element={<PrivateRoute><AuditLogs /></PrivateRoute>}
-          />
-          <Route path="/projects/:id" element={<ProjectDetail />} />
-          <Route
-            path="/reviews/slots"
-            element={
-              <PrivateRoute roles={['Admin', 'Reviewer', 'StudentLeader', 'GroupMember']}>
-                <ReviewSlots />
-              </PrivateRoute>
-            }
-          />
-          <Route
-            path="/admin/reviewers"
-            element={<PrivateRoute roles={['Admin']}><AdminReviewers /></PrivateRoute>}
-          />
-          <Route
-            path="/admin/scheduling"
-            element={<PrivateRoute roles={['Admin']}><AdminScheduling /></PrivateRoute>}
-          />
-        </Route>
+          <Route element={<PrivateRoute><Layout /></PrivateRoute>}>
+            <Route path="/" element={<HomeRedirect />} />
+            <Route path="/no-project" element={<NoProject />} />
+            <Route
+              path="/dashboard"
+              element={<PrivateRoute roles={['Admin', 'Lecturer', 'Reviewer', 'StudentLeader', 'GroupMember']}><Dashboard /></PrivateRoute>}
+            />
+            <Route
+              path="/topics"
+              element={<PrivateRoute roles={['Admin', 'Lecturer']}><TopicManagement /></PrivateRoute>}
+            />
+            <Route
+              path="/topic-ideas"
+              element={<PrivateRoute roles={['Lecturer']}><TopicIdeas /></PrivateRoute>}
+            />
+            <Route
+              path="/admin/users"
+              element={<PrivateRoute roles={['Admin']}><AdminUsers /></PrivateRoute>}
+            />
+            <Route
+              path="/admin/lecturers"
+              element={<PrivateRoute roles={['Admin']}><AdminLecturers /></PrivateRoute>}
+            />
+            <Route
+              path="/admin/import"
+              element={<PrivateRoute roles={['Admin']}><AdminImport /></PrivateRoute>}
+            />
+            <Route
+              path="/admin/semesters"
+              element={<PrivateRoute roles={['Admin']}><AdminSemesters /></PrivateRoute>}
+            />
+            <Route
+              path="/admin/holiday-templates"
+              element={<PrivateRoute roles={['Admin']}><AdminHolidayTemplates /></PrivateRoute>}
+            />
+            <Route
+              path="/audit-logs"
+              element={<PrivateRoute><AuditLogs /></PrivateRoute>}
+            />
+            <Route path="/projects/:id" element={<ProjectDetail />} />
+            <Route
+              path="/reviews/slots"
+              element={
+                <PrivateRoute roles={['Admin', 'Reviewer', 'StudentLeader', 'GroupMember']}>
+                  <ReviewSlots />
+                </PrivateRoute>
+              }
+            />
+            <Route
+              path="/admin/reviewers"
+              element={<PrivateRoute roles={['Admin']}><AdminReviewers /></PrivateRoute>}
+            />
+            <Route
+              path="/admin/scheduling"
+              element={<PrivateRoute roles={['Admin']}><AdminScheduling /></PrivateRoute>}
+            />
+          </Route>
 
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
-    </Router>
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </Router>
+    </ToastProvider>
   );
 };
 
