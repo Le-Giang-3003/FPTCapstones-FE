@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import api from '../services/api';
 import type {
   SemesterListItemDto,
@@ -88,10 +88,33 @@ const addDays = (d: Date, days: number) => new Date(d.getTime() + days * 8640000
 // Nếu kết quả rơi vào Chủ Nhật → lùi về Thứ 7 (bỏ ngày CN, không dời sang Thứ 2).
 // VD: start = Thứ 2 (25/5), days=7 → 25+6=31/5 (CN) → lùi về 30/5 (Thứ 7).
 const addWorkingDaysISO = (iso: string, days: number): string => {
+  if (!iso) return iso;                          // guard: empty input → giữ rỗng (caller phải check)
   const d = new Date(iso + 'T00:00:00Z');
-  d.setUTCDate(d.getUTCDate() + days - 1);    // inclusive: window dài `days` ngày
+  if (isNaN(d.getTime())) return iso;            // guard: invalid date → bypass
+  d.setUTCDate(d.getUTCDate() + days - 1);       // inclusive: window dài `days` ngày
   if (d.getUTCDay() === 0) d.setUTCDate(d.getUTCDate() - 1);  // CN → Thứ 7
   return d.toISOString().slice(0, 10);
+};
+
+// Cộng/trừ N ngày dùng JS Date — tự rollover sang tháng/năm kế (xử lý đúng 30-day months + Feb nhuận).
+// VD: 30/6 + 1 = 1/7 (không bị kẹt ở 31/6 invalid); 28/2/2027 + 1 = 1/3 (2027 không nhuận).
+const shiftDateISO = (iso: string, delta: number): string => {
+  if (!iso) return iso;
+  const d = new Date(iso + 'T00:00:00Z');
+  if (isNaN(d.getTime())) return iso;
+  d.setUTCDate(d.getUTCDate() + delta);
+  return d.toISOString().slice(0, 10);
+};
+
+// Validate ISO date trong khoảng năm hợp lý — chặn Chrome bug:
+// khi spinner year đẩy xuống dưới `min` attribute, Chrome có thể wrap về year max của JS Date (275760).
+// Cũng chặn năm < 1900 (gõ tay 2 chữ số chẳng hạn).
+const isReasonableDateISO = (iso: string): boolean => {
+  if (!iso) return false;
+  const d = new Date(iso + 'T00:00:00Z');
+  if (isNaN(d.getTime())) return false;
+  const y = d.getUTCFullYear();
+  return y >= 1900 && y <= 2200;
 };
 
 // Map review status → config nút chuyển trạng thái tiếp theo.
@@ -328,6 +351,7 @@ const AdminSemesters = () => {
     setHolidayError(null);
     setHolidayForm({ ...blankHolidayForm });
     setShowAddHoliday(true);
+    scrollTimelineIntoView();
   };
 
   const handleAddHoliday = async (e: React.FormEvent) => {
@@ -409,6 +433,20 @@ const AdminSemesters = () => {
   // Modal mode: 'new' = tạo mới, số = sửa id
   const [milestoneMode, setMilestoneMode] = useState<number | 'new' | null>(null);
   const [hoverMilestoneId, setHoverMilestoneId] = useState<number | null>(null);
+
+  // Ref đến card timeline — dùng để auto-scroll khi mở drawer thêm/sửa milestone (drawer bottom).
+  const timelineRef = useRef<HTMLDivElement | null>(null);
+  const scrollTimelineIntoView = () => {
+    setTimeout(() => {
+      if (timelineRef.current) {
+        timelineRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    }, 100);
+  };
+
+  // Vị trí drawer được tính từ rect của timeline (cùng left/width, top ngay dưới timeline + gap).
+  // Track lại trên scroll/resize để drawer luôn dính theo timeline.
+  const [, setDrawerPos] = useState<{ left: number; width: number; top: number } | null>(null);
   const blankMilestoneForm = {
     type: 'Review' as MilestoneType,
     orderIndex: 1,
@@ -435,7 +473,8 @@ const AdminSemesters = () => {
 
   const previewMilestone = useMemo(() => {
     if (milestoneMode === null || !milestoneForm.windowStart || !milestoneForm.windowEnd) return null;
-    if (new Date(milestoneForm.windowEnd) <= new Date(milestoneForm.windowStart)) return null;
+    // Cho phép start = end (window 1 ngày) → vẫn render preview. Chỉ skip khi end < start.
+    if (new Date(milestoneForm.windowEnd) < new Date(milestoneForm.windowStart)) return null;
     return {
       type: milestoneForm.type,
       label: milestoneForm.label || `(${milestoneForm.type} mới)`,
@@ -456,10 +495,11 @@ const AdminSemesters = () => {
       orderIndex: nextRvIdx,
       label: `Review ${nextRvIdx}`,
       windowStart: detail.startDate.slice(0, 10),
-      windowEnd: addDaysISO(detail.startDate.slice(0, 10), 14),
+      windowEnd: addDaysISO(detail.startDate.slice(0, 10), 7),  // Default gap = 1 tuần (7 ngày)
     });
     setMilestoneError(null);
     setMilestoneMode('new');
+    scrollTimelineIntoView();
   };
 
   const openEditMilestone = (m: SemesterMilestoneDto) => {
@@ -474,6 +514,7 @@ const AdminSemesters = () => {
     });
     setMilestoneError(null);
     setMilestoneMode(m.id);
+    scrollTimelineIntoView();
   };
 
   // Khi đổi Type trong form, auto re-suggest OrderIndex + Label
@@ -867,6 +908,24 @@ const AdminSemesters = () => {
   useEffect(() => { loadList(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [statusFilter]);
   useEffect(() => { if (selectedId !== null) loadDetail(selectedId); }, [selectedId]);
 
+  // Đo vị trí card timeline mỗi khi drawer mở + lắng nghe scroll/resize để drawer luôn căn theo timeline.
+  useEffect(() => {
+    if (milestoneMode === null) { setDrawerPos(null); return; }
+    const measure = () => {
+      const el = timelineRef.current;
+      if (!el) return;
+      const rect = el.getBoundingClientRect();
+      setDrawerPos({ left: rect.left, width: rect.width, top: rect.bottom + 12 });
+    };
+    measure();
+    window.addEventListener('resize', measure);
+    window.addEventListener('scroll', measure, true);
+    return () => {
+      window.removeEventListener('resize', measure);
+      window.removeEventListener('scroll', measure, true);
+    };
+  }, [milestoneMode]);
+
   // Tính số tuần của semester (rounded up)
   const weekCount = useMemo(() => {
     if (!detail) return 0;
@@ -1151,8 +1210,20 @@ const AdminSemesters = () => {
                 </div>
               </div>
 
-              {/* Timeline chia theo tuần */}
-              <div className="glass-card">
+              {/* Timeline chia theo tuần — khi drawer mở, elevate z-index để timeline KHÔNG bị blur backdrop */}
+              <div
+                className="glass-card"
+                ref={timelineRef}
+                style={{
+                  scrollMarginTop: 12,
+                  ...(milestoneMode !== null || showAddHoliday
+                    ? {
+                        position: 'relative',
+                        zIndex: 950,
+                      }
+                    : {}),
+                }}
+              >
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.5rem' }}>
                   <h3 style={{ margin: 0, color: 'var(--text-primary)' }}>Trục thời gian (theo {tlMode === 'week' ? 'tuần' : 'tháng'})</h3>
                   {/* Toggle Week / Month — gọn hơn, fit screen */}
@@ -1375,6 +1446,7 @@ const AdminSemesters = () => {
                                 style={{
                                   position: 'absolute', top: 0, bottom: 0,
                                   left: `${pos.leftPct}%`, width: `${pos.widthPct}%`,
+                                  transition: 'left 0.3s ease, width 0.3s ease',
                                   background: 'rgba(168, 85, 247, 0.4)',                // tím dashed -> phân biệt với data thật
                                   border: '2px dashed #a855f7',
                                   borderRadius: 4, zIndex: 5,
@@ -1409,7 +1481,7 @@ const AdminSemesters = () => {
                                   borderLeft: '2px solid', borderRight: '2px solid',
                                   borderColor: isDirty ? 'var(--warning)' : 'var(--danger)',
                                   cursor: 'default',
-                                  transition: dragState ? 'none' : 'background 0.05s',
+                                  transition: dragState ? 'none' : 'left 0.3s ease, width 0.3s ease, background 0.2s',
                                 }}
                               >
                                 {/* Left edge handle */}
@@ -1512,6 +1584,7 @@ const AdminSemesters = () => {
                                 style={{
                                   position: 'absolute', top: 4, bottom: 4,
                                   left: `${pos.leftPct}%`, width: `${pos.widthPct}%`,
+                                  transition: 'left 0.3s ease, width 0.3s ease',
                                   background: isReview ? 'rgba(59, 130, 246, 0.3)' : 'rgba(16, 185, 129, 0.3)',
                                   border: `2px dashed ${isReview ? '#3b82f6' : '#10b981'}`,
                                   borderRadius: 4, zIndex: 5,
@@ -1557,6 +1630,7 @@ const AdminSemesters = () => {
                                 style={{
                                   position: 'absolute', top: 4, bottom: 4,
                                   left: `${pos.leftPct}%`, width: `${pos.widthPct}%`,
+                                  transition: 'left 0.3s ease, width 0.3s ease, background 0.3s ease',
                                   background: color,
                                   borderLeft: `2px solid ${borderColor}`,
                                   borderRight: pos.isClippedRight ? `2px dashed ${borderColor}` : `2px solid ${borderColor}`,
@@ -1680,6 +1754,8 @@ const AdminSemesters = () => {
                 `}</style>
               </div>
 
+              {/* Wrapper column-reverse: hiển thị Review/Defence TRƯỚC, Holidays SAU (lịch nghỉ ít dùng → đẩy xuống) */}
+              <div style={{ display: 'flex', flexDirection: 'column-reverse', gap: '1.25rem' }}>
               {/* Holidays table */}
               <div className="glass-card" style={{ padding: 0, overflow: 'hidden' }}>
                 <div style={{
@@ -1787,6 +1863,12 @@ const AdminSemesters = () => {
                         {milestones.map(m => {
                           const dur = Math.max(1, daysBetween(m.windowStart.slice(0,10), m.windowEnd.slice(0,10)));
                           const isOverflow = detail && new Date(m.windowEnd) > new Date(detail.endDate);
+                          // Tìm kỳ chứa windowEnd để hiện "→ <code kỳ>" khi vắt biên (vd → FA26)
+                          const overflowToSem = isOverflow
+                            ? list.find(s =>
+                                new Date(m.windowEnd) >= new Date(s.startDate) &&
+                                new Date(m.windowEnd) <= new Date(s.endDate))
+                            : null;
                           // m.semesterId là kỳ "home" — có thể khác semester đang xem (vì query overlap)
                           const isHomeSemester = detail && m.semesterId === detail.id;
                           const homeSem = list.find(s => s.id === m.semesterId);
@@ -1820,7 +1902,17 @@ const AdminSemesters = () => {
                               }}>
                                 {m.label}
                               </span>
-                              {isOverflow && <span className="badge badge-warning" style={{ marginLeft: '0.4rem', fontSize: '0.6rem' }}>Vắt biên</span>}
+                              {isOverflow && (
+                                <span
+                                  className="badge badge-warning"
+                                  style={{ marginLeft: '0.4rem', fontSize: '0.6rem' }}
+                                  title={overflowToSem
+                                    ? `Window kéo dài sang kỳ ${overflowToSem.code}`
+                                    : 'Window vượt khỏi kỳ học này'}
+                                >
+                                  → {overflowToSem?.code ?? 'Tràn kỳ'}
+                                </span>
+                              )}
                             </td>
                             <td>{fmt(m.windowStart)} → {fmt(m.windowEnd)}</td>
                             <td>{dur} ngày</td>
@@ -1919,6 +2011,7 @@ const AdminSemesters = () => {
                   </div>
                 )}
               </div>
+              </div>{/* /Wrapper column-reverse */}
             </>
           )}
         </div>
@@ -2019,162 +2112,351 @@ const AdminSemesters = () => {
         );
       })()}
 
-      {/* Modal Add/Edit Milestone (Review/Defence) */}
+      {/* Popup Add/Edit Milestone */}
       {milestoneMode !== null && detail && (
-        <div style={{
-          position: 'fixed', inset: 0, background: 'var(--modal-overlay-bg)', backdropFilter: 'blur(4px)',
-          zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem'
-        }}>
-          <div className="glass-panel animate-fade-in" style={{ width: '100%', maxWidth: 560, padding: '2rem', maxHeight: '90vh', overflowY: 'auto' }}>
-            <h2 style={{ marginBottom: '0.35rem', color: 'var(--text-primary)' }}>
-              {milestoneMode === 'new' ? 'Thêm lịch Review / Defence' : 'Sửa lịch Review / Defence'}
-            </h2>
-            <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginBottom: '1.25rem' }}>
-              "Ngày" là khoảng thời gian admin mở để student/lecturer đặt slot review/defence.
-            </p>
-
-            <form onSubmit={handleSubmitMilestone}>
-              {milestoneMode === 'new' && (
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                  <div className="input-group">
-                    <label className="input-label">Loại <span style={{ color: 'var(--danger)' }}>*</span></label>
-                    <select
-                      className="input-field"
-                      value={milestoneForm.type}
-                      onChange={e => onTypeChange(e.target.value as MilestoneType)}
-                    >
-                      <option value="Review">Review </option>
-                      <option value="Defence">Defence </option>
-                    </select>
-                  </div>
-                  <div className="input-group">
-                    <label className="input-label">Số thứ tự <span style={{ color: 'var(--danger)' }}>*</span></label>
-                    <input
-                      type="number" required min={1} className="input-field"
-                      value={milestoneForm.orderIndex}
-                      onChange={e => setMilestoneForm({ ...milestoneForm, orderIndex: parseInt(e.target.value, 10) || 1 })}
-                    />
-                  </div>
+        <>
+          {/* Lớp backdrop mờ ở dưới (zIndex: 800) để div timeline (zIndex: 950) nổi lên trên và không bị mờ */}
+          <div
+            style={{
+              position: 'fixed', inset: 0, zIndex: 800,
+              background: 'var(--modal-overlay-bg)', backdropFilter: 'blur(4px)',
+              WebkitBackdropFilter: 'blur(4px)', pointerEvents: 'none',
+            }}
+          />
+          {/* Lớp wrapper cho popup nằm ở zIndex: 1000 để bắt click ra ngoài đóng popup */}
+          <div
+            onClick={() => setMilestoneMode(null)}
+            style={{
+              position: 'fixed', inset: 0, zIndex: 1000, 
+              display: 'flex', alignItems: 'flex-end', justifyContent: 'center', 
+              padding: '1rem', paddingBottom: '2rem',
+            }}
+          >
+            <div
+              className="glass-panel animate-fade-in"
+              onClick={e => e.stopPropagation()}
+              style={{
+                width: '100%',
+                maxWidth: 820,
+                padding: '1.5rem 1.5rem 1.25rem',
+                maxHeight: '50vh',
+                overflowY: 'auto',
+                boxShadow: '0 16px 48px rgba(0, 0, 0, 0.55)',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', marginBottom: '0.75rem' }}>
+                <div>
+                  <h2 style={{ margin: 0, color: 'var(--text-primary)', fontSize: '1.05rem' }}>
+                    {milestoneMode === 'new' ? 'Thêm lịch Review / Defence' : 'Sửa lịch Review / Defence'}
+                  </h2>
+                  <p style={{ color: 'var(--text-secondary)', fontSize: '0.75rem', margin: '0.15rem 0 0' }}>
+                    Preview hiển thị realtime trên timeline phía trên.
+                  </p>
                 </div>
-              )}
-
-              <div className="input-group">
-                <label className="input-label">Label <span style={{ color: 'var(--danger)' }}>*</span></label>
-                <input
-                  type="text" required className="input-field"
-                  placeholder="VD: Review 1, Defence 2, Final Defence..."
-                  value={milestoneForm.label}
-                  onChange={e => setMilestoneForm({ ...milestoneForm, label: e.target.value })}
-                />
-              </div>
-
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                <div className="input-group">
-                  <label className="input-label">Ngày bắt đầu <span style={{ color: 'var(--danger)' }}>*</span></label>
-                  <input
-                    type="date" required className="input-field"
-                    min={detail.startDate.slice(0, 10)}
-                    value={milestoneForm.windowStart}
-                    onChange={e => setMilestoneForm({ ...milestoneForm, windowStart: e.target.value })}
-                  />
-                </div>
-                <div className="input-group">
-                  <label className="input-label">Ngày kết thúc <span style={{ color: 'var(--danger)' }}>*</span></label>
-                  <input
-                    type="date" required className="input-field"
-                    min={milestoneForm.windowStart}
-                    value={milestoneForm.windowEnd}
-                    onChange={e => setMilestoneForm({ ...milestoneForm, windowEnd: e.target.value })}
-                  />
-                </div>
-              </div>
-
-              {/* Quick preset: +1w / +2w / +3w — tính ngày làm việc (bỏ CN) nên luôn đủ slot */}
-              <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', marginBottom: '1rem' }}>
-                <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', display: 'inline-flex', alignItems: 'center' }}>Preset duration:</span>
-                {([{ w: 1, d: 7 }, { w: 2, d: 14 }, { w: 3, d: 21 }]).map(({ w, d }) => (
-                  <button
-                    type="button"
-                    key={d}
-                    onClick={() => {
-                      if (!milestoneForm.windowStart) return;
-                      setMilestoneForm({ ...milestoneForm, windowEnd: addWorkingDaysISO(milestoneForm.windowStart, d) });
-                    }}
-                    disabled={!milestoneForm.windowStart}
-                    style={{
-                      padding: '0.25rem 0.6rem', fontSize: '0.7rem', borderRadius: '999px',
-                      border: '1px solid var(--border-glass)', background: 'transparent',
-                      color: 'var(--text-secondary)', cursor: milestoneForm.windowStart ? 'pointer' : 'not-allowed',
-                      opacity: milestoneForm.windowStart ? 1 : 0.4,
-                    }}
-                    title={`${d} ngày làm việc — bỏ qua Chủ Nhật`}
-                  >
-                    +{w} week
-                  </button>
-                ))}
-              </div>
-
-              <div className="input-group">
-                <label className="input-label">Trạng thái <span style={{ color: 'var(--danger)' }}>*</span></label>
-                <select
-                  className="input-field"
-                  value={milestoneForm.status}
-                  onChange={e => setMilestoneForm({ ...milestoneForm, status: e.target.value as ReviewStatus })}
+                <button
+                  type="button"
+                  onClick={() => setMilestoneMode(null)}
+                  disabled={savingMs}
+                  style={{
+                    background: 'transparent', border: '1px solid var(--border-glass)',
+                    color: 'var(--text-secondary)', padding: '0.3rem 0.55rem', borderRadius: 6,
+                    cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: '0.78rem',
+                  }}
+                  title="Đóng"
                 >
-                  <option value="Draft">Chưa đăng ký được (chưa mở)</option>
-                  <option value="Registering">Đang đăng ký</option>
-                  <option value="Registered">Đã chốt slot</option>
-                  <option value="Ongoing">Đang diễn ra</option>
-                  <option value="Finished">Đã xong</option>
-                  <option value="Cancelled">Đã hủy</option>
-                </select>
+                  <X size={14} /> Đóng
+                </button>
               </div>
 
-              <div className="input-group">
-                <label className="input-label">Ghi chú (optional)</label>
-                <input
-                  type="text" className="input-field"
-                  placeholder="VD: Phòng 305, online qua Teams..."
-                  value={milestoneForm.note}
-                  onChange={e => setMilestoneForm({ ...milestoneForm, note: e.target.value })}
-                />
+              <form onSubmit={handleSubmitMilestone}>
+              {/* Row 1: Type + OrderIndex + Label (new) | Label only (edit) */}
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: milestoneMode === 'new' ? '140px 100px 1fr' : '1fr',
+                gap: '0.75rem',
+                marginBottom: '0.65rem',
+              }}>
+                {milestoneMode === 'new' && (
+                  <>
+                    <div className="input-group" style={{ marginBottom: 0 }}>
+                      <label className="input-label">Loại *</label>
+                      <select
+                        className="input-field"
+                        value={milestoneForm.type}
+                        onChange={e => onTypeChange(e.target.value as MilestoneType)}
+                      >
+                        <option value="Review">Review</option>
+                        <option value="Defence">Defence</option>
+                      </select>
+                    </div>
+                    <div className="input-group" style={{ marginBottom: 0 }}>
+                      <label className="input-label">STT *</label>
+                      <input
+                        type="number" required min={1} className="input-field"
+                        value={milestoneForm.orderIndex}
+                        onChange={e => setMilestoneForm({ ...milestoneForm, orderIndex: parseInt(e.target.value, 10) || 1 })}
+                      />
+                    </div>
+                  </>
+                )}
+                <div className="input-group" style={{ marginBottom: 0 }}>
+                  <label className="input-label">Label *</label>
+                  <input
+                    type="text" required className="input-field"
+                    placeholder="VD: Review 1, Defence 2..."
+                    value={milestoneForm.label}
+                    onChange={e => setMilestoneForm({ ...milestoneForm, label: e.target.value })}
+                  />
+                </div>
+              </div>
+
+              {/* Row 2: Start + End + Preset chips */}
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: '1fr 1fr auto',
+                gap: '0.75rem',
+                alignItems: 'end',
+                marginBottom: '0.65rem',
+              }}>
+                <div className="input-group" style={{ marginBottom: 0 }}>
+                  <label className="input-label">Ngày bắt đầu *</label>
+                  <div style={{ display: 'flex', gap: 4, alignItems: 'stretch' }}>
+                    <input
+                      type="date" required className="input-field"
+                      style={{ flex: 1, minWidth: 0 }}
+                      min={detail.startDate.slice(0, 10)}
+                      value={milestoneForm.windowStart}
+                      onChange={e => {
+                        const newStart = e.target.value;
+                        // Guard: browser reject invalid (vd 31/6) → "" → giữ state cũ.
+                        // Cũng chặn Chrome bug: spin year xuống dưới min wrap về 275760.
+                        if (!isReasonableDateISO(newStart)) return;
+                        // Giữ nguyên khoảng cách (gap) giữa start↔end. VD gap=12 ngày → end shift theo start.
+                        const oldStart = milestoneForm.windowStart;
+                        const oldEnd = milestoneForm.windowEnd;
+                        let newEnd = oldEnd;
+                        if (oldStart && oldEnd) {
+                          const gapDays = Math.round(
+                            (new Date(oldEnd).getTime() - new Date(oldStart).getTime()) / 86400000
+                          );
+                          // Giữ gap (kể cả 0 = window 1 ngày). Chỉ fallback 7 ngày khi gap âm (state lỗi).
+                          const gapToApply = gapDays >= 0 ? gapDays : 7;
+                          newEnd = addDaysISO(newStart, gapToApply);
+                        }
+                        setMilestoneForm({ ...milestoneForm, windowStart: newStart, windowEnd: newEnd });
+                      }}
+                    />
+                    {/* Nút dịch -1/+1 ngày: dùng JS Date → tự rollover sang tháng/năm kế (xử lý đúng cuối tháng + Feb nhuận) */}
+                    <button
+                      type="button"
+                      title="Lùi 1 ngày"
+                      onClick={() => {
+                        const old = milestoneForm.windowStart;
+                        if (!old) return;
+                        const newStart = shiftDateISO(old, -1);
+                        const oldEnd = milestoneForm.windowEnd;
+                        let newEnd = oldEnd;
+                        if (oldEnd) {
+                          const gapDays = Math.round((new Date(oldEnd).getTime() - new Date(old).getTime()) / 86400000);
+                          const gap = gapDays >= 0 ? gapDays : 7;
+                          newEnd = addDaysISO(newStart, gap);
+                        }
+                        setMilestoneForm({ ...milestoneForm, windowStart: newStart, windowEnd: newEnd });
+                      }}
+                      style={{
+                        padding: '0 0.5rem', fontSize: '0.9rem', borderRadius: 6,
+                        border: '1px solid var(--border-glass)', background: 'var(--surface-glass)',
+                        color: 'var(--text-primary)', cursor: 'pointer',
+                      }}
+                    >−</button>
+                    <button
+                      type="button"
+                      title="Tới 1 ngày (tự rollover sang tháng kế)"
+                      onClick={() => {
+                        const old = milestoneForm.windowStart;
+                        if (!old) return;
+                        const newStart = shiftDateISO(old, 1);
+                        const oldEnd = milestoneForm.windowEnd;
+                        let newEnd = oldEnd;
+                        if (oldEnd) {
+                          const gapDays = Math.round((new Date(oldEnd).getTime() - new Date(old).getTime()) / 86400000);
+                          const gap = gapDays >= 0 ? gapDays : 7;
+                          newEnd = addDaysISO(newStart, gap);
+                        }
+                        setMilestoneForm({ ...milestoneForm, windowStart: newStart, windowEnd: newEnd });
+                      }}
+                      style={{
+                        padding: '0 0.5rem', fontSize: '0.9rem', borderRadius: 6,
+                        border: '1px solid var(--border-glass)', background: 'var(--surface-glass)',
+                        color: 'var(--text-primary)', cursor: 'pointer',
+                      }}
+                    >+</button>
+                  </div>
+                </div>
+                <div className="input-group" style={{ marginBottom: 0 }}>
+                  <label className="input-label">Ngày kết thúc *</label>
+                  <div style={{ display: 'flex', gap: 4, alignItems: 'stretch' }}>
+                    <input
+                      type="date" required className="input-field"
+                      style={{ flex: 1, minWidth: 0 }}
+                      min={milestoneForm.windowStart}
+                      value={milestoneForm.windowEnd}
+                      onChange={e => {
+                        const newEnd = e.target.value;
+                        // Guard: invalid hoặc Chrome wrap year (275760) → giữ state cũ.
+                        if (!isReasonableDateISO(newEnd)) return;
+                        setMilestoneForm({ ...milestoneForm, windowEnd: newEnd });
+                      }}
+                    />
+                    <button
+                      type="button"
+                      title="Lùi 1 ngày"
+                      onClick={() => {
+                        if (!milestoneForm.windowEnd) return;
+                        setMilestoneForm({ ...milestoneForm, windowEnd: shiftDateISO(milestoneForm.windowEnd, -1) });
+                      }}
+                      style={{
+                        padding: '0 0.5rem', fontSize: '0.9rem', borderRadius: 6,
+                        border: '1px solid var(--border-glass)', background: 'var(--surface-glass)',
+                        color: 'var(--text-primary)', cursor: 'pointer',
+                      }}
+                    >−</button>
+                    <button
+                      type="button"
+                      title="Tới 1 ngày (tự rollover sang tháng kế)"
+                      onClick={() => {
+                        if (!milestoneForm.windowEnd) return;
+                        setMilestoneForm({ ...milestoneForm, windowEnd: shiftDateISO(milestoneForm.windowEnd, 1) });
+                      }}
+                      style={{
+                        padding: '0 0.5rem', fontSize: '0.9rem', borderRadius: 6,
+                        border: '1px solid var(--border-glass)', background: 'var(--surface-glass)',
+                        color: 'var(--text-primary)', cursor: 'pointer',
+                      }}
+                    >+</button>
+                  </div>
+                </div>
+                {/* Preset chips bên phải */}
+                <div style={{ display: 'flex', gap: '0.3rem', flexWrap: 'wrap', paddingBottom: 6 }}>
+                  {([{ w: 1, d: 7 }, { w: 2, d: 14 }, { w: 3, d: 21 }]).map(({ w, d }) => (
+                    <button
+                      type="button"
+                      key={d}
+                      onClick={() => {
+                        if (!milestoneForm.windowStart) return;
+                        setMilestoneForm({ ...milestoneForm, windowEnd: addWorkingDaysISO(milestoneForm.windowStart, d) });
+                      }}
+                      disabled={!milestoneForm.windowStart}
+                      style={{
+                        padding: '0.3rem 0.55rem', fontSize: '0.7rem', borderRadius: 999,
+                        border: '1px solid var(--border-glass)', background: 'transparent',
+                        color: 'var(--text-secondary)',
+                        cursor: milestoneForm.windowStart ? 'pointer' : 'not-allowed',
+                        opacity: milestoneForm.windowStart ? 1 : 0.4,
+                        whiteSpace: 'nowrap',
+                      }}
+                      title={`${d} ngày làm việc — bỏ qua Chủ Nhật`}
+                    >
+                      +{w} week
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Row 3: Status + Note */}
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: '260px 1fr',
+                gap: '0.75rem',
+                marginBottom: milestoneError ? '0.65rem' : '0.85rem',
+              }}>
+                <div className="input-group" style={{ marginBottom: 0 }}>
+                  <label className="input-label">Trạng thái *</label>
+                  <select
+                    className="input-field"
+                    value={milestoneForm.status}
+                    onChange={e => setMilestoneForm({ ...milestoneForm, status: e.target.value as ReviewStatus })}
+                  >
+                    <option value="Draft">Chưa đăng ký được</option>
+                    <option value="Registering">Đang đăng ký</option>
+                    <option value="Registered">Đã chốt slot</option>
+                    <option value="Ongoing">Đang diễn ra</option>
+                    <option value="Finished">Đã xong</option>
+                    <option value="Cancelled">Đã hủy</option>
+                  </select>
+                </div>
+                <div className="input-group" style={{ marginBottom: 0 }}>
+                  <label className="input-label">Ghi chú</label>
+                  <input
+                    type="text" className="input-field"
+                    placeholder="VD: Phòng 305, online qua Teams..."
+                    value={milestoneForm.note}
+                    onChange={e => setMilestoneForm({ ...milestoneForm, note: e.target.value })}
+                  />
+                </div>
               </div>
 
               {milestoneError && (
                 <div style={{
                   display: 'flex', gap: '0.5rem', alignItems: 'center',
                   background: 'rgba(239, 68, 68, 0.1)', color: 'var(--danger)',
-                  padding: '0.75rem 1rem', borderRadius: '8px', fontSize: '0.85rem',
-                  marginBottom: '1rem',
+                  padding: '0.55rem 0.85rem', borderRadius: 8, fontSize: '0.82rem',
+                  marginBottom: '0.75rem',
                 }}>
-                  <AlertCircle size={16} /> {milestoneError}
+                  <AlertCircle size={14} /> {milestoneError}
                 </div>
               )}
 
-              <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end' }}>
+              <div style={{ display: 'flex', gap: '0.6rem', justifyContent: 'flex-end' }}>
                 <button type="button" className="btn btn-secondary" onClick={() => setMilestoneMode(null)} disabled={savingMs}>Hủy</button>
                 <button type="submit" className="btn btn-primary" disabled={savingMs}>
-                  {savingMs ? <><Loader2 size={16} className="spin" /> Đang lưu...</> : (milestoneMode === 'new' ? 'Tạo lịch' : 'Lưu thay đổi')}
+                  {savingMs ? <><Loader2 size={14} className="spin" /> Đang lưu...</> : (milestoneMode === 'new' ? 'Tạo lịch' : 'Lưu thay đổi')}
                 </button>
               </div>
-            </form>
+              </form>
+            </div>
           </div>
-        </div>
+        </>
       )}
 
       {/* Modal thêm ngày nghỉ vào kỳ */}
       {showAddHoliday && detail && (
-        <div style={{
-          position: 'fixed', inset: 0, background: 'var(--modal-overlay-bg)', backdropFilter: 'blur(4px)',
-          zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem'
-        }}>
-          <div className="glass-panel animate-fade-in" style={{ width: '100%', maxWidth: 580, padding: '2rem', maxHeight: '90vh', overflowY: 'auto' }}>
-            <h2 style={{ marginBottom: '0.35rem', color: 'var(--text-primary)' }}>Thêm ngày nghỉ vào kỳ học</h2>
-            <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginBottom: '1.25rem' }}>
-              Tự nhập thông tin ngày nghỉ cho kỳ học này.
-            </p>
+        <>
+          {/* Lớp backdrop mờ ở dưới (zIndex: 800) để div timeline (zIndex: 950) nổi lên trên và không bị mờ */}
+          <div
+            style={{
+              position: 'fixed', inset: 0, zIndex: 800,
+              background: 'var(--modal-overlay-bg)', backdropFilter: 'blur(4px)',
+              WebkitBackdropFilter: 'blur(4px)', pointerEvents: 'none',
+            }}
+          />
+          {/* Lớp wrapper cho popup nằm ở zIndex: 1000 để bắt click ra ngoài đóng popup */}
+          <div
+            onClick={() => setShowAddHoliday(false)}
+            style={{
+              position: 'fixed', inset: 0, zIndex: 1000, 
+              display: 'flex', alignItems: 'flex-end', justifyContent: 'center', 
+              padding: '1rem', paddingBottom: '2rem',
+            }}
+          >
+            <div
+              className="glass-panel animate-fade-in"
+              onClick={e => e.stopPropagation()}
+              style={{
+                width: '100%',
+                maxWidth: 580,
+                padding: '2rem',
+                maxHeight: '50vh',
+                overflowY: 'auto',
+                boxShadow: '0 16px 48px rgba(0, 0, 0, 0.55)',
+              }}
+            >
+              <h2 style={{ marginBottom: '0.35rem', color: 'var(--text-primary)' }}>Thêm ngày nghỉ vào kỳ học</h2>
+              <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginBottom: '1.25rem' }}>
+                Tự nhập thông tin ngày nghỉ cho kỳ học này.
+              </p>
 
-            <form onSubmit={handleAddHoliday}>
+              <form onSubmit={handleAddHoliday}>
               <div className="input-group">
                 <label className="input-label">Tên dịp <span style={{ color: 'var(--danger)' }}>*</span></label>
                 <input
@@ -2253,6 +2535,7 @@ const AdminSemesters = () => {
             </form>
           </div>
         </div>
+        </>
       )}
 
       {/* Modal tạo kỳ học mới */}

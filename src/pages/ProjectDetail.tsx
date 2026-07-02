@@ -5,6 +5,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { hasRole } from '../utils/role';
 import type { ProjectDetailDto } from '../types';
 import { Save, FileUp, Trash2, Download, Send, CheckCircle, XCircle, Crown, FileText } from 'lucide-react';
+import { Tooltip } from '../components/Tooltip';
 
 const fmtSize = (b: number) => {
   if (b < 1024) return `${b} B`;
@@ -26,7 +27,7 @@ const ProjectDetail = () => {
   const [editDesc, setEditDesc] = useState('');
 
   const [file, setFile] = useState<File | null>(null);
-  const [_uploading, setUploading] = useState(false);
+  const [, setUploading] = useState(false);
 
   const isStudentLeader = hasRole(user?.role, 'StudentLeader');
   const isAdmin = hasRole(user?.role, 'Admin');
@@ -244,15 +245,16 @@ const ProjectDetail = () => {
                       onChange={e => setFile(e.target.files?.[0] || null)}
                     />
                   </div>
-                  <button
-                    className="btn btn-secondary"
-                    onClick={handleUpload}
-                    disabled
-                    title="Tính năng đang phát triển"
-                    style={{ opacity: 0.6, cursor: 'not-allowed' }}
-                  >
-                    <FileUp size={16} /> Upload
-                  </button>
+                  <Tooltip content="Tính năng đang phát triển" variant="glass-card" className="no-tooltip-hover" style={{ display: 'flex' }}>
+                    <button
+                      className="btn btn-secondary"
+                      onClick={handleUpload}
+                      disabled
+                      style={{ opacity: 0.6, cursor: 'not-allowed' }}
+                    >
+                      <FileUp size={16} /> Upload
+                    </button>
+                  </Tooltip>
                 </div>
               </div>
             )}
@@ -277,13 +279,17 @@ const ProjectDetail = () => {
                       <td style={{ color: 'var(--text-secondary)' }}>{new Date(d.createdAt).toLocaleString('vi-VN')}</td>
                       <td style={{ textAlign: 'right' }}>
                         <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
-                          <button className="btn btn-secondary" style={{ padding: '0.3rem' }} onClick={() => handleDownloadDoc(d.id, d.fileName)} title="Download">
-                            <Download size={14} />
-                          </button>
-                          {isStudentLeader && isDraftEditable && isSelectedVersionDraft && (
-                            <button className="btn btn-danger" style={{ padding: '0.3rem' }} onClick={() => handleDeleteDoc(d.id)} title="Xóa">
-                              <Trash2 size={14} />
+                          <Tooltip content="Download" variant="glass-card">
+                            <button className="btn btn-secondary" style={{ padding: '0.3rem' }} onClick={() => handleDownloadDoc(d.id, d.fileName)}>
+                              <Download size={14} />
                             </button>
+                          </Tooltip>
+                          {isStudentLeader && isDraftEditable && isSelectedVersionDraft && (
+                            <Tooltip content="Xóa" variant="glass-card">
+                              <button className="btn btn-danger" style={{ padding: '0.3rem' }} onClick={() => handleDeleteDoc(d.id)}>
+                                <Trash2 size={14} />
+                              </button>
+                            </Tooltip>
                           )}
                         </div>
                       </td>

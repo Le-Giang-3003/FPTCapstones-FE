@@ -5,6 +5,7 @@ import { MAX_GROUP_PREFERENCES, type ReviewDto, type ReviewSlotDto } from '../ty
 import { CalendarRange, Loader2, AlertCircle, Check } from 'lucide-react';
 import { hasRole } from '../utils/role';
 import { getReviewSlotTimeRange } from '../utils/reviewSlotTime';
+import { Tooltip } from '../components/Tooltip';
 
 // Trang đăng ký nguyện vọng slot review.
 //   - StudentLeader: chọn tối đa MAX_GROUP_PREFERENCES slot/đợt cho nhóm mình
@@ -335,42 +336,27 @@ const ReviewSlots = () => {
     return () => window.removeEventListener('mouseup', onMouseUp);
   }, [isDragging, dragAnchor, dragCurrent, selected, slots, datePosMap, slotIndexPosMap, canRegister, submitting, pendingRemove]);
 
-  // Lưu — 1 lần bấm: gửi tất cả register + unregister đang pending
+  // Lưu — 1 request bulk gửi cả register + unregister cho BE xử lý trong 1 transaction
   const submitChanges = async () => {
-    if (!canRegister || !hasChanges || overLimit || submitting) return;
+    if (!canRegister || !hasChanges || overLimit || submitting || reviewId == null) return;
     setSubmitting(true);
     setError(null);
-    const failed: string[] = [];
 
-    // 1. Hủy các slot đánh dấu đỏ — BE tự suy group/lecturer từ JWT qua route .../me
-    for (const slotId of pendingRemove) {
-      const slot = slots.find((x) => x.id === slotId);
-      if (!slot) continue;
-      const subpath = hasRole(role, 'StudentLeader') ? 'groups/me' : 'lecturers/me';
-      // StudentLeader → groups, Reviewer → lecturers
-      try {
-        await api.delete(`/api/admin/reviews/${slot.reviewId}/slots/${slot.id}/${subpath}`);
-      } catch (e: any) {
-        failed.push(`Hủy slot ${slot.slotIndex} ngày ${slot.slotDate.substring(0, 10)}: ${e?.response?.data?.message || 'lỗi'}`);
-      }
+    const registerIds = Array.from(selected);
+    const unregisterIds = Array.from(pendingRemove);
+    const subpath = hasRole(role, 'StudentLeader') ? 'groups' : 'lecturers';
+
+    try {
+      await api.post(`/api/admin/reviews/${reviewId}/slots/${subpath}/bulk`, {
+        register: registerIds,
+        unregister: unregisterIds,
+      });
+      await fetchSlots(reviewId);
+    } catch (e: any) {
+      setError(e?.response?.data?.message || 'Không lưu được thay đổi');
+    } finally {
+      setSubmitting(false);
     }
-
-    // 2. Đăng ký các slot xanh nước — body rỗng, BE tự suy
-    for (const slotId of selected) {
-      const slot = slots.find((x) => x.id === slotId);
-      if (!slot) continue;
-      const subpath = hasRole(role, 'StudentLeader') ? 'groups' : 'lecturers';
-      try {
-        await api.post(`/api/admin/reviews/${slot.reviewId}/slots/${slot.id}/${subpath}`, {});
-      } catch (e: any) {
-        failed.push(`Đăng ký slot ${slot.slotIndex} ngày ${slot.slotDate.substring(0, 10)}: ${e?.response?.data?.message || 'lỗi'}`);
-      }
-    }
-
-    if (reviewId != null) await fetchSlots(reviewId);
-
-    setSubmitting(false);
-    if (failed.length > 0) setError('Một số thay đổi không lưu được:\n' + failed.join('\n'));
   };
 
   // ----------- styles theo state -----------
@@ -443,34 +429,9 @@ const ReviewSlots = () => {
     const state = slotState(slot);
     const inDragRect = isCoordInDragRect(date, idx);
     return (
-      <div
+      <Tooltip
         key={slot.id}
-        style={{
-          ...cellStyle(state),
-          ...(inDragRect && (state === 'empty' || state === 'selected')
-            ? { boxShadow: 'inset 0 0 0 1.5px #0ea5e9', background: 'rgba(14, 165, 233, 0.14)' }
-            : {}),
-        }}
-        onMouseDown={(e) => {
-          if (e.button !== 0 || !canRegister || submitting) return;
-          setDragAnchor({ date, idx });
-          setDragCurrent({ date, idx });
-          setIsDragging(true);
-          suppressNextClickRef.current = false;
-          e.preventDefault();
-        }}
-        onMouseEnter={() => {
-          if (!isDragging) return;
-          setDragCurrent({ date, idx });
-        }}
-        onClick={() => {
-          if (suppressNextClickRef.current) {
-            suppressNextClickRef.current = false;
-            return;
-          }
-          toggleSelect(slot);
-        }}
-        title={
+        content={
           state === 'assigned'
             ? 'Slot đã được admin phê duyệt cho bạn'
             : state === 'registered'
@@ -481,12 +442,46 @@ const ReviewSlots = () => {
             ? 'Đang chọn — bấm "Lưu" để xác nhận'
             : 'Bấm để chọn'
         }
+        variant="glass-card"
+        placement="top"
+        className={!canRegister && state !== 'assigned' && state !== 'registered' ? 'no-tooltip-hover' : ''}
+        style={{ display: 'block', width: '100%', height: '100%' }}
       >
-        {state === 'assigned' ? <Check size={18} />
-          : state === 'registered' ? <Check size={18} />
-          : state === 'pendingUnregister' ? '✕'
-          : ''}
-      </div>
+        <div
+          style={{
+            ...cellStyle(state),
+            ...(inDragRect && (state === 'empty' || state === 'selected')
+              ? { boxShadow: 'inset 0 0 0 1.5px #0ea5e9', background: 'rgba(14, 165, 233, 0.14)' }
+              : {}),
+            width: '100%',
+            height: '100%',
+          }}
+          onMouseDown={(e) => {
+            if (e.button !== 0 || !canRegister || submitting) return;
+            setDragAnchor({ date, idx });
+            setDragCurrent({ date, idx });
+            setIsDragging(true);
+            suppressNextClickRef.current = false;
+            e.preventDefault();
+          }}
+          onMouseEnter={() => {
+            if (!isDragging) return;
+            setDragCurrent({ date, idx });
+          }}
+          onClick={() => {
+            if (suppressNextClickRef.current) {
+              suppressNextClickRef.current = false;
+              return;
+            }
+            toggleSelect(slot);
+          }}
+        >
+          {state === 'assigned' ? <Check size={18} />
+            : state === 'registered' ? <Check size={18} />
+            : state === 'pendingUnregister' ? '✕'
+            : ''}
+        </div>
+      </Tooltip>
     );
   };
 
@@ -753,29 +748,38 @@ const ReviewSlots = () => {
             }}
           >
             {/* Ô góc trên-trái — bulk select toàn bộ */}
-            <div
-              onClick={canRegister ? markAllRegisteredAsPendingRemove : undefined}
-              title={canRegister ? 'Bấm để bật/tắt đánh dấu hủy toàn bộ slot đã đăng ký (xanh lá)' : ''}
-              style={{
-                padding: '0.4rem',
-                fontWeight: 700,
-                color: 'var(--accent-primary)',
-                textAlign: 'center',
-                background: 'var(--surface-glass)',
-                borderRadius: 6,
-                fontSize: '0.75rem',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                cursor: canRegister ? 'pointer' : 'default',
-                transition: 'background 0.15s ease',
-                userSelect: 'none',
-              }}
-              onMouseEnter={(e) => { if (canRegister) e.currentTarget.style.background = 'rgba(14, 165, 233, 0.15)'; }}
-              onMouseLeave={(e) => { e.currentTarget.style.background = 'var(--surface-glass)'; }}
+            <Tooltip
+              content={canRegister ? 'Bấm để bật/tắt đánh dấu hủy toàn bộ slot đã đăng ký (xanh lá)' : ''}
+              variant="glass-card"
+              placement="top"
+              className={!canRegister ? 'no-tooltip-hover' : ''}
+              style={{ display: 'block', width: '100%', height: '100%' }}
             >
-              ✦
-            </div>
+              <div
+                onClick={canRegister ? markAllRegisteredAsPendingRemove : undefined}
+                style={{
+                  padding: '0.4rem',
+                  fontWeight: 700,
+                  color: 'var(--accent-primary)',
+                  textAlign: 'center',
+                  background: 'var(--surface-glass)',
+                  borderRadius: 6,
+                  fontSize: '0.75rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: canRegister ? 'pointer' : 'default',
+                  transition: 'background 0.15s ease',
+                  userSelect: 'none',
+                  width: '100%',
+                  height: '100%',
+                }}
+                onMouseEnter={(e) => { if (canRegister) e.currentTarget.style.background = 'rgba(14, 165, 233, 0.15)'; }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = 'var(--surface-glass)'; }}
+              >
+                ✦
+              </div>
+            </Tooltip>
 
             {/* Header ngày — click chọn cả cột */}
             {pagedDates.map((date, pageIndex) => {
@@ -797,6 +801,8 @@ const ReviewSlots = () => {
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
+                      width: '100%',
+                      height: '100%',
                     }}
                   >
                     —
@@ -805,64 +811,82 @@ const ReviewSlots = () => {
               }
               const info = parseDateInfo(date);
               return (
-                <div
+                <Tooltip
                   key={`hdr_${date}`}
-                  onClick={canRegister ? () => bulkToggle(slotsInCol(date)) : undefined}
-                  title={canRegister ? `Bấm để chọn / bỏ chọn cả cột ${info.dateStr}` : ''}
-                  style={{
-                    padding: '0.4rem',
-                    fontWeight: 600,
-                    color: 'var(--text-primary)',
-                    textAlign: 'center',
-                    background: 'var(--surface-glass)',
-                    borderRadius: 6,
-                    fontSize: '0.8rem',
-                    cursor: canRegister ? 'pointer' : 'default',
-                    transition: 'background 0.15s ease',
-                    userSelect: 'none',
-                  }}
-                  onMouseEnter={(e) => { if (canRegister) e.currentTarget.style.background = 'rgba(14, 165, 233, 0.15)'; }}
-                  onMouseLeave={(e) => { e.currentTarget.style.background = 'var(--surface-glass)'; }}
+                  content={canRegister ? `Bấm để chọn / bỏ chọn cả cột ${info.dateStr}` : ''}
+                  variant="glass-card"
+                  placement="top"
+                  className={!canRegister ? 'no-tooltip-hover' : ''}
+                  style={{ display: 'block', width: '100%', height: '100%' }}
                 >
-                  <div>{info.dow}</div>
-                  <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>{info.dateStr}</div>
-                </div>
+                  <div
+                    onClick={canRegister ? () => bulkToggle(slotsInCol(date)) : undefined}
+                    style={{
+                      padding: '0.4rem',
+                      fontWeight: 600,
+                      color: 'var(--text-primary)',
+                      textAlign: 'center',
+                      background: 'var(--surface-glass)',
+                      borderRadius: 6,
+                      fontSize: '0.8rem',
+                      cursor: canRegister ? 'pointer' : 'default',
+                      transition: 'background 0.15s ease',
+                      userSelect: 'none',
+                      width: '100%',
+                      height: '100%',
+                    }}
+                    onMouseEnter={(e) => { if (canRegister) e.currentTarget.style.background = 'rgba(14, 165, 233, 0.15)'; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.background = 'var(--surface-glass)'; }}
+                  >
+                    <div>{info.dow}</div>
+                    <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>{info.dateStr}</div>
+                  </div>
+                </Tooltip>
               );
             })}
 
             {slotIndices.map((idx) => (
               <Fragment key={`row_${idx}`}>
                 {/* Label "Slot N" — click chọn cả hàng */}
-                <div
-                  onClick={canRegister ? () => bulkToggle(slotsInRow(idx)) : undefined}
-                  title={canRegister ? `Bấm để chọn / bỏ chọn cả hàng Slot ${idx}` : ''}
-                  style={{
-                    padding: '0.4rem',
-                    minHeight: 42,
-                    minWidth: 96,
-                    fontWeight: 600,
-                    color: 'var(--text-primary)',
-                    background: 'var(--surface-glass)',
-                    borderRadius: 6,
-                    fontSize: '0.8rem',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: 2,
-                    cursor: canRegister ? 'pointer' : 'default',
-                    transition: 'background 0.15s ease',
-                    userSelect: 'none',
-                    lineHeight: 1.1,
-                  }}
-                  onMouseEnter={(e) => { if (canRegister) e.currentTarget.style.background = 'rgba(14, 165, 233, 0.15)'; }}
-                  onMouseLeave={(e) => { e.currentTarget.style.background = 'var(--surface-glass)'; }}
+                <Tooltip
+                  content={canRegister ? `Bấm để chọn / bỏ chọn cả hàng Slot ${idx}` : ''}
+                  variant="glass-card"
+                  placement="top"
+                  className={!canRegister ? 'no-tooltip-hover' : ''}
+                  style={{ display: 'block', width: '100%', height: '100%' }}
                 >
-                  Slot {idx}
-                  <div style={{ fontSize: '0.68rem', fontWeight: 500, color: 'var(--text-secondary)', marginTop: 2, lineHeight: 1.1 }}>
-                    {getReviewSlotTimeRange(idx)}
+                  <div
+                    onClick={canRegister ? () => bulkToggle(slotsInRow(idx)) : undefined}
+                    style={{
+                      padding: '0.4rem',
+                      minHeight: 42,
+                      minWidth: 96,
+                      fontWeight: 600,
+                      color: 'var(--text-primary)',
+                      background: 'var(--surface-glass)',
+                      borderRadius: 6,
+                      fontSize: '0.8rem',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: 2,
+                      cursor: canRegister ? 'pointer' : 'default',
+                      transition: 'background 0.15s ease',
+                      userSelect: 'none',
+                      lineHeight: 1.1,
+                      width: '100%',
+                      height: '100%',
+                    }}
+                    onMouseEnter={(e) => { if (canRegister) e.currentTarget.style.background = 'rgba(14, 165, 233, 0.15)'; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.background = 'var(--surface-glass)'; }}
+                  >
+                    Slot {idx}
+                    <div style={{ fontSize: '0.68rem', fontWeight: 500, color: 'var(--text-secondary)', marginTop: 2, lineHeight: 1.1 }}>
+                      {getReviewSlotTimeRange(idx)}
+                    </div>
                   </div>
-                </div>
+                </Tooltip>
                 {pagedDates.map((date, pageIndex) => (
                   <Fragment key={`cell_${idx}_${pageIndex}`}>
                     {date ? renderCell(date, idx) : (

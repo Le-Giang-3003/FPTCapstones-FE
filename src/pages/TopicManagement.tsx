@@ -5,6 +5,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { hasRole } from '../utils/role';
 import { Search, Eye, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Link2, AlertCircle, Download } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { Tooltip } from '../components/Tooltip';
 
 const TopicManagement = () => {
   const [data, setData] = useState<DashboardItem[]>([]);
@@ -164,20 +165,21 @@ const TopicManagement = () => {
         </div>
 
         <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
-          <select
-            className="input-field"
-            value={semesterId}
-            onChange={(e) => setSemesterId(e.target.value)}
-            style={{ width: 'auto' }}
-            title="Lọc theo học kỳ"
-          >
-            <option value="">Tất cả học kỳ</option>
-            {semesters.map(s => (
-              <option key={s.id} value={s.id}>
-                {s.code} ({s.status})
-              </option>
-            ))}
-          </select>
+          <Tooltip content="Lọc theo học kỳ" variant="glass-card">
+            <select
+              className="input-field"
+              value={semesterId}
+              onChange={(e) => setSemesterId(e.target.value)}
+              style={{ width: 'auto' }}
+            >
+              <option value="">Tất cả học kỳ</option>
+              {semesters.map(s => (
+                <option key={s.id} value={s.id}>
+                  {s.code} ({s.status})
+                </option>
+              ))}
+            </select>
+          </Tooltip>
 
           <select className="input-field" value={finalized} onChange={(e) => setFinalized(e.target.value)} style={{ width: 'auto' }}>
             <option value="">Tất cả trạng thái</option>
@@ -191,16 +193,17 @@ const TopicManagement = () => {
           </select>
 
           {(isAdmin || hasRole(user?.role, 'Lecturer') || hasRole(user?.role, 'StudentLeader')) && (
-            <button
-              className="btn btn-primary"
-              onClick={handleExport}
-              disabled={exporting || loading}
-              style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.6rem 1.2rem' }}
-              title="Export danh sách đề tài ra file ZIP"
-            >
-              <Download size={16} />
-              {exporting ? 'Đang export...' : 'Export'}
-            </button>
+            <Tooltip content="Export danh sách đề tài ra file ZIP" variant="glass-card">
+              <button
+                className="btn btn-primary"
+                onClick={handleExport}
+                disabled={exporting || loading}
+                style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.6rem 1.2rem' }}
+              >
+                <Download size={16} />
+                {exporting ? 'Đang export...' : 'Export'}
+              </button>
+            </Tooltip>
           )}
         </div>
       </div>
@@ -315,18 +318,19 @@ const TopicManagement = () => {
                 </span>
                 
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                  <button
-                    onClick={() => {
-                      const blockIndex = Math.floor((currentPage - 1) / 10);
-                      setCurrentPage(Math.max(1, blockIndex * 10));
-                    }}
-                    disabled={currentPage <= 10}
-                    className="btn btn-secondary"
-                    style={{ padding: '0.4rem 0.6rem', border: '1px solid var(--border-glass)', opacity: currentPage <= 10 ? 0.5 : 1, cursor: currentPage <= 10 ? 'not-allowed' : 'pointer' }}
-                    title="Cụm trước"
-                  >
-                    <ChevronsLeft size={16} />
-                  </button>
+                  <Tooltip content="Cụm trước" variant="glass-card" className={currentPage <= 10 ? 'no-tooltip-hover' : ''} style={{ display: 'flex' }}>
+                    <button
+                      onClick={() => {
+                        const blockIndex = Math.floor((currentPage - 1) / 10);
+                        setCurrentPage(Math.max(1, blockIndex * 10));
+                      }}
+                      disabled={currentPage <= 10}
+                      className="btn btn-secondary"
+                      style={{ padding: '0.4rem 0.6rem', border: '1px solid var(--border-glass)', opacity: currentPage <= 10 ? 0.5 : 1, cursor: currentPage <= 10 ? 'not-allowed' : 'pointer' }}
+                    >
+                      <ChevronsLeft size={16} />
+                    </button>
+                  </Tooltip>
 
                   <button
                     onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
@@ -363,19 +367,20 @@ const TopicManagement = () => {
                     <ChevronRight size={16} />
                   </button>
 
-                  <button
-                    onClick={() => {
-                      const blockIndex = Math.floor((currentPage - 1) / 10);
-                      const nextBlockPage = (blockIndex + 1) * 10 + 1;
-                      setCurrentPage(Math.min(totalPages, nextBlockPage));
-                    }}
-                    disabled={Math.floor((totalPages - 1) / 10) === Math.floor((currentPage - 1) / 10)}
-                    className="btn btn-secondary"
-                    style={{ padding: '0.4rem 0.6rem', border: '1px solid var(--border-glass)', opacity: (Math.floor((totalPages - 1) / 10) === Math.floor((currentPage - 1) / 10)) ? 0.5 : 1, cursor: (Math.floor((totalPages - 1) / 10) === Math.floor((currentPage - 1) / 10)) ? 'not-allowed' : 'pointer' }}
-                    title="Cụm sau"
-                  >
-                    <ChevronsRight size={16} />
-                  </button>
+                  <Tooltip content="Cụm sau" variant="glass-card" className={Math.floor((totalPages - 1) / 10) === Math.floor((currentPage - 1) / 10) ? 'no-tooltip-hover' : ''} style={{ display: 'flex' }}>
+                    <button
+                      onClick={() => {
+                        const blockIndex = Math.floor((currentPage - 1) / 10);
+                        const nextBlockPage = (blockIndex + 1) * 10 + 1;
+                        setCurrentPage(Math.min(totalPages, nextBlockPage));
+                      }}
+                      disabled={Math.floor((totalPages - 1) / 10) === Math.floor((currentPage - 1) / 10)}
+                      className="btn btn-secondary"
+                      style={{ padding: '0.4rem 0.6rem', border: '1px solid var(--border-glass)', opacity: (Math.floor((totalPages - 1) / 10) === Math.floor((currentPage - 1) / 10)) ? 0.5 : 1, cursor: (Math.floor((totalPages - 1) / 10) === Math.floor((currentPage - 1) / 10)) ? 'not-allowed' : 'pointer' }}
+                    >
+                      <ChevronsRight size={16} />
+                    </button>
+                  </Tooltip>
                 </div>
               </div>
             )}

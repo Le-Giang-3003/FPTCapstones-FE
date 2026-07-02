@@ -1,3 +1,9 @@
+﻿# Components
+
+
+## File: src\components\Layout.tsx
+```typescript
+
 import { useState, useRef, useEffect } from 'react';
 import { Outlet, Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
@@ -29,18 +35,18 @@ const Layout = () => {
 
   const navItems = [
     { path: '/dashboard', label: 'Dashboard', icon: <LayoutDashboard size={20} />, roles: ['Admin', 'Lecturer', 'Reviewer', 'StudentLeader', 'GroupMember'] },
-    { path: '/topics', label: 'Quản lý đồ án', icon: <FolderKanban size={20} />, roles: ['Admin', 'Lecturer'] },
-    { path: '/topic-ideas', label: 'Quản lý đề tài', icon: <BookOpen size={20} />, roles: ['Lecturer'] },
-    { path: '/admin/users', label: 'Quản lý user', icon: <Users size={20} />, roles: ['Admin'] },
-    { path: '/admin/lecturers', label: 'Giảng viên', icon: <GraduationCap size={20} />, roles: ['Admin'] },
-    { path: '/admin/semesters', label: 'Lịch trình kỳ', icon: <CalendarRange size={20} />, roles: ['Admin'] },
+    { path: '/topics', label: 'Quáº£n lÃ½ Ä‘á»“ Ã¡n', icon: <FolderKanban size={20} />, roles: ['Admin', 'Lecturer'] },
+    { path: '/topic-ideas', label: 'Quáº£n lÃ½ Ä‘á» tÃ i', icon: <BookOpen size={20} />, roles: ['Lecturer'] },
+    { path: '/admin/users', label: 'Quáº£n lÃ½ user', icon: <Users size={20} />, roles: ['Admin'] },
+    { path: '/admin/lecturers', label: 'Giáº£ng viÃªn', icon: <GraduationCap size={20} />, roles: ['Admin'] },
+    { path: '/admin/semesters', label: 'Lá»‹ch trÃ¬nh ká»³', icon: <CalendarRange size={20} />, roles: ['Admin'] },
     { path: '/admin/import', label: 'Import Excel', icon: <Upload size={20} />, roles: ['Admin'] },
-    { path: '/admin/reviewers', label: 'Chọn reviewer', icon: <UserCheck size={20} />, roles: ['Admin'] },
-    { path: '/admin/scheduling', label: 'Xếp lịch review', icon: <CalendarClock size={20} />, roles: ['Admin'] },
+    { path: '/admin/reviewers', label: 'Chá»n reviewer', icon: <UserCheck size={20} />, roles: ['Admin'] },
+    { path: '/admin/scheduling', label: 'Xáº¿p lá»‹ch review', icon: <CalendarClock size={20} />, roles: ['Admin'] },
     { path: '/audit-logs', label: 'Audit Logs', icon: <ClipboardList size={20} />, roles: ['Admin'] },
-    // Đăng ký slot chỉ hiện cho: StudentLeader/GroupMember (đăng ký nhóm) + Reviewer (GV được admin chỉ định)
-    { path: '/reviews/slots', label: 'Đăng ký slot review', icon: <CalendarCheck size={20} />, roles: ['Reviewer', 'StudentLeader', 'GroupMember'] },
-    { path: myProjectPath, label: 'Nhóm của tôi', icon: <FolderKanban size={20} />, roles: ['StudentLeader', 'GroupMember', 'Student'] },
+    // ÄÄƒng kÃ½ slot chá»‰ hiá»‡n cho: StudentLeader/GroupMember (Ä‘Äƒng kÃ½ nhÃ³m) + Reviewer (GV Ä‘Æ°á»£c admin chá»‰ Ä‘á»‹nh)
+    { path: '/reviews/slots', label: 'ÄÄƒng kÃ½ slot review', icon: <CalendarCheck size={20} />, roles: ['Reviewer', 'StudentLeader', 'GroupMember'] },
+    { path: myProjectPath, label: 'NhÃ³m cá»§a tÃ´i', icon: <FolderKanban size={20} />, roles: ['StudentLeader', 'GroupMember', 'Student'] },
   ];
 
   return (
@@ -192,7 +198,7 @@ const Layout = () => {
                 display: 'flex',
                 flexDirection: 'column',
                 gap: '1rem',
-                // Override bg đục 100% — không cho content phía sau lộ qua dropdown
+                // Override bg Ä‘á»¥c 100% â€” khÃ´ng cho content phÃ­a sau lá»™ qua dropdown
                 background: 'var(--surface-glass)',
               }}
             >
@@ -229,7 +235,7 @@ const Layout = () => {
                   style={{ margin: 0, width: '100%' }}
                 >
                   {isDark ? <Sun size={16} /> : <Moon size={16} />}
-                  {isDark ? 'Giao diện sáng' : 'Giao diện tối'}
+                  {isDark ? 'Giao diá»‡n sÃ¡ng' : 'Giao diá»‡n tá»‘i'}
                   <span className="theme-toggle-track">
                     <span className={`theme-toggle-thumb ${isDark ? 'dark' : 'light'}`} />
                   </span>
@@ -251,7 +257,7 @@ const Layout = () => {
                     e.currentTarget.style.background = 'transparent';
                   }}
                 >
-                  <LogOut size={18} /> Đăng xuất
+                  <LogOut size={18} /> ÄÄƒng xuáº¥t
                 </button>
               </div>
             </div>
@@ -264,3 +270,132 @@ const Layout = () => {
 };
 
 export default Layout;
+```
+
+
+## File: src\components\Tooltip.tsx
+```typescript
+
+import React, { type ReactNode, useRef, useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
+import './Tooltip.css';
+
+type TooltipVariant = 'color-match' | 'glass-card';
+
+interface TooltipProps {
+  children: ReactNode;
+  content: ReactNode;
+  variant?: TooltipVariant;
+  
+  // Custom colors for 'color-match' variant
+  bgColor?: string;
+  textColor?: string;
+  borderColor?: string;
+  shadowColor?: string;
+  blur?: boolean;
+  
+  // Placement (default to top center for color-match, left side for glass-card)
+  placement?: 'top' | 'left' | 'right' | 'bottom';
+  
+  // Additional classes
+  className?: string;
+  style?: React.CSSProperties; // add passing style to container
+}
+
+export const Tooltip: React.FC<TooltipProps> = ({ 
+  children, 
+  content, 
+  variant = 'color-match', 
+  bgColor = '#fbbf24', 
+  textColor = '#18181b', 
+  borderColor,
+  shadowColor,
+  blur = false,
+  placement,
+  className = '',
+  style
+}) => {
+  const [isVisible, setIsVisible] = useState(false);
+  const [coords, setCoords] = useState({ top: 0, left: 0, width: 0, height: 0, isReady: false });
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  const effectivePlacement = placement || (variant === 'glass-card' ? 'left' : 'top');
+
+  const updateCoords = () => {
+    if (!containerRef.current) return;
+    const rect = containerRef.current.getBoundingClientRect();
+    setCoords({
+      top: rect.top,
+      left: rect.left,
+      width: rect.width,
+      height: rect.height,
+      isReady: true,
+    });
+  };
+
+  const handleMouseEnter = () => {
+    if (className.includes('no-tooltip-hover')) return;
+    updateCoords();
+    setIsVisible(true);
+  };
+
+  const handleMouseLeave = () => {
+    setIsVisible(false);
+  };
+
+  useEffect(() => {
+    if (isVisible) {
+      window.addEventListener('scroll', updateCoords, true);
+      window.addEventListener('resize', updateCoords);
+      return () => {
+        window.removeEventListener('scroll', updateCoords, true);
+        window.removeEventListener('resize', updateCoords);
+      };
+    }
+  }, [isVisible]);
+
+  const inlineStyles: React.CSSProperties & { [key: string]: any } = {};
+
+  if (variant === 'color-match') {
+    inlineStyles['--tooltip-bg'] = bgColor;
+    inlineStyles['--tooltip-color'] = textColor;
+    if (borderColor) inlineStyles['--tooltip-border'] = `1px solid ${borderColor}`;
+    if (shadowColor) inlineStyles['--tooltip-shadow'] = `0 4px 12px ${shadowColor}`;
+    if (blur) inlineStyles['--tooltip-blur'] = 'blur(8px)';
+  }
+
+  const portalContent = isVisible && coords.isReady ? createPortal(
+    <div style={{ position: 'fixed', top: coords.top, left: coords.left, width: coords.width, height: coords.height, pointerEvents: 'none', zIndex: 99999 }}>
+      <div 
+        className={`global-tooltip tooltip-${variant} tooltip-pos-${effectivePlacement} tooltip-visible`}
+        style={inlineStyles as React.CSSProperties}
+      >
+        {variant === 'color-match' && (
+          <svg className="tooltip-arrow" width="10" height="5" viewBox="0 0 10 5">
+            <polygon points="0,0 5,5 10,0" />
+          </svg>
+        )}
+        <div className="tooltip-content-inner">
+          {content}
+        </div>
+      </div>
+    </div>,
+    document.body
+  ) : null;
+
+  return (
+    <div 
+      className={`global-tooltip-container ${className}`} 
+      style={style} 
+      ref={containerRef}
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
+    >
+      {children}
+      {portalContent}
+    </div>
+  );
+};
+```
+
+

@@ -1,15 +1,21 @@
+﻿# CSS Styles and Design System
+
+
+## File: src\index.css
+```css
+
 @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@500;600;700;800&family=Roboto:wght@400;500;600;700&display=swap');
 
-/* ──────────────────────────────────────────────────────────────
+/* â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
    LottieFiles-style design system (xem DESIGN_Lottie.md)
-   "Playful precision" — nền trắng Cloud White, neutral achromatic,
-   accent teal #019d91 (CTA/active/link) với điểm nhấn vàng #f0b100.
-   MỘT shadow rất nhẹ duy nhất. Bo mềm: card 16px, nút 12px, form 8px.
-   Font giữ Be Vietnam Pro (tối ưu tiếng Việt) thay cho DM Sans/Inter.
-   Theme sáng là chuẩn; :root.dark là biến thể tối.
-   ────────────────────────────────────────────────────────────── */
+   "Playful precision" â€” ná»n tráº¯ng Cloud White, neutral achromatic,
+   accent teal #019d91 (CTA/active/link) vá»›i Ä‘iá»ƒm nháº¥n vÃ ng #f0b100.
+   Má»˜T shadow ráº¥t nháº¹ duy nháº¥t. Bo má»m: card 16px, nÃºt 12px, form 8px.
+   Font giá»¯ Be Vietnam Pro (tá»‘i Æ°u tiáº¿ng Viá»‡t) thay cho DM Sans/Inter.
+   Theme sÃ¡ng lÃ  chuáº©n; :root.dark lÃ  biáº¿n thá»ƒ tá»‘i.
+   â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 
-/* Đăng ký CSS custom properties dạng <color> để browser interpolate khi đổi theme. */
+/* ÄÄƒng kÃ½ CSS custom properties dáº¡ng <color> Ä‘á»ƒ browser interpolate khi Ä‘á»•i theme. */
 @property --bg-primary        { syntax: '<color>'; inherits: true; initial-value: #ffffff; }
 @property --bg-secondary      { syntax: '<color>'; inherits: true; initial-value: #f4f4f5; }
 @property --text-primary      { syntax: '<color>'; inherits: true; initial-value: #09090b; }
@@ -30,19 +36,19 @@
 @property --accent-blue        { syntax: '<color>'; inherits: true; initial-value: #00ddb3; }
 
 :root {
-  /* --- LottieFiles Light (mặc định) --- */
+  /* --- LottieFiles Light (máº·c Ä‘á»‹nh) --- */
   --bg-primary: #ffffff;        /* Cloud White */
-  --bg-secondary: #f4f4f5;      /* Dark Graphite — section/nền phụ */
+  --bg-secondary: #f4f4f5;      /* Dark Graphite â€” section/ná»n phá»¥ */
   --text-primary: #09090b;      /* Carbon Black */
   --text-secondary: #71717b;    /* Steel Gray */
-  --text-tertiary: #9f9fa9;     /* Cadet Gray — placeholder */
+  --text-tertiary: #9f9fa9;     /* Cadet Gray â€” placeholder */
   --heading-color: #09090b;
-  --accent-primary: #f37021;    /* FPT Orange — CTA / active */
+  --accent-primary: #f37021;    /* FPT Orange â€” CTA / active */
   --accent-hover: #d95f12;
   --accent-text: #ffffff;
   --accent-violet: #f37021;     /* link = cam */
-  --accent-blue: #ff8a3d;       /* cam sáng — hover link */
-  --accent-yellow: #f0b100;     /* Sunshine Yellow — điểm nhấn phụ */
+  --accent-blue: #ff8a3d;       /* cam sÃ¡ng â€” hover link */
+  --accent-yellow: #f0b100;     /* Sunshine Yellow â€” Ä‘iá»ƒm nháº¥n phá»¥ */
   --accent-glow: rgba(243, 112, 33, 0.22);
   --success: #15803d;
   --danger: #e5484d;
@@ -54,16 +60,16 @@
   --input-bg: #fafafa;          /* Ash White */
   --table-row-bg: #ffffff;
   --table-row-hover: #f4f4f5;
-  --modal-overlay-bg: rgba(255, 255, 255, 0.55);  /* mờ trắng — light mode */
+  --modal-overlay-bg: rgba(255, 255, 255, 0.55);  /* má» tráº¯ng â€” light mode */
   --btn-hover-bg: #f4f4f5;
 
-  /* MỘT shadow nhẹ duy nhất — triết lý elevation tối giản của Lottie */
+  /* Má»˜T shadow nháº¹ duy nháº¥t â€” triáº¿t lÃ½ elevation tá»‘i giáº£n cá»§a Lottie */
   --shadow-sm: rgba(0, 0, 0, 0.05) 0px 1px 2px 0px;
   --shadow-md: rgba(0, 0, 0, 0.05) 0px 1px 2px 0px;
   --shadow-lg: rgba(0, 0, 0, 0.08) 0px 4px 12px 0px;
   --shadow-glow: 0 0 0 3px var(--accent-glow);
 
-  /* Fonts — Montserrat cho tiêu đề; Roboto cho nội dung (render sắc nét trên Windows, hỗ trợ tiếng Việt) */
+  /* Fonts â€” Montserrat cho tiÃªu Ä‘á»; Roboto cho ná»™i dung (render sáº¯c nÃ©t trÃªn Windows, há»— trá»£ tiáº¿ng Viá»‡t) */
   --font-display: 'Montserrat', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   --font-body: 'Roboto', 'Segoe UI', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
 
@@ -91,7 +97,7 @@
     --btn-hover-bg     0.25s ease;
 }
 
-/* --- Biến thể tối (zinc + teal) --- */
+/* --- Biáº¿n thá»ƒ tá»‘i (zinc + teal) --- */
 :root.dark {
   --bg-primary: #09090b;
   --bg-secondary: #18181b;
@@ -99,7 +105,7 @@
   --text-secondary: #a1a1aa;
   --text-tertiary: #71717b;
   --heading-color: #ffffff;
-  --accent-primary: #ff7a33;    /* cam sáng hơn trên nền tối */
+  --accent-primary: #ff7a33;    /* cam sÃ¡ng hÆ¡n trÃªn ná»n tá»‘i */
   --accent-hover: #f37021;
   --accent-text: #ffffff;
   --accent-violet: #ff8a3d;
@@ -147,7 +153,7 @@ body {
   height: 100%;
 }
 
-/* Headline — tracking thoáng cho tiếng Việt, line-height rộng để dấu không cụng */
+/* Headline â€” tracking thoÃ¡ng cho tiáº¿ng Viá»‡t, line-height rá»™ng Ä‘á»ƒ dáº¥u khÃ´ng cá»¥ng */
 h1, h2, h3, h4, h5, h6 {
   font-family: var(--font-display);
   font-weight: 600;
@@ -169,7 +175,7 @@ a:hover {
   color: var(--accent-blue);
 }
 
-/* Surfaces — card bo 16px, shadow nhẹ duy nhất */
+/* Surfaces â€” card bo 16px, shadow nháº¹ duy nháº¥t */
 .glass-panel {
   background: var(--surface-glass);
   border: 1px solid var(--border-glass);
@@ -186,7 +192,7 @@ a:hover {
   transition: border-color var(--transition-normal);
 }
 
-/* Card tĩnh không phản hồi hover — chỉ card có .is-interactive (click được) mới sáng viền */
+/* Card tÄ©nh khÃ´ng pháº£n há»“i hover â€” chá»‰ card cÃ³ .is-interactive (click Ä‘Æ°á»£c) má»›i sÃ¡ng viá»n */
 .glass-card.is-interactive {
   cursor: pointer;
 }
@@ -195,7 +201,7 @@ a:hover {
   border-color: var(--accent-primary);
 }
 
-/* Buttons — bo 12px (bo mềm, friendly) */
+/* Buttons â€” bo 12px (bo má»m, friendly) */
 .btn {
   display: inline-flex;
   align-items: center;
@@ -278,7 +284,7 @@ a:hover {
   color: var(--text-tertiary);
 }
 
-/* Checkbox tùy biến — bo góc mềm, cam FPT khi tích, animation mượt */
+/* Checkbox tÃ¹y biáº¿n â€” bo gÃ³c má»m, cam FPT khi tÃ­ch, animation mÆ°á»£t */
 input[type="checkbox"] {
   appearance: none;
   -webkit-appearance: none;
@@ -303,7 +309,7 @@ input[type="checkbox"]::before {
   transform-origin: center;
   transition: transform 0.18s cubic-bezier(0.34, 1.56, 0.64, 1);
   background-color: #ffffff;
-  /* dấu check */
+  /* dáº¥u check */
   clip-path: polygon(14% 47%, 0 60%, 40% 100%, 100% 22%, 86% 10%, 39% 70%);
 }
 
@@ -381,7 +387,7 @@ input[type="checkbox"]:disabled {
   padding-right: 260px;
 }
 
-/* Logo wordmark — gradient teal → vivid aqua, năng động kiểu Lottie */
+/* Logo wordmark â€” gradient teal â†’ vivid aqua, nÄƒng Ä‘á»™ng kiá»ƒu Lottie */
 .text-gradient {
   font-family: var(--font-display);
   font-weight: 700;
@@ -534,8 +540,201 @@ input[type="checkbox"]:disabled {
 .theme-toggle-thumb.dark  { left: 2px; }
 .theme-toggle-thumb.light { left: 18px; }
 
-/* Scrollbar tinh giản */
+/* Scrollbar tinh giáº£n */
 ::-webkit-scrollbar { width: 10px; height: 10px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--border-glass); border-radius: 48px; border: 2px solid var(--bg-primary); }
 ::-webkit-scrollbar-thumb:hover { background: var(--text-tertiary); }
+```
+
+
+## File: src\App.css
+```css
+
+.counter {
+  font-size: 16px;
+  padding: 5px 10px;
+  border-radius: 5px;
+  color: var(--accent);
+  background: var(--accent-bg);
+  border: 2px solid transparent;
+  transition: border-color 0.3s;
+  margin-bottom: 24px;
+
+  &:hover {
+    border-color: var(--accent-border);
+  }
+  &:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+}
+.hero {
+  position: relative;
+
+  .base,
+  .framework,
+  .vite {
+    inset-inline: 0;
+    margin: 0 auto;
+  }
+
+  .base {
+    width: 170px;
+    position: relative;
+    z-index: 0;
+  }
+
+  .framework,
+  .vite {
+    position: absolute;
+  }
+
+  .framework {
+    z-index: 1;
+    top: 34px;
+    height: 28px;
+    transform: perspective(2000px) rotateZ(300deg) rotateX(44deg) rotateY(39deg)
+      scale(1.4);
+  }
+
+  .vite {
+    z-index: 0;
+    top: 107px;
+    height: 26px;
+    width: auto;
+    transform: perspective(2000px) rotateZ(300deg) rotateX(40deg) rotateY(39deg)
+      scale(0.8);
+  }
+}
+
+#center {
+  display: flex;
+  flex-direction: column;
+  gap: 25px;
+  place-content: center;
+  place-items: center;
+  flex-grow: 1;
+
+  @media (max-width: 1024px) {
+    padding: 32px 20px 24px;
+    gap: 18px;
+  }
+}
+
+#next-steps {
+  display: flex;
+  border-top: 1px solid var(--border);
+  text-align: left;
+
+  & > div {
+    flex: 1 1 0;
+    padding: 32px;
+    @media (max-width: 1024px) {
+      padding: 24px 20px;
+    }
+  }
+  /**/
+  .icon {
+    margin-bottom: 16px;
+    width: 22px;
+    height: 22px;
+  }
+
+  /**/
+  @media (max-width: 1024px) {
+    flex-direction: column;
+    text-align: center;
+  }
+}
+
+#docs {
+  border-right: 1px solid var(--border);
+
+  @media (max-width: 1024px) {
+    border-right: none;
+    border-bottom: 1px solid var(--border);
+  }
+}
+
+#next-steps ul {
+  list-style: none;
+  padding: 0;
+  display: flex;
+  gap: 8px;
+  margin: 32px 0 0;
+
+  .logo {
+    height: 18px;
+  }
+
+  a {
+    color: var(--text-h);
+    font-size: 16px;
+    border-radius: 6px;
+    background: var(--social-bg);
+    display: flex;
+    padding: 6px 12px;
+    align-items: center;
+    gap: 8px;
+    text-decoration: none;
+    transition: box-shadow 0.3s;
+
+    &:hover {
+      box-shadow: var(--shadow);
+    }
+    .button-icon {
+      height: 18px;
+      width: 18px;
+    }
+  }
+
+  @media (max-width: 1024px) {
+    margin-top: 20px;
+    flex-wrap: wrap;
+    justify-content: center;
+
+    li {
+      flex: 1 1 calc(50% - 8px);
+    }
+
+    a {
+      width: 100%;
+      justify-content: center;
+      box-sizing: border-box;
+    }
+  }
+}
+
+#spacer {
+  height: 88px;
+  border-top: 1px solid var(--border);
+  @media (max-width: 1024px) {
+    height: 48px;
+  }
+}
+
+.ticks {
+  position: relative;
+  width: 100%;
+
+  &::before,
+  &::after {
+    content: '';
+    position: absolute;
+    top: -4.5px;
+    border: 5px solid transparent;
+  }
+
+  &::before {
+    left: 0;
+    border-left-color: var(--border);
+  }
+  &::after {
+    right: 0;
+    border-right-color: var(--border);
+  }
+}
+```
+
+
