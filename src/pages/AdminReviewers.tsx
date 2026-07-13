@@ -1,288 +1,554 @@
-import { useEffect, useMemo, useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import api from '../services/api';
-import type { LecturerListItemDto, ReviewerDto } from '../types';
-import { Search, Loader2, Check, ChevronLeft, ChevronRight, UserCheck, AlertCircle } from 'lucide-react';
+import { useToast } from '../contexts/ToastContext';
+import { 
+  Search, 
+  Save, 
+  RefreshCw, 
+  AlertCircle,
+  Clock,
+  CheckSquare,
+  Square,
+  Info
+} from 'lucide-react';
 
-// Admin pick lecturer làm reviewer — GLOBAL (mutate User.Role |= Reviewer).
-// Auto-reset khi 1 semester chuyển Ongoing → Completed/Cancelled.
-type RowState = 'none' | 'saved' | 'newPick' | 'pendingRemove';
+interface Lecturer {
+  id: number;
+  userId: number;
+  email: string;
+  fullName: string;
+  code: string | null;
+  isActive: boolean;
+}
 
-const AdminReviewers = () => {
-  const [lecturers, setLecturers] = useState<LecturerListItemDto[]>([]);
-  const [picked, setPicked] = useState<Set<number>>(new Set());
-  const [originalPicked, setOriginalPicked] = useState<Set<number>>(new Set());
-  const [search, setSearch] = useState('');
-  const [loadingLecturers, setLoadingLecturers] = useState(false);
-  const [loadingPicked, setLoadingPicked] = useState(false);
+interface Reviewer {
+  lecturerId: number;
+  userId: number;
+  email: string;
+  fullName: string;
+  code: string | null;
+}
+
+export const AdminReviewers: React.FC = () => {
+  const { showToast } = useToast();
+  
+  // Lists
+  const [allLecturers, setAllLecturers] = useState<Lecturer[]>([]);
+  const [reviewerIds, setReviewerIds] = useState<Set<number>>(new Set());
+  
+  // Filters
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filterMode, setFilterMode] = useState<'all' | 'selected' | 'unselected'>('all');
+  
+  // Loading & Action states
+  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [successMsg, setSuccessMsg] = useState<string | null>(null);
-
-  const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 10;
 
   useEffect(() => {
-    (async () => {
-      try {
-        setLoadingLecturers(true);
-        const res = await api.get<LecturerListItemDto[]>('/api/admin/lecturers', { params: { page: 1, pageSize: 1000 } });
-        setLecturers(res.data);
-      } catch (e: any) {
-        setError(e?.response?.data?.message || 'Không tải được danh sách giảng viên');
-      } finally {
-        setLoadingLecturers(false);
-      }
-    })();
-
-    (async () => {
-      try {
-        setLoadingPicked(true);
-        const res = await api.get<ReviewerDto[]>('/api/admin/reviews/reviewers');
-        const ids = new Set(res.data.map((r) => r.lecturerId));
-        setPicked(ids);
-        setOriginalPicked(new Set(ids));
-      } catch (e: any) {
-        setError(e?.response?.data?.message || 'Không tải được danh sách reviewer');
-      } finally {
-        setLoadingPicked(false);
-      }
-    })();
+    fetchData();
   }, []);
 
-  useEffect(() => { setCurrentPage(1); }, [search]);
-
-  const filtered = useMemo(() => {
-    if (!search.trim()) return lecturers;
-    const s = search.toLowerCase().trim();
-    return lecturers.filter(
-      (l) =>
-        l.fullName.toLowerCase().includes(s) ||
-        l.email.toLowerCase().includes(s) ||
-        (l.code ?? '').toLowerCase().includes(s)
-    );
-  }, [lecturers, search]);
-
-  const totalPages = Math.max(1, Math.ceil(filtered.length / itemsPerPage));
-  const displayed = filtered.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
-
-  const rowState = (id: number): RowState => {
-    const isPicked = picked.has(id);
-    const wasSaved = originalPicked.has(id);
-    if (wasSaved && isPicked) return 'saved';
-    if (!wasSaved && isPicked) return 'newPick';
-    if (wasSaved && !isPicked) return 'pendingRemove';
-    return 'none';
-  };
-
-  const counts = useMemo(() => {
-    let saved = 0, newPick = 0, pendingRemove = 0;
-    for (const l of lecturers) {
-      const st = rowState(l.id);
-      if (st === 'saved') saved++;
-      else if (st === 'newPick') newPick++;
-      else if (st === 'pendingRemove') pendingRemove++;
-    }
-    return { saved, newPick, pendingRemove };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [lecturers, picked, originalPicked]);
-
-  const isDirty = counts.newPick > 0 || counts.pendingRemove > 0;
-
-  const toggle = (id: number) => {
-    if (saving) return;
-    const next = new Set(picked);
-    if (next.has(id)) next.delete(id);
-    else next.add(id);
-    setPicked(next);
-  };
-
-  const save = async () => {
-    if (!isDirty || saving) return;
+  // Fetch both lecturers and current reviewers
+  const fetchData = async () => {
+    setLoading(true);
     try {
-      setSaving(true);
-      setError(null);
-      setSuccessMsg(null);
-      await api.put('/api/admin/reviews/reviewers', { lecturerIds: Array.from(picked) });
-      setOriginalPicked(new Set(picked));
-      setSuccessMsg(`Đã lưu thêm ${counts.newPick}, gỡ ${counts.pendingRemove} reviewer.`);
-    } catch (e: any) {
-      setError(e?.response?.data?.message || 'Không lưu được danh sách reviewer');
+      // 1. Fetch all lecturers (pageSize large enough to get all)
+      const resLecturers = await api.get('/api/admin/lecturers', {
+        params: { page: 1, pageSize: 1000 }
+      });
+      setAllLecturers(resLecturers.data);
+
+      // 2. Fetch designated reviewers
+      const resReviewers = await api.get('/api/admin/reviews/reviewers');
+      const activeIds = new Set<number>(resReviewers.data.map((r: Reviewer) => r.lecturerId));
+      setReviewerIds(activeIds);
+    } catch (err) {
+      showToast('Không thể tải danh sách giảng viên & hội đồng', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Toggle designation state for a lecturer
+  const handleToggleReviewer = (lecturerId: number) => {
+    setReviewerIds(prev => {
+      const next = new Set(prev);
+      if (next.has(lecturerId)) {
+        next.delete(lecturerId);
+      } else {
+        next.add(lecturerId);
+      }
+      return next;
+    });
+  };
+
+  // Bulk select filtered lecturers
+  const handleSelectAllFiltered = () => {
+    setReviewerIds(prev => {
+      const next = new Set(prev);
+      filteredLecturers.forEach(l => next.add(l.id));
+      return next;
+    });
+    showToast(`Đã chọn toàn bộ giảng viên hiển thị làm hội đồng`, 'info');
+  };
+
+  // Bulk deselect filtered lecturers
+  const handleDeselectAllFiltered = () => {
+    setReviewerIds(prev => {
+      const next = new Set(prev);
+      filteredLecturers.forEach(l => next.delete(l.id));
+      return next;
+    });
+    showToast(`Đã bỏ chọn toàn bộ giảng viên hiển thị khỏi hội đồng`, 'info');
+  };
+
+  // Save changes to backend
+  const handleSaveChanges = async () => {
+    setSaving(true);
+    try {
+      const idsArray = Array.from(reviewerIds);
+      await api.put('/api/admin/reviews/reviewers', {
+        lecturerIds: idsArray
+      });
+      showToast('Đã lưu danh sách Hội đồng phản biện thành công!', 'success');
+      fetchData();
+    } catch (err: any) {
+      showToast(err.response?.data?.message || 'Lưu danh sách hội đồng thất bại', 'error');
     } finally {
       setSaving(false);
     }
   };
 
-  const rowStyle = (state: RowState): React.CSSProperties => {
-    if (state === 'saved') return { background: 'rgba(16, 185, 129, 0.10)' };           // xanh lá
-    if (state === 'newPick') return { background: 'rgba(14, 165, 233, 0.12)' };          // xanh nước
-    if (state === 'pendingRemove') return { background: 'rgba(239, 68, 68, 0.10)' };     // đỏ
-    return {};
-  };
+  // Filtering Logic
+  const filteredLecturers = allLecturers.filter(l => {
+    const matchesSearch = 
+      l.fullName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      l.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (l.code && l.code.toLowerCase().includes(searchQuery.toLowerCase()));
+      
+    if (!matchesSearch) return false;
+    
+    if (filterMode === 'selected') return reviewerIds.has(l.id);
+    if (filterMode === 'unselected') return !reviewerIds.has(l.id);
+    
+    return true;
+  });
 
   return (
-    <div className="animate-fade-in">
-      <div className="topbar">
+    <div className="ds-reviewers-page">
+      
+      {/* Title Header */}
+      <div className="ds-reviewers-header">
         <div>
-          <h1 style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-            <UserCheck size={26} color="var(--accent-primary)" /> Chọn reviewer
-          </h1>
-          <p style={{ color: 'var(--text-secondary)' }}>
-            Tick GV được phép đăng ký slot review. Lưu xong, GV cần đăng nhập lại để thấy mục đăng ký.
-            Khi 1 kỳ kết thúc, cờ Reviewer tự gỡ.
-          </p>
+          <h1>Thiết lập Hội đồng Phản biện (Reviewer Pool)</h1>
+          <p className="text-muted">Chọn các giảng viên hướng dẫn tham gia vào nhóm hội đồng phản biện đồ án học kỳ này</p>
         </div>
-        <button
-          className="btn btn-primary"
-          disabled={!isDirty || saving}
-          onClick={save}
-        >
-          {saving ? <Loader2 size={16} className="spin" /> : <Check size={16} />}
-          {' '}Lưu thay đổi
-        </button>
+
+        <div className="ds-header-actions">
+          <button 
+            className="ds-btn ds-btn-secondary" 
+            onClick={fetchData} 
+            disabled={loading || saving}
+            title="Làm mới dữ liệu"
+          >
+            <RefreshCw size={16} className={loading ? 'spin' : ''} />
+          </button>
+          <button 
+            className="ds-btn ds-btn-primary" 
+            onClick={handleSaveChanges}
+            disabled={saving || loading}
+          >
+            {saving ? <Clock size={16} className="spin" /> : <Save size={16} />}
+            <span>Lưu danh sách hội đồng</span>
+          </button>
+        </div>
       </div>
 
-      {error && (
-        <div className="glass-card animate-fade-in" style={{ marginBottom: '1rem', borderLeft: '4px solid var(--danger)', display: 'flex', alignItems: 'center', gap: 8 }}>
-          <AlertCircle size={18} color="var(--danger)" /> <span style={{ color: 'var(--danger)' }}>{error}</span>
-        </div>
-      )}
-      {successMsg && (
-        <div className="glass-card animate-fade-in" style={{ marginBottom: '1rem', borderLeft: '4px solid #10b981', display: 'flex', alignItems: 'center', gap: 8 }}>
-          <Check size={18} color="#10b981" /> <span style={{ color: '#10b981' }}>{successMsg}</span>
-        </div>
-      )}
+      <div className="ds-reviewers-layout">
+        
+        {/* Left Column: Reviewer selection list */}
+        <div className="ds-reviewers-main">
+          <div className="ds-card">
+            
+            <div className="ds-card-header-with-filter">
+              <div className="ds-filter-tabs">
+                <button 
+                  className={`ds-tab-btn ${filterMode === 'all' ? 'active' : ''}`}
+                  onClick={() => setFilterMode('all')}
+                >
+                  Tất cả ({allLecturers.length})
+                </button>
+                <button 
+                  className={`ds-tab-btn ${filterMode === 'selected' ? 'active' : ''}`}
+                  onClick={() => setFilterMode('selected')}
+                >
+                  Được chọn làm Hội đồng ({reviewerIds.size})
+                </button>
+                <button 
+                  className={`ds-tab-btn ${filterMode === 'unselected' ? 'active' : ''}`}
+                  onClick={() => setFilterMode('unselected')}
+                >
+                  Không tham gia ({allLecturers.length - reviewerIds.size})
+                </button>
+              </div>
 
-      {/* Search + counter */}
-      <div className="glass-card" style={{ marginBottom: '1.25rem', display: 'flex', gap: '1rem', flexWrap: 'wrap', alignItems: 'center' }}>
-        <div className="input-group" style={{ marginBottom: 0, flex: 1, minWidth: 220 }}>
-          <div style={{ position: 'relative' }}>
-            <Search size={18} style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-secondary)' }} />
-            <input
-              type="text"
-              className="input-field"
-              placeholder="Tìm theo email, tên hoặc mã GV..."
-              style={{ paddingLeft: '2.5rem' }}
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
+              {/* Search wrapper */}
+              <div className="ds-search-wrapper">
+                <Search size={16} className="ds-search-icon" />
+                <input 
+                  type="text" 
+                  placeholder="Tìm tên, email..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="ds-input-search"
+                />
+              </div>
+            </div>
+
+            {/* Bulk select buttons inside card */}
+            <div className="ds-bulk-actions-bar">
+              <span className="text-muted" style={{ fontSize: '0.85rem' }}>
+                Đang hiển thị: <strong className="tnum">{filteredLecturers.length}</strong> giảng viên
+              </span>
+              <div className="ds-bulk-btns">
+                <button className="ds-btn-text" onClick={handleSelectAllFiltered}>
+                  Chọn toàn bộ hiển thị
+                </button>
+                <button className="ds-btn-text text-danger" onClick={handleDeselectAllFiltered}>
+                  Bỏ chọn toàn bộ hiển thị
+                </button>
+              </div>
+            </div>
+
+            {loading ? (
+              <div className="ds-loading-placeholder">
+                <div className="ds-skeleton" style={{ height: '45px', marginBottom: '12px' }}></div>
+                <div className="ds-skeleton" style={{ height: '45px', marginBottom: '12px' }}></div>
+                <div className="ds-skeleton" style={{ height: '45px' }}></div>
+              </div>
+            ) : filteredLecturers.length === 0 ? (
+              <div className="ds-empty-state">
+                <AlertCircle size={48} className="text-muted" style={{ marginBottom: '16px' }} />
+                <h3>Không tìm thấy kết quả phù hợp</h3>
+                <p className="text-muted">Thay đổi từ khóa tìm kiếm hoặc cấu hình bộ lọc ở trên.</p>
+              </div>
+            ) : (
+              <div className="ds-table-container">
+                <table className="ds-table">
+                  <thead>
+                    <tr>
+                      <th style={{ width: '48px', textAlign: 'center' }}>Chọn</th>
+                      <th>Mã GV</th>
+                      <th>Họ và Tên giảng viên</th>
+                      <th>Email FPT</th>
+                      <th>Trạng thái</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredLecturers.map((lec) => {
+                      const isSelected = reviewerIds.has(lec.id);
+                      return (
+                        <tr 
+                          key={lec.id} 
+                          onClick={() => handleToggleReviewer(lec.id)}
+                          className={`ds-reviewer-select-row ${isSelected ? 'selected' : ''}`}
+                        >
+                          <td style={{ textAlign: 'center' }}>
+                            <div className="ds-checkbox-cell" onClick={e => e.stopPropagation()}>
+                              <button 
+                                type="button" 
+                                className={`ds-custom-checkbox-btn ${isSelected ? 'checked' : ''}`}
+                                onClick={() => handleToggleReviewer(lec.id)}
+                              >
+                                {isSelected ? <CheckSquare size={18} className="text-primary" /> : <Square size={18} />}
+                              </button>
+                            </div>
+                          </td>
+                          <td className="tnum" style={{ fontWeight: 700 }}>
+                            {lec.code || <span className="text-muted">—</span>}
+                          </td>
+                          <td style={{ fontWeight: 600 }}>{lec.fullName}</td>
+                          <td>{lec.email}</td>
+                          <td>
+                            {isSelected ? (
+                              <span className="ds-status-pill success" style={{ fontSize: '0.7rem' }}>Hội đồng</span>
+                            ) : (
+                              <span className="ds-status-pill finished" style={{ fontSize: '0.7rem' }}>Không</span>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         </div>
 
-        <div style={{ display: 'flex', gap: 14, fontSize: '0.85rem', color: 'var(--text-secondary)', flexWrap: 'wrap' }}>
-          <span><span style={{ display: 'inline-block', width: 10, height: 10, background: '#43ffc0', borderRadius: 2, verticalAlign: 'middle', marginRight: 6 }} /> Đã lưu <b>{counts.saved}</b></span>
-          <span><span style={{ display: 'inline-block', width: 10, height: 10, background: '#4cc6ff', borderRadius: 2, verticalAlign: 'middle', marginRight: 6 }} /> Mới tick <b>{counts.newPick}</b></span>
-          <span><span style={{ display: 'inline-block', width: 10, height: 10, background: '#ef4444', borderRadius: 2, verticalAlign: 'middle', marginRight: 6 }} /> Đánh dấu gỡ <b>{counts.pendingRemove}</b></span>
-        </div>
-      </div>
-
-      <div className="glass-card" style={{ padding: 0, overflow: 'hidden' }}>
-        {loadingLecturers || loadingPicked ? (
-          <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-secondary)' }}>Đang tải...</div>
-        ) : lecturers.length === 0 ? (
-          <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-secondary)' }}>Không có giảng viên nào.</div>
-        ) : (
-          <>
-            <div style={{ overflowX: 'auto' }}>
-              <table className="data-table">
-                <thead>
-                  <tr>
-                    <th style={{ width: 50, textAlign: 'center' }}></th>
-                    <th>ID</th>
-                    <th>Họ tên</th>
-                    <th>Mã tên</th>
-                    <th>Email</th>
-                    <th>Trạng thái</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {displayed.map((l) => {
-                    const state = rowState(l.id);
-                    const checked = picked.has(l.id);
-                    return (
-                      <tr
-                        key={l.id}
-                        onClick={() => toggle(l.id)}
-                        style={{ cursor: saving ? 'wait' : 'pointer', ...rowStyle(state) }}
-                      >
-                        <td style={{ textAlign: 'center' }}>
-                          <input
-                            type="checkbox"
-                            checked={checked}
-                            onChange={() => toggle(l.id)}
-                            disabled={saving}
-                            onClick={(e) => e.stopPropagation()}
-                          />
-                        </td>
-                        <td>{l.id}</td>
-                        <td style={{ fontWeight: state === 'saved' || state === 'newPick' ? 600 : 400 }}>{l.fullName}</td>
-                        <td>
-                          {l.code ? <span className="badge badge-success">{l.code}</span> : <span className="badge badge-warning">Chưa có</span>}
-                        </td>
-                        <td>{l.email}</td>
-                        <td>
-                          {state === 'saved' && <span className="badge badge-success">Reviewer</span>}
-                          {state === 'newPick' && <span className="badge" style={{ background: 'rgba(14, 165, 233, 0.15)', color: '#0ea5e9' }}>Adding</span>}
-                          {state === 'pendingRemove' && <span className="badge" style={{ background: 'rgba(239, 68, 68, 0.15)', color: '#ef4444' }}>Removing</span>}
-                          {state === 'none' && <span style={{ color: 'var(--text-secondary)', fontSize: '0.8rem' }}>—</span>}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                  {displayed.length === 0 && (
-                    <tr>
-                      <td colSpan={6} style={{ padding: '1.5rem', textAlign: 'center', color: 'var(--text-secondary)' }}>
-                        Không có giảng viên nào khớp.
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
+        {/* Right Column: Guidance */}
+        <div className="ds-reviewers-sidebar">
+          <div className="ds-card">
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
+              <Info size={20} className="text-primary" />
+              <h2>Vai trò của Reviewer</h2>
             </div>
-
-            {totalPages > 1 && (
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '1rem 1.5rem', borderTop: '1px solid var(--border-glass)', background: 'var(--surface-glass)', flexWrap: 'wrap', gap: '1rem' }}>
-                <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-                  Hiển thị <strong>{Math.min(filtered.length, (currentPage - 1) * itemsPerPage + 1)}-{Math.min(filtered.length, currentPage * itemsPerPage)}</strong> / <strong>{filtered.length}</strong>
-                </span>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                  <button onClick={() => setCurrentPage((p) => Math.max(p - 1, 1))} disabled={currentPage === 1} className="btn btn-secondary" style={{ padding: '0.4rem 0.6rem', border: '1px solid var(--border-glass)', opacity: currentPage === 1 ? 0.5 : 1 }}>
-                    <ChevronLeft size={16} />
-                  </button>
-                  {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => {
-                    if (page === 1 || page === totalPages || (page >= currentPage - 1 && page <= currentPage + 1)) {
-                      return (
-                        <button
-                          key={page}
-                          onClick={() => setCurrentPage(page)}
-                          className={`btn ${currentPage === page ? 'btn-primary' : 'btn-secondary'}`}
-                          style={{
-                            padding: '0.4rem 0.75rem',
-                            minWidth: 32,
-                            background: currentPage === page ? 'var(--accent-primary)' : 'transparent',
-                            border: currentPage === page ? 'none' : '1px solid var(--border-glass)',
-                            color: currentPage === page ? 'white' : 'var(--text-primary)',
-                          }}
-                        >
-                          {page}
-                        </button>
-                      );
-                    }
-                    if (page === currentPage - 2 || page === currentPage + 2) {
-                      return <span key={page} style={{ color: 'var(--text-secondary)' }}>...</span>;
-                    }
-                    return null;
-                  })}
-                  <button onClick={() => setCurrentPage((p) => Math.min(p + 1, totalPages))} disabled={currentPage === totalPages} className="btn btn-secondary" style={{ padding: '0.4rem 0.6rem', border: '1px solid var(--border-glass)', opacity: currentPage === totalPages ? 0.5 : 1 }}>
-                    <ChevronRight size={16} />
-                  </button>
+            
+            <div className="ds-guideline-steps">
+              <div className="ds-guide-step">
+                <span className="ds-step-num">1</span>
+                <div>
+                  <h4>Hội đồng Phản biện (Reviewer Pool)</h4>
+                  <p>Mặc định Giảng viên hướng dẫn khi import từ Excel chỉ thuộc danh mục chung. Để tham gia chấm thi phản biện chéo, Admin phải chọn gán giảng viên vào Pool Hội đồng phản biện này.</p>
                 </div>
               </div>
-            )}
-          </>
-        )}
+
+              <div className="ds-guide-step">
+                <span className="ds-step-num">2</span>
+                <div>
+                  <h4>Tự động hóa phân bổ ca chấm</h4>
+                  <p>Khi thuật toán chạy phân lịch hội đồng chấm đồ án tốt nghiệp hoạt động, nó chỉ chọn các giảng viên nằm trong Pool hội đồng phản biện này để phân phòng thi và xếp ca.</p>
+                </div>
+              </div>
+
+              <div className="ds-guide-step">
+                <span className="ds-step-num">3</span>
+                <div>
+                  <h4>Đồng bộ an toàn</h4>
+                  <p>Thay đổi danh sách ở đây chỉ có hiệu lực sau khi bấm <strong>Lưu danh sách hội đồng</strong> ở góc trên bên phải. Danh sách này được lưu chung toàn bộ kỳ học.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
       </div>
 
-      <style>{`.spin { animation: spin 1s linear infinite; } @keyframes spin { from{transform:rotate(0)} to{transform:rotate(360deg)} }`}</style>
+      {/* Embedded Styles */}
+      <style>{`
+        .ds-reviewers-page {
+          width: 100%;
+          animation: ds-page-in 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+
+        .ds-reviewers-header {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          margin-bottom: 24px;
+        }
+
+        .ds-header-actions {
+          display: flex;
+          gap: 12px;
+        }
+
+        .ds-card-header-with-filter {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          margin-bottom: 20px;
+          border-bottom: 1px solid var(--color-border);
+          padding-bottom: 16px;
+        }
+
+        .ds-filter-tabs {
+          display: flex;
+          gap: 8px;
+        }
+
+        .ds-tab-btn {
+          border: 1px solid var(--color-border);
+          background-color: var(--color-surface);
+          color: var(--color-muted);
+          padding: 8px 16px;
+          border-radius: var(--radius-sm);
+          font-size: 0.85rem;
+          font-weight: 500;
+          cursor: pointer;
+          transition: background-color var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast);
+        }
+
+        .ds-tab-btn:hover {
+          background-color: var(--color-border);
+          color: var(--color-ink);
+        }
+
+        .ds-tab-btn.active {
+          background-color: var(--color-primary);
+          border-color: var(--color-primary);
+          color: white;
+        }
+
+        /* Search wrapper */
+        .ds-search-wrapper {
+          position: relative;
+          display: flex;
+          align-items: center;
+        }
+
+        .ds-search-icon {
+          position: absolute;
+          left: 12px;
+          color: var(--color-muted);
+        }
+
+        .ds-input-search {
+          padding: 8px 12px 8px 36px;
+          font-size: 0.85rem;
+          border-radius: var(--radius-sm);
+          border: 1px solid var(--color-border);
+          width: 240px;
+          background-color: var(--color-bg);
+          transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+        }
+
+        .ds-input-search:focus {
+          border-color: var(--color-primary);
+          box-shadow: 0 0 0 3px rgba(234, 88, 12, 0.1);
+        }
+
+        /* Bulk actions bar */
+        .ds-bulk-actions-bar {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          padding: 0 4px 12px 4px;
+        }
+
+        .ds-bulk-btns {
+          display: flex;
+          gap: 16px;
+        }
+
+        .ds-btn-text {
+          border: none;
+          background: none;
+          color: var(--color-primary);
+          font-size: 0.85rem;
+          font-weight: 600;
+          cursor: pointer;
+          padding: 0;
+        }
+
+        .ds-btn-text:hover {
+          text-decoration: underline;
+        }
+
+        .ds-btn-text.text-danger {
+          color: var(--color-danger);
+        }
+
+        .ds-loading-placeholder {
+          padding: 20px 0;
+        }
+
+        .ds-empty-state {
+          padding: 48px 0;
+          text-align: center;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+        }
+
+        .ds-empty-state h3 {
+          margin-bottom: 8px;
+          font-size: 1.2rem;
+        }
+
+        .ds-reviewers-layout {
+          display: grid;
+          grid-template-columns: 2fr 1fr;
+          gap: 24px;
+          align-items: start;
+        }
+
+        @media (max-width: 1024px) {
+          .ds-reviewers-layout {
+            grid-template-columns: 1fr;
+          }
+        }
+
+        /* Checkbox list select row */
+        .ds-reviewer-select-row {
+          cursor: pointer;
+          transition: background-color var(--transition-fast);
+        }
+
+        .ds-reviewer-select-row:hover {
+          background-color: var(--color-surface);
+        }
+
+        .ds-reviewer-select-row.selected {
+          background-color: color-mix(in oklch, var(--color-primary) 1.5%, transparent);
+        }
+
+        .ds-custom-checkbox-btn {
+          border: none;
+          background: none;
+          padding: 0;
+          cursor: pointer;
+          color: var(--color-muted);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+
+        .ds-custom-checkbox-btn.checked {
+          color: var(--color-primary);
+        }
+
+        /* Guidelines */
+        .ds-guideline-steps {
+          display: flex;
+          flex-direction: column;
+          gap: 16px;
+        }
+
+        .ds-guide-step {
+          display: flex;
+          gap: 12px;
+          align-items: flex-start;
+        }
+
+        .ds-step-num {
+          background-color: color-mix(in oklch, var(--color-primary) 8%, transparent);
+          color: var(--color-primary);
+          width: 24px;
+          height: 24px;
+          border-radius: 50%;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-weight: 700;
+          font-size: 0.8rem;
+          flex-shrink: 0;
+          margin-top: 2px;
+        }
+
+        .ds-guide-step h4 {
+          font-size: 0.9rem;
+          font-weight: 700;
+          margin-bottom: 2px;
+        }
+
+        .ds-guide-step p {
+          font-size: 0.8rem;
+          color: var(--color-muted);
+          line-height: 1.45;
+        }
+
+        .spin {
+          animation: ds-spin 1s linear infinite;
+        }
+
+        @keyframes ds-spin {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
+        }
+      `}</style>
+      
     </div>
   );
 };

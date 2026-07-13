@@ -1,914 +1,838 @@
-import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import api from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
-import { MAX_GROUP_PREFERENCES, type ReviewDto, type ReviewSlotDto } from '../types';
-import { CalendarRange, Loader2, AlertCircle, Check } from 'lucide-react';
-import { hasRole } from '../utils/role';
-import { getReviewSlotTimeRange } from '../utils/reviewSlotTime';
-import { Tooltip } from '../components/Tooltip';
+import { useToast } from '../contexts/ToastContext';
+import type { Semester, Review } from '../types';
+import { 
+  Calendar, 
+  Clock, 
+  Save, 
+  Info,
+  CheckCircle,
+  AlertTriangle,
+  Lock,
+  RotateCcw,
+  CheckSquare,
+  Square,
+  AlertCircle
+} from 'lucide-react';
 
-// Trang đăng ký nguyện vọng slot review.
-//   - StudentLeader: chọn tối đa MAX_GROUP_PREFERENCES slot/đợt cho nhóm mình
-//   - Lecturer: chọn không giới hạn slot/đợt cho chính mình
-//   - GroupMember / Admin: chỉ xem
+interface ReviewSlotDto {
+  id: number;
+  reviewId: number;
+  slotDate: string;
+  slotIndex: number;
+  roomCount: number;
+  plannedCapacity: number;
+  groupPreferenceCount: number;
+  lecturerPreferenceCount: number;
+  assignmentCount: number;
+  isCurrentUserRegistered: boolean;
+  isCurrentUserAssigned: boolean;
+  note: string | null;
+}
 
-// empty: chưa chọn | selected: mới chọn (xanh nước, chưa lưu) | registered: đã lưu DB (xanh lá)
-// pendingUnregister: đã lưu DB nhưng đang đánh dấu để hủy (đỏ, chưa gửi BE)
-// assigned: GV đã được admin phê duyệt review slot này (vàng, ưu tiên hơn registered)
-type SlotState = 'empty' | 'selected' | 'registered' | 'pendingUnregister' | 'assigned';
-type DragCellCoord = { date: string; idx: number };
+const SHIFT_TIMES = [
+  { index: 1, label: 'Ca 1', time: '08:00 - 09:30' },
+  { index: 2, label: 'Ca 2', time: '09:45 - 11:15' },
+  { index: 3, label: 'Ca 3', time: '13:30 - 15:00' },
+  { index: 4, label: 'Ca 4', time: '15:15 - 16:45' },
+  { index: 5, label: 'Ca 5', time: '17:00 - 18:30' }
+];
 
-const parseDateInfo = (iso: string) => {
-  const d = new Date(iso);
-  const dow = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'][d.getUTCDay()];
-  const dateStr = `${String(d.getUTCDate()).padStart(2, '0')}/${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
-  return { dow, dateStr };
-};
+export const ReviewSlots: React.FC = () => {
+  const { user } = useAuth();
+  const { showToast } = useToast();
 
-const getReviewStatusBadge = (status?: ReviewDto['status']) => {
-  switch (status) {
-    case 'Registering':
-      return { label: 'Registering', color: '#22c55e', bg: 'rgba(34, 197, 94, 0.12)', border: 'rgba(34, 197, 94, 0.35)' };
-    case 'Registered':
-      return { label: 'Registered', color: '#0ea5e9', bg: 'rgba(14, 165, 233, 0.12)', border: 'rgba(14, 165, 233, 0.35)' };
-    case 'Ongoing':
-      return { label: 'Ongoing', color: '#f59e0b', bg: 'rgba(245, 158, 11, 0.12)', border: 'rgba(245, 158, 11, 0.35)' };
-    case 'Finished':
-      return { label: 'Finished', color: '#a1a1aa', bg: 'rgba(161, 161, 170, 0.12)', border: 'rgba(161, 161, 170, 0.35)' };
-    case 'Draft':
-      return { label: 'Draft', color: '#c084fc', bg: 'rgba(192, 132, 252, 0.12)', border: 'rgba(192, 132, 252, 0.35)' };
-    case 'Cancelled':
-      return { label: 'Cancelled', color: '#ef4444', bg: 'rgba(239, 68, 68, 0.12)', border: 'rgba(239, 68, 68, 0.35)' };
-    default:
-      return { label: 'Unknown', color: 'var(--text-secondary)', bg: 'rgba(113, 113, 122, 0.12)', border: 'rgba(113, 113, 122, 0.35)' };
-  }
-};
-
-const ReviewSlots = () => {
-  const { user, refreshMe } = useAuth();
-  const role = user?.role;
-  // Quyền cơ bản theo role — Reviewer (GV được admin chỉ định) hoặc StudentLeader. Lecturer thường không đăng ký được.
-  const roleAllowsRegister = hasRole(role, 'StudentLeader') || hasRole(role, 'Reviewer');
-
-  // Khi vào trang, refresh thông tin user để đảm bảo có lecturerId/groupId mới nhất.
-  useEffect(() => { refreshMe().catch(() => {}); }, []);
-
-  const [reviews, setReviews] = useState<ReviewDto[]>([]);
-  const [reviewId, setReviewId] = useState<number | null>(null);
+  // Selections
+  const [semesters, setSemesters] = useState<Semester[]>([]);
+  const [selectedSemesterId, setSelectedSemesterId] = useState<number | ''>('');
+  const [reviews, setReviews] = useState<Review[]>([]);
+  const [selectedReview, setSelectedReview] = useState<Review | null>(null);
+  
+  // Data list
   const [slots, setSlots] = useState<ReviewSlotDto[]>([]);
-  const [selected, setSelected] = useState<Set<number>>(new Set());            // slotId mới chọn (chưa lưu)
-  const [pendingRemove, setPendingRemove] = useState<Set<number>>(new Set());  // slotId đánh dấu hủy (chưa lưu)
+  
+  // Local changes state
+  const [selectedSlotIds, setSelectedSlotIds] = useState<Set<number>>(new Set());
+  const [originalRegisteredIds, setOriginalRegisteredIds] = useState<Set<number>>(new Set());
+  
+  // Loading & Action states
+  const [loadingSemesters, setLoadingSemesters] = useState(true);
   const [loadingReviews, setLoadingReviews] = useState(false);
   const [loadingSlots, setLoadingSlots] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [datePage, setDatePage] = useState(0);
-  const [dragAnchor, setDragAnchor] = useState<DragCellCoord | null>(null);
-  const [dragCurrent, setDragCurrent] = useState<DragCellCoord | null>(null);
-  const [isDragging, setIsDragging] = useState(false);
-  const suppressNextClickRef = useRef(false);
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    (async () => {
-      try {
-        setLoadingReviews(true);
-        const res = await api.get<ReviewDto[]>('/api/admin/reviews/all');
-        setReviews(res.data);
-        if (res.data.length > 0) {
-          const order = (s: string) => (s === 'Registering' ? 0 : s === 'Registered' ? 1 : s === 'Ongoing' ? 2 : 3);
-          const sorted = [...res.data].sort((a, b) => {
-            const d = order(a.status) - order(b.status);
-            if (d !== 0) return d;
-            return new Date(b.windowStart).getTime() - new Date(a.windowStart).getTime();
-          });
-          setReviewId(sorted[0].id);
-        }
-      } catch (e: any) {
-        setError(e?.response?.data?.message || 'Không tải được danh sách đợt review');
-      } finally {
-        setLoadingReviews(false);
-      }
-    })();
+    fetchSemesters();
   }, []);
 
-  const fetchSlots = async (rid: number) => {
+  // Fetch all semesters
+  const fetchSemesters = async () => {
+    setLoadingSemesters(true);
     try {
-      setLoadingSlots(true);
-      setError(null);
-      const res = await api.get<ReviewSlotDto[]>(`/api/admin/reviews/${rid}/slots`);
-      setSlots(res.data);
-      setSelected(new Set());
-      setPendingRemove(new Set());
-    } catch (e: any) {
-      setError(e?.response?.data?.message || 'Không tải được danh sách slot');
-      setSlots([]);
+      const res = await api.get('/api/admin/semesters', { params: { pageSize: 100 } });
+      setSemesters(res.data);
+      
+      const ongoing = res.data.find((s: Semester) => s.status === 'Ongoing');
+      if (ongoing) {
+        setSelectedSemesterId(ongoing.id);
+        fetchReviews(ongoing.id);
+      } else if (res.data.length > 0) {
+        setSelectedSemesterId(res.data[0].id);
+        fetchReviews(res.data[0].id);
+      }
+    } catch (err) {
+      showToast('Không thể tải danh sách học kỳ', 'error');
+    } finally {
+      setLoadingSemesters(false);
+    }
+  };
+
+  // Fetch reviews for a specific semester
+  const fetchReviews = async (semesterId: number) => {
+    setLoadingReviews(true);
+    setSelectedReview(null);
+    setSlots([]);
+    setSelectedSlotIds(new Set());
+    setOriginalRegisteredIds(new Set());
+    try {
+      const res = await api.get('/api/admin/reviews', { params: { semesterId } });
+      setReviews(res.data);
+      if (res.data.length > 0) {
+        setSelectedReview(res.data[0]);
+        fetchSlots(res.data[0].id);
+      }
+    } catch (err) {
+      showToast('Không thể tải danh sách đợt đánh giá', 'error');
+    } finally {
+      setLoadingReviews(false);
+    }
+  };
+
+  // Fetch slots for a selected review round
+  const fetchSlots = async (reviewId: number) => {
+    setLoadingSlots(true);
+    setSelectedSlotIds(new Set());
+    setOriginalRegisteredIds(new Set());
+    try {
+      const res = await api.get(`/api/admin/reviews/${reviewId}/slots`);
+      const slotList: ReviewSlotDto[] = res.data;
+      setSlots(slotList);
+      
+      // Collect all slots where isCurrentUserRegistered is true
+      const registered = new Set<number>();
+      slotList.forEach(s => {
+        if (s.isCurrentUserRegistered) registered.add(s.id);
+      });
+      setSelectedSlotIds(new Set(registered));
+      setOriginalRegisteredIds(registered);
+    } catch (err) {
+      showToast('Không thể tải danh sách ca chấm của đợt', 'error');
     } finally {
       setLoadingSlots(false);
     }
   };
 
-  useEffect(() => {
-    if (reviewId != null) fetchSlots(reviewId);
-  }, [reviewId]);
-
-  useEffect(() => {
-    setDatePage(0);
-  }, [reviewId]);
-
-  const { dates, slotIndices, getSlot } = useMemo(() => {
-    const dateSet = new Set<string>();
-    const idxSet = new Set<number>();
-    const map = new Map<string, ReviewSlotDto>();
-    for (const s of slots) {
-      const key = s.slotDate.substring(0, 10);
-      dateSet.add(key);
-      idxSet.add(s.slotIndex);
-      map.set(`${key}_${s.slotIndex}`, s);
-    }
-    return {
-      dates: Array.from(dateSet).sort(),
-      slotIndices: Array.from(idxSet).sort((a, b) => a - b),
-      getSlot: (date: string, idx: number) => map.get(`${date}_${idx}`) || null,
-    };
-  }, [slots]);
-
-  const datePosMap = useMemo(() => {
-    const map = new Map<string, number>();
-    dates.forEach((d, i) => map.set(d, i));
-    return map;
-  }, [dates]);
-
-  const slotIndexPosMap = useMemo(() => {
-    const map = new Map<number, number>();
-    slotIndices.forEach((idx, i) => map.set(idx, i));
-    return map;
-  }, [slotIndices]);
-
-  const datesPerPage = 6;
-  const pageCount = Math.max(1, Math.ceil(dates.length / datesPerPage));
-  const safeDatePage = Math.min(datePage, pageCount - 1);
-  const pagedDates = useMemo(
-    () => {
-      const slice = dates.slice(safeDatePage * datesPerPage, safeDatePage * datesPerPage + datesPerPage);
-      return Array.from({ length: datesPerPage }, (_, index) => slice[index] ?? null);
-    },
-    [dates, safeDatePage],
-  );
-  const pageStart = dates.length === 0 ? 0 : safeDatePage * datesPerPage + 1;
-  const pageEnd = Math.min(dates.length, pageStart + pagedDates.filter(Boolean).length - 1);
-
-  // BE đã tính sẵn flag dựa trên JWT — FE chỉ đọc
-  const isRegistered = (s: ReviewSlotDto): boolean => s.isCurrentUserRegistered;
-
-  const slotState = (s: ReviewSlotDto): SlotState => {
-    // Slot đã được admin phê duyệt → ưu tiên hiển thị vàng, không cho hủy
-    if (s.isCurrentUserAssigned) return 'assigned';
-    const registered = isRegistered(s);
-    if (registered && pendingRemove.has(s.id)) return 'pendingUnregister';
-    if (registered) return 'registered';
-    if (selected.has(s.id)) return 'selected';
-    return 'empty';
-  };
-
-  // Review hiện tại — dùng để xác định đợt còn mở đăng ký không
-  const currentReview = useMemo(() => reviews.find((r) => r.id === reviewId) ?? null, [reviews, reviewId]);
-  const isRegistrationOpen = currentReview?.status === 'Registering';
-  // Quyền cuối cùng = role cho phép + đợt review đang mở đăng ký
-  const canRegister = roleAllowsRegister && isRegistrationOpen;
-  const reviewStatusBadge = getReviewStatusBadge(currentReview?.status);
-
-  // Tổng sau khi lưu = đã đăng ký - đánh dấu hủy + mới chọn
-  const registeredCount = useMemo(() => slots.filter(isRegistered).length, [slots, user]);
-  const registeredCancelableIds = useMemo(
-    () => slots.filter((s) => isRegistered(s) && !s.isCurrentUserAssigned).map((s) => s.id),
-    [slots],
-  );
-  const allRegisteredMarkedForRemove = useMemo(
-    () => registeredCancelableIds.length > 0 && registeredCancelableIds.every((id) => pendingRemove.has(id)),
-    [registeredCancelableIds, pendingRemove],
-  );
-  const totalAfterSubmit = registeredCount - pendingRemove.size + selected.size;
-  const isStudent = hasRole(role, 'StudentLeader');
-  const overLimit = isStudent && totalAfterSubmit > MAX_GROUP_PREFERENCES;
-  const hasChanges = selected.size > 0 || pendingRemove.size > 0;
-
-  // Single click — chuyển state theo cycle:
-  //   empty → selected (xanh nước)         selected → empty (bỏ chọn)
-  //   registered (xanh lá) → pendingUnregister (đỏ, đánh dấu hủy)
-  //   pendingUnregister → registered (bỏ đánh dấu)
-  //   assigned (vàng) → không cho đổi (đã được admin chốt)
-  const toggleSelect = (s: ReviewSlotDto) => {
-    if (!canRegister || submitting) return;
-    const state = slotState(s);
-    if (state === 'assigned') return;
-    if (state === 'registered') {
-      const next = new Set(pendingRemove);
-      next.add(s.id);
-      setPendingRemove(next);
-      return;
-    }
-    if (state === 'pendingUnregister') {
-      const next = new Set(pendingRemove);
-      next.delete(s.id);
-      setPendingRemove(next);
-      return;
-    }
-    const next = new Set(selected);
-    if (next.has(s.id)) next.delete(s.id);
-    else next.add(s.id);
-    setSelected(next);
-  };
-
-  // Bulk toggle 1 nhóm slot (1 hàng / 1 cột / toàn bộ):
-  //   Lần 1 (chưa có cái nào blue trong scope): chọn hết empty → blue. Skip registered/pendingUnregister/assigned.
-  //   Lần 2 (đã có blue trong scope): deselect hết blue → empty.
-  const bulkToggle = (scope: ReviewSlotDto[]) => {
-    if (!canRegister || submitting) return;
-    const blueInScope = scope.filter((s) => selected.has(s.id) && !s.isCurrentUserAssigned);
-    const next = new Set(selected);
-    if (blueInScope.length > 0) {
-      for (const s of blueInScope) next.delete(s.id);
+  // Handle Semester Change
+  const handleSemesterChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const id = e.target.value;
+    if (id) {
+      const numId = parseInt(id, 10);
+      setSelectedSemesterId(numId);
+      fetchReviews(numId);
     } else {
-      for (const s of scope) {
-        if (slotState(s) === 'empty') next.add(s.id);
+      setSelectedSemesterId('');
+      setReviews([]);
+    }
+  };
+
+  // Handle Review Selection Change
+  const handleReviewChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const id = e.target.value;
+    if (id) {
+      const numId = parseInt(id, 10);
+      const rev = reviews.find(r => r.id === numId);
+      if (rev) {
+        setSelectedReview(rev);
+        fetchSlots(numId);
       }
     }
-    setSelected(next);
   };
 
-  // Helper: lấy tất cả slot trong 1 hàng / 1 cột / toàn bộ
-  const slotsInRow = (idx: number) => slots.filter((s) => s.slotIndex === idx);
-  const slotsInCol = (date: string) => slots.filter((s) => s.slotDate.substring(0, 10) === date);
-
-  const markAllRegisteredAsPendingRemove = () => {
-    if (!canRegister || submitting) return;
-    const next = new Set(pendingRemove);
-    if (allRegisteredMarkedForRemove) {
-      for (const id of registeredCancelableIds) next.delete(id);
-    } else {
-      for (const id of registeredCancelableIds) next.add(id);
-    }
-    setPendingRemove(next);
-  };
-
-  const isCoordInDragRect = (date: string, idx: number) => {
-    if (!isDragging || !dragAnchor || !dragCurrent) return false;
-    const datePos = datePosMap.get(date);
-    const idxPos = slotIndexPosMap.get(idx);
-    const anchorDatePos = datePosMap.get(dragAnchor.date);
-    const currentDatePos = datePosMap.get(dragCurrent.date);
-    const anchorIdxPos = slotIndexPosMap.get(dragAnchor.idx);
-    const currentIdxPos = slotIndexPosMap.get(dragCurrent.idx);
-    if (
-      datePos == null
-      || idxPos == null
-      || anchorDatePos == null
-      || currentDatePos == null
-      || anchorIdxPos == null
-      || currentIdxPos == null
-    ) {
-      return false;
-    }
-    const minDate = Math.min(anchorDatePos, currentDatePos);
-    const maxDate = Math.max(anchorDatePos, currentDatePos);
-    const minIdx = Math.min(anchorIdxPos, currentIdxPos);
-    const maxIdx = Math.max(anchorIdxPos, currentIdxPos);
-    return datePos >= minDate && datePos <= maxDate && idxPos >= minIdx && idxPos <= maxIdx;
-  };
-
-  const finalizeDragSelection = () => {
-    if (!isDragging || !dragAnchor || !dragCurrent) {
-      setIsDragging(false);
-      setDragAnchor(null);
-      setDragCurrent(null);
+  // Toggle Slot Registration state locally
+  const handleToggleSlot = (slot: ReviewSlotDto) => {
+    // If the slot is officially assigned (locked), we do not allow edits
+    if (slot.isCurrentUserAssigned) {
+      showToast('Ca học này đã được gán hội đồng chính thức, không thể thay đổi nguyện vọng.', 'warning');
       return;
     }
 
-    const moved = dragAnchor.date !== dragCurrent.date || dragAnchor.idx !== dragCurrent.idx;
-    if (moved) {
-      const anchorDatePos = datePosMap.get(dragAnchor.date);
-      const currentDatePos = datePosMap.get(dragCurrent.date);
-      const anchorIdxPos = slotIndexPosMap.get(dragAnchor.idx);
-      const currentIdxPos = slotIndexPosMap.get(dragCurrent.idx);
-      if (
-        anchorDatePos != null
-        && currentDatePos != null
-        && anchorIdxPos != null
-        && currentIdxPos != null
-      ) {
-        const minDate = Math.min(anchorDatePos, currentDatePos);
-        const maxDate = Math.max(anchorDatePos, currentDatePos);
-        const minIdx = Math.min(anchorIdxPos, currentIdxPos);
-        const maxIdx = Math.max(anchorIdxPos, currentIdxPos);
-        const slotsInRect = slots.filter((s) => {
-          const dateKey = s.slotDate.substring(0, 10);
-          const datePos = datePosMap.get(dateKey);
-          const idxPos = slotIndexPosMap.get(s.slotIndex);
-          if (datePos == null || idxPos == null) return false;
-          return datePos >= minDate && datePos <= maxDate && idxPos >= minIdx && idxPos <= maxIdx;
-        });
-        const next = new Set(selected);
-        const hasSelectedInRect = slotsInRect.some((s) => selected.has(s.id));
-
-        if (hasSelectedInRect) {
-          for (const s of slotsInRect) {
-            if (selected.has(s.id)) next.delete(s.id);
-          }
-        } else {
-          for (const s of slotsInRect) {
-            if (slotState(s) === 'empty') next.add(s.id);
-          }
-        }
-        setSelected(next);
-        suppressNextClickRef.current = true;
-      }
+    // If review status is not registering, registrations are closed
+    if (selectedReview?.status !== 'Registering') {
+      showToast('Thời gian đăng ký nguyện vọng cho đợt này đã đóng hoặc chưa mở.', 'warning');
+      return;
     }
 
-    setIsDragging(false);
-    setDragAnchor(null);
-    setDragCurrent(null);
+    // Block non-registering roles
+    if (user?.role === 'GroupMember') {
+      showToast('Chỉ có Trưởng nhóm (StudentLeader) mới được quyền đăng ký ca chấm cho nhóm đồ án.', 'warning');
+      return;
+    }
+    if (user?.role === 'Admin') {
+      showToast('Tài khoản Quản trị viên (Admin) chỉ xem được dữ liệu đăng ký rảnh của đợt chấm.', 'info');
+      return;
+    }
+
+    setSelectedSlotIds(prev => {
+      const next = new Set(prev);
+      if (next.has(slot.id)) {
+        next.delete(slot.id);
+      } else {
+        next.add(slot.id);
+      }
+      return next;
+    });
   };
 
-  useEffect(() => {
-    if (!isDragging) return;
-    const onMouseUp = () => finalizeDragSelection();
-    window.addEventListener('mouseup', onMouseUp);
-    return () => window.removeEventListener('mouseup', onMouseUp);
-  }, [isDragging, dragAnchor, dragCurrent, selected, slots, datePosMap, slotIndexPosMap, canRegister, submitting, pendingRemove]);
+  // Check if there are unsaved changes
+  const hasChanges = () => {
+    if (selectedSlotIds.size !== originalRegisteredIds.size) return true;
+    for (let id of selectedSlotIds) {
+      if (!originalRegisteredIds.has(id)) return true;
+    }
+    return false;
+  };
 
-  // Lưu — 1 request bulk gửi cả register + unregister cho BE xử lý trong 1 transaction
-  const submitChanges = async () => {
-    if (!canRegister || !hasChanges || overLimit || submitting || reviewId == null) return;
-    setSubmitting(true);
-    setError(null);
+  // Calculate changes counts
+  const getChangesSummary = () => {
+    const registerCount = Array.from(selectedSlotIds).filter(id => !originalRegisteredIds.has(id)).length;
+    const unregisterCount = Array.from(originalRegisteredIds).filter(id => !selectedSlotIds.has(id)).length;
+    return { registerCount, unregisterCount };
+  };
 
-    const registerIds = Array.from(selected);
-    const unregisterIds = Array.from(pendingRemove);
-    const subpath = hasRole(role, 'StudentLeader') ? 'groups' : 'lecturers';
+  // Reset local changes back to DB state
+  const handleCancelChanges = () => {
+    setSelectedSlotIds(new Set(originalRegisteredIds));
+    showToast('Đã hủy bỏ toàn bộ các thay đổi chưa lưu', 'info');
+  };
+
+  // Save changes to backend via bulk transaction APIs
+  const handleSaveChanges = async () => {
+    if (!selectedReview) return;
+    setSaving(true);
+
+    const registerList = Array.from(selectedSlotIds).filter(id => !originalRegisteredIds.has(id));
+    const unregisterList = Array.from(originalRegisteredIds).filter(id => !selectedSlotIds.has(id));
 
     try {
-      await api.post(`/api/admin/reviews/${reviewId}/slots/${subpath}/bulk`, {
-        register: registerIds,
-        unregister: unregisterIds,
-      });
-      await fetchSlots(reviewId);
-    } catch (e: any) {
-      setError(e?.response?.data?.message || 'Không lưu được thay đổi');
+      if (user?.role === 'Lecturer' || user?.role === 'Reviewer') {
+        // Lecturer Bulk
+        await api.post(`/api/admin/reviews/${selectedReview.id}/slots/lecturers/bulk`, {
+          register: registerList,
+          unregister: unregisterList
+        });
+        showToast('Đã lưu lịch rảnh giảng viên thành công!', 'success');
+      } else if (user?.role === 'StudentLeader') {
+        // Student Leader Bulk
+        await api.post(`/api/admin/reviews/${selectedReview.id}/slots/groups/bulk`, {
+          register: registerList,
+          unregister: unregisterList
+        });
+        showToast('Đã lưu lịch đăng ký nguyện vọng nhóm thành công!', 'success');
+      } else {
+        showToast('Tài khoản của bạn không hỗ trợ lưu đăng ký nguyện vọng.', 'warning');
+      }
+      fetchSlots(selectedReview.id);
+    } catch (err: any) {
+      showToast(err.response?.data?.message || 'Không thể lưu nguyện vọng đăng ký', 'error');
     } finally {
-      setSubmitting(false);
+      setSaving(false);
     }
   };
 
-  // ----------- styles theo state -----------
-  const cellStyle = (state: SlotState): React.CSSProperties => {
-    const base: React.CSSProperties = {
-      minHeight: 78,
-      borderRadius: 8,
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      cursor: canRegister ? 'pointer' : 'default',
-      fontSize: '0.8rem',
-      fontWeight: 600,
-      userSelect: 'none',
-      transition: 'all 0.15s ease',
-    };
-    if (state === 'registered') {
-      return {
-        ...base,
-        background: 'rgba(16, 185, 129, 0.18)',
-        border: '1.5px solid #10b981',
-        color: '#10b981',
-      };
-    }
-    if (state === 'selected') {
-      return {
-        ...base,
-        background: 'rgba(14, 165, 233, 0.22)',
-        border: '1.5px solid #0ea5e9',
-        color: '#0ea5e9',
-      };
-    }
-    if (state === 'pendingUnregister') {
-      return {
-        ...base,
-        background: 'rgba(239, 68, 68, 0.18)',
-        border: '1.5px solid #ef4444',
-        color: '#ef4444',
-      };
-    }
-    if (state === 'assigned') {
-      return {
-        ...base,
-        background: 'rgba(234, 179, 8, 0.22)',
-        border: '1.5px solid #eab308',
-        color: '#ca8a04',
-        cursor: 'not-allowed',
-      };
-    }
-    return {
-      ...base,
-      background: 'var(--glass-card-bg)',
-      border: '1px dashed var(--border-glass)',
-      color: 'var(--text-secondary)',
-    };
+  // Format date helper
+  const formatDateDayMonth = (dateStr: string) => {
+    if (!dateStr) return '';
+    const d = new Date(dateStr);
+    const day = String(d.getDate()).padStart(2, '0');
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const daysViet = ['Chủ Nhật', 'Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7'];
+    return `${daysViet[d.getDay()]} ${day}/${month}`;
   };
 
-  const renderCell = (date: string, idx: number) => {
-    const slot = getSlot(date, idx);
-    if (!slot) {
-      return (
-        <div
-          key={`${date}_${idx}`}
-          style={{ ...cellStyle('empty'), cursor: 'default', opacity: 0.4 }}
-        >
-          —
-        </div>
-      );
-    }
-    const state = slotState(slot);
-    const inDragRect = isCoordInDragRect(date, idx);
-    return (
-      <Tooltip
-        key={slot.id}
-        content={
-          state === 'assigned'
-            ? 'Slot đã được admin phê duyệt cho bạn'
-            : state === 'registered'
-            ? 'Đã đăng ký — bấm để đánh dấu hủy'
-            : state === 'pendingUnregister'
-            ? 'Đã đánh dấu hủy — bấm để bỏ đánh dấu'
-            : state === 'selected'
-            ? 'Đang chọn — bấm "Lưu" để xác nhận'
-            : 'Bấm để chọn'
-        }
-        variant="glass-card"
-        placement="top"
-        className={!canRegister && state !== 'assigned' && state !== 'registered' ? 'no-tooltip-hover' : ''}
-        style={{ display: 'block', width: '100%', height: '100%' }}
-      >
-        <div
-          style={{
-            ...cellStyle(state),
-            ...(inDragRect && (state === 'empty' || state === 'selected')
-              ? { boxShadow: 'inset 0 0 0 1.5px #0ea5e9', background: 'rgba(14, 165, 233, 0.14)' }
-              : {}),
-            width: '100%',
-            height: '100%',
-          }}
-          onMouseDown={(e) => {
-            if (e.button !== 0 || !canRegister || submitting) return;
-            setDragAnchor({ date, idx });
-            setDragCurrent({ date, idx });
-            setIsDragging(true);
-            suppressNextClickRef.current = false;
-            e.preventDefault();
-          }}
-          onMouseEnter={() => {
-            if (!isDragging) return;
-            setDragCurrent({ date, idx });
-          }}
-          onClick={() => {
-            if (suppressNextClickRef.current) {
-              suppressNextClickRef.current = false;
-              return;
-            }
-            toggleSelect(slot);
-          }}
-        >
-          {state === 'assigned' ? <Check size={18} />
-            : state === 'registered' ? <Check size={18} />
-            : state === 'pendingUnregister' ? '✕'
-            : ''}
-        </div>
-      </Tooltip>
-    );
+  // Get list of distinct dates in chronological order
+  const getDistinctDates = () => {
+    const dates = slots.map(s => s.slotDate.substring(0, 10));
+    return Array.from(new Set(dates)).sort();
   };
+
+  const dateList = getDistinctDates();
+  const isRegistrationOpen = selectedReview?.status === 'Registering';
+  const { registerCount, unregisterCount } = getChangesSummary();
 
   return (
-    <div style={{ padding: '2rem' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.5rem' }}>
-        <CalendarRange size={28} color="var(--accent-primary)" />
-        <h1 className="text-gradient" style={{ margin: 0 }}>Đăng ký slot review</h1>
-      </div>
+    <div className="ds-slots-page">
+      
+      {/* Top Filter Bar Header */}
+      <div className="ds-slots-header">
+        <div>
+          <h1>Đăng ký Nguyện vọng Ca chấm</h1>
+          <p className="text-muted">Đăng ký lịch rảnh (Hội đồng) hoặc gửi đề xuất ca mong muốn bảo vệ (Nhóm đồ án)</p>
+        </div>
 
-      {/* Hint — đổi theo state (mở đăng ký / đã chốt) + role */}
-      <div
-        className="glass-panel"
-        style={{
-          padding: '0.75rem 1rem',
-          marginBottom: '1rem',
-          fontSize: '0.875rem',
-          color: currentReview && !isRegistrationOpen ? 'var(--danger)' : 'var(--text-secondary)',
-          background: currentReview && !isRegistrationOpen
-            ? 'rgba(239, 68, 68, 0.08)'
-            : undefined,
-          border: currentReview && !isRegistrationOpen
-            ? '1px solid rgba(239, 68, 68, 0.25)'
-            : undefined,
-        }}
-      >
-        {currentReview && !isRegistrationOpen ? (
-          <>Đã hết thời hạn đăng ký lịch.</>
-        ) : (
-          <>
-            {hasRole(role, 'StudentLeader') && (
-              <>Chọn tối đa <b>{MAX_GROUP_PREFERENCES} slot</b> mong muốn cho nhóm.</>
-            )}
-            {hasRole(role, 'Reviewer') && (
-              <>Chọn các slot mong muốn được dùng để chấm review (không giới hạn).</>
-            )}
-            {!hasRole(role, 'Reviewer') && !hasRole(role, 'StudentLeader')
-              && !hasRole(role, 'GroupMember') && !hasRole(role, 'Admin')
-              && hasRole(role, 'Lecturer') && (
-              <>Bạn chưa được chỉ định làm reviewer cho đợt review này — chỉ xem.</>
-            )}
-            {hasRole(role, 'GroupMember') && <>Bạn chỉ xem được lịch. Liên hệ nhóm trưởng để đăng ký.</>}
-            {hasRole(role, 'Admin') && <>Bạn là Admin — chế độ chỉ xem.</>}
-          </>
-        )}
-      </div>
-
-      {/* Review selector + counter + save button — gom vào 1 panel */}
-      <div
-        className="glass-panel"
-        style={{
-          display: 'flex',
-          flexWrap: 'wrap',
-          gap: '1rem',
-          alignItems: 'center',
-          padding: '0.85rem 1rem',
-          marginBottom: '1.25rem',
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: '1 1 320px', minWidth: 260 }}>
-          <CalendarRange size={16} color="var(--accent-primary)" />
-          <label htmlFor="review-select" style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
-            Đợt review:
-          </label>
-          {loadingReviews ? (
-            <Loader2 size={16} className="animate-spin" />
-          ) : (
-            <>
-              <div style={{ position: 'relative', flex: 1 }}>
-                <select
-                  id="review-select"
-                  value={reviewId ?? ''}
-                  onChange={(e) => setReviewId(e.target.value ? parseInt(e.target.value, 10) : null)}
-                  onFocus={(e) => {
-                    e.currentTarget.style.borderColor = 'rgba(255, 122, 51, 0.8)';
-                    e.currentTarget.style.boxShadow = '0 0 0 2px rgba(255, 122, 51, 0.2)';
-                  }}
-                  onBlur={(e) => {
-                    e.currentTarget.style.borderColor = 'var(--border-glass)';
-                    e.currentTarget.style.boxShadow = 'none';
-                  }}
-                  style={{
-                    width: '100%',
-                    padding: '0.5rem 2.1rem 0.5rem 0.75rem',
-                    borderRadius: 8,
-                    background: 'var(--input-bg)',
-                    color: 'var(--text-primary)',
-                    border: '1px solid var(--border-glass)',
-                    fontSize: '0.875rem',
-                    fontWeight: 500,
-                    cursor: 'pointer',
-                    outline: 'none',
-                    appearance: 'none',
-                    WebkitAppearance: 'none',
-                    MozAppearance: 'none',
-                    transition: 'border-color 0.15s ease, box-shadow 0.15s ease',
-                  }}
-                >
-                  {reviews.length === 0 && <option value="">— Chưa có đợt review nào —</option>}
-                  {reviews.map((r) => (
-                    <option key={r.id} value={r.id}>
-                      {r.label} ({r.type}#{r.orderIndex})
-                    </option>
-                  ))}
-                </select>
-                <span
-                  style={{
-                    position: 'absolute',
-                    right: 12,
-                    top: '50%',
-                    transform: 'translateY(-50%)',
-                    color: 'var(--text-secondary)',
-                    fontSize: '0.7rem',
-                    pointerEvents: 'none',
-                  }}
-                >
-                  ▾
-                </span>
-              </div>
-
-              <span
-                style={{
-                  padding: '0.33rem 0.58rem',
-                  borderRadius: 999,
-                  fontSize: '0.72rem',
-                  fontWeight: 700,
-                  letterSpacing: '0.02em',
-                  color: reviewStatusBadge.color,
-                  background: reviewStatusBadge.bg,
-                  border: `1px solid ${reviewStatusBadge.border}`,
-                  whiteSpace: 'nowrap',
-                }}
+        <div className="ds-filter-selectors">
+          <div className="ds-filter-selectors-row">
+            <div className="ds-filter-select-group">
+              <label className="ds-form-label">Học kỳ</label>
+              <select 
+                value={selectedSemesterId} 
+                onChange={handleSemesterChange}
+                className="ds-select-small"
+                disabled={loadingSemesters}
               >
-                {reviewStatusBadge.label}
-              </span>
-            </>
-          )}
-        </div>
-
-        {canRegister && (
-          <>
-            <div style={{ display: 'flex', gap: 14, fontSize: '0.85rem', color: 'var(--text-secondary)', flexWrap: 'wrap' }}>
-              <span>Đã đăng ký <b style={{ color: '#10b981' }}>{registeredCount}</b></span>
-              <span>Thêm <b style={{ color: '#0ea5e9' }}>{selected.size}</b></span>
-              <span>Hủy <b style={{ color: '#ef4444' }}>{pendingRemove.size}</b></span>
-              {isStudent && <span>Tối đa <b>{MAX_GROUP_PREFERENCES}</b></span>}
-            </div>
-            <button
-              className="btn btn-primary"
-              disabled={!hasChanges || overLimit || submitting}
-              onClick={submitChanges}
-              style={{ padding: '0.5rem 1rem', marginLeft: 'auto' }}
-            >
-              {submitting ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
-              {' '}Lưu ({selected.size + pendingRemove.size})
-            </button>
-          </>
-        )}
-      </div>
-
-      {overLimit && (
-        <div
-          className="glass-panel"
-          style={{
-            padding: '0.6rem 0.9rem', marginBottom: '0.75rem',
-            background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.3)',
-            color: 'var(--danger)', fontSize: '0.85rem',
-          }}
-        >
-          Vượt quá {MAX_GROUP_PREFERENCES} nguyện vọng — bỏ bớt {totalAfterSubmit - MAX_GROUP_PREFERENCES} slot.
-        </div>
-      )}
-
-      {error && (
-        <div
-          className="glass-panel"
-          style={{
-            padding: '0.75rem 1rem', marginBottom: '1rem',
-            background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.3)',
-            color: 'var(--danger)', display: 'flex', alignItems: 'center', gap: 8, whiteSpace: 'pre-wrap',
-          }}
-        >
-          <AlertCircle size={18} /> {error}
-        </div>
-      )}
-
-      {/* Legend */}
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          gap: '1rem',
-          marginBottom: '0.75rem',
-          fontSize: '0.75rem',
-          color: 'var(--text-secondary)',
-          flexWrap: 'wrap',
-        }}
-      >
-        <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
-          <span><span style={{ display: 'inline-block', width: 14, height: 14, background: 'rgba(14, 165, 233, 0.22)', border: '1.5px solid #0ea5e9', borderRadius: 3, verticalAlign: 'middle', marginRight: 4 }} /> Đang chọn</span>
-          <span><span style={{ display: 'inline-block', width: 14, height: 14, background: 'rgba(16, 185, 129, 0.18)', border: '1.5px solid #10b981', borderRadius: 3, verticalAlign: 'middle', marginRight: 4 }} /> Đã đăng ký</span>
-          <span><span style={{ display: 'inline-block', width: 14, height: 14, background: 'rgba(234, 179, 8, 0.22)', border: '1.5px solid #eab308', borderRadius: 3, verticalAlign: 'middle', marginRight: 4 }} /> Đã phê duyệt</span>
-          <span><span style={{ display: 'inline-block', width: 14, height: 14, background: 'rgba(239, 68, 68, 0.18)', border: '1.5px solid #ef4444', borderRadius: 3, verticalAlign: 'middle', marginRight: 4 }} /> Đánh dấu hủy</span>
-        </div>
-
-        {dates.length > datesPerPage && (
-          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
-            <span style={{ marginRight: 4 }}>Đang hiển thị ngày {pageStart}-{pageEnd} / {dates.length}</span>
-            <button
-              className="btn btn-secondary"
-              disabled={safeDatePage === 0}
-              onClick={() => setDatePage((v) => Math.max(0, v - 1))}
-              style={{ padding: '0.35rem 0.65rem', fontSize: '0.75rem' }}
-            >
-              ‹
-            </button>
-            {Array.from({ length: pageCount }, (_, i) => i).map((page) => (
-              <button
-                key={`date_page_${page}`}
-                className="btn"
-                onClick={() => setDatePage(page)}
-                style={{
-                  padding: '0.35rem 0.65rem',
-                  fontSize: '0.75rem',
-                  minWidth: 32,
-                  ...(page === safeDatePage
-                    ? { background: 'rgba(255, 122, 51, 0.18)', color: 'var(--accent-primary)', border: '1px solid rgba(255, 122, 51, 0.35)' }
-                    : { background: 'transparent', color: 'var(--text-secondary)', border: '1px solid var(--border-glass)' }),
-                }}
-              >
-                {page + 1}
-              </button>
-            ))}
-            <button
-              className="btn btn-secondary"
-              disabled={safeDatePage >= pageCount - 1}
-              onClick={() => setDatePage((v) => Math.min(pageCount - 1, v + 1))}
-              style={{ padding: '0.35rem 0.65rem', fontSize: '0.75rem' }}
-            >
-              ›
-            </button>
-          </div>
-        )}
-      </div>
-
-      {/* Grid */}
-      {reviewId == null ? (
-        <p style={{ color: 'var(--text-secondary)' }}>Chọn 1 đợt review để xem slot.</p>
-      ) : loadingSlots ? (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--text-secondary)' }}>
-          <Loader2 size={18} className="animate-spin" /> Đang tải slot...
-        </div>
-      ) : slots.length === 0 ? (
-        <p style={{ color: 'var(--text-secondary)' }}>Đợt review này chưa có slot nào.</p>
-      ) : (
-        <div style={{ overflowX: 'auto' }}>
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: `96px repeat(${pagedDates.length}, minmax(96px, 1fr))`,
-              gap: 6,
-              minWidth: 96 + pagedDates.length * 102,
-            }}
-          >
-            {/* Ô góc trên-trái — bulk select toàn bộ */}
-            <Tooltip
-              content={canRegister ? 'Bấm để bật/tắt đánh dấu hủy toàn bộ slot đã đăng ký (xanh lá)' : ''}
-              variant="glass-card"
-              placement="top"
-              className={!canRegister ? 'no-tooltip-hover' : ''}
-              style={{ display: 'block', width: '100%', height: '100%' }}
-            >
-              <div
-                onClick={canRegister ? markAllRegisteredAsPendingRemove : undefined}
-                style={{
-                  padding: '0.4rem',
-                  fontWeight: 700,
-                  color: 'var(--accent-primary)',
-                  textAlign: 'center',
-                  background: 'var(--surface-glass)',
-                  borderRadius: 6,
-                  fontSize: '0.75rem',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  cursor: canRegister ? 'pointer' : 'default',
-                  transition: 'background 0.15s ease',
-                  userSelect: 'none',
-                  width: '100%',
-                  height: '100%',
-                }}
-                onMouseEnter={(e) => { if (canRegister) e.currentTarget.style.background = 'rgba(14, 165, 233, 0.15)'; }}
-                onMouseLeave={(e) => { e.currentTarget.style.background = 'var(--surface-glass)'; }}
-              >
-                ✦
-              </div>
-            </Tooltip>
-
-            {/* Header ngày — click chọn cả cột */}
-            {pagedDates.map((date, pageIndex) => {
-              if (!date) {
-                return (
-                  <div
-                    key={`hdr_empty_${pageIndex}`}
-                    style={{
-                      padding: '0.4rem',
-                      fontWeight: 600,
-                      color: 'var(--text-tertiary)',
-                      textAlign: 'center',
-                      background: 'var(--surface-glass)',
-                      borderRadius: 6,
-                      fontSize: '0.8rem',
-                      userSelect: 'none',
-                      opacity: 0.45,
-                      minHeight: 51,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      width: '100%',
-                      height: '100%',
-                    }}
-                  >
-                    —
-                  </div>
-                );
-              }
-              const info = parseDateInfo(date);
-              return (
-                <Tooltip
-                  key={`hdr_${date}`}
-                  content={canRegister ? `Bấm để chọn / bỏ chọn cả cột ${info.dateStr}` : ''}
-                  variant="glass-card"
-                  placement="top"
-                  className={!canRegister ? 'no-tooltip-hover' : ''}
-                  style={{ display: 'block', width: '100%', height: '100%' }}
-                >
-                  <div
-                    onClick={canRegister ? () => bulkToggle(slotsInCol(date)) : undefined}
-                    style={{
-                      padding: '0.4rem',
-                      fontWeight: 600,
-                      color: 'var(--text-primary)',
-                      textAlign: 'center',
-                      background: 'var(--surface-glass)',
-                      borderRadius: 6,
-                      fontSize: '0.8rem',
-                      cursor: canRegister ? 'pointer' : 'default',
-                      transition: 'background 0.15s ease',
-                      userSelect: 'none',
-                      width: '100%',
-                      height: '100%',
-                    }}
-                    onMouseEnter={(e) => { if (canRegister) e.currentTarget.style.background = 'rgba(14, 165, 233, 0.15)'; }}
-                    onMouseLeave={(e) => { e.currentTarget.style.background = 'var(--surface-glass)'; }}
-                  >
-                    <div>{info.dow}</div>
-                    <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>{info.dateStr}</div>
-                  </div>
-                </Tooltip>
-              );
-            })}
-
-            {slotIndices.map((idx) => (
-              <Fragment key={`row_${idx}`}>
-                {/* Label "Slot N" — click chọn cả hàng */}
-                <Tooltip
-                  content={canRegister ? `Bấm để chọn / bỏ chọn cả hàng Slot ${idx}` : ''}
-                  variant="glass-card"
-                  placement="top"
-                  className={!canRegister ? 'no-tooltip-hover' : ''}
-                  style={{ display: 'block', width: '100%', height: '100%' }}
-                >
-                  <div
-                    onClick={canRegister ? () => bulkToggle(slotsInRow(idx)) : undefined}
-                    style={{
-                      padding: '0.4rem',
-                      minHeight: 42,
-                      minWidth: 96,
-                      fontWeight: 600,
-                      color: 'var(--text-primary)',
-                      background: 'var(--surface-glass)',
-                      borderRadius: 6,
-                      fontSize: '0.8rem',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: 2,
-                      cursor: canRegister ? 'pointer' : 'default',
-                      transition: 'background 0.15s ease',
-                      userSelect: 'none',
-                      lineHeight: 1.1,
-                      width: '100%',
-                      height: '100%',
-                    }}
-                    onMouseEnter={(e) => { if (canRegister) e.currentTarget.style.background = 'rgba(14, 165, 233, 0.15)'; }}
-                    onMouseLeave={(e) => { e.currentTarget.style.background = 'var(--surface-glass)'; }}
-                  >
-                    Slot {idx}
-                    <div style={{ fontSize: '0.68rem', fontWeight: 500, color: 'var(--text-secondary)', marginTop: 2, lineHeight: 1.1 }}>
-                      {getReviewSlotTimeRange(idx)}
-                    </div>
-                  </div>
-                </Tooltip>
-                {pagedDates.map((date, pageIndex) => (
-                  <Fragment key={`cell_${idx}_${pageIndex}`}>
-                    {date ? renderCell(date, idx) : (
-                      <div
-                        style={{
-                          ...cellStyle('empty'),
-                          cursor: 'default',
-                          opacity: 0.25,
-                          pointerEvents: 'none',
-                        }}
-                        aria-hidden="true"
-                      >
-                        —
-                      </div>
-                    )}
-                  </Fragment>
+                <option value="">-- Học kỳ --</option>
+                {semesters.map(s => (
+                  <option key={s.id} value={s.id}>{s.code}</option>
                 ))}
-              </Fragment>
-            ))}
+              </select>
+            </div>
+
+            <div className="ds-filter-select-group">
+              <label className="ds-form-label">Đợt đánh giá</label>
+              <select 
+                value={selectedReview?.id || ''} 
+                onChange={handleReviewChange}
+                className="ds-select-small"
+                disabled={loadingReviews || reviews.length === 0}
+              >
+                {reviews.map(r => (
+                  <option key={r.id} value={r.id}>{r.label}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Main Container Card */}
+      {selectedReview ? (
+        <div className="ds-card">
+          
+          {/* Status and Action Banners */}
+          <div className="ds-slots-banner-container">
+            {isRegistrationOpen ? (
+              <div className="ds-alert-banner success">
+                <CheckCircle size={18} />
+                <div>
+                  <h4>Hệ thống đang mở đăng ký nguyện vọng</h4>
+                  <p>
+                    Vui lòng bấm chọn các ca rảnh/mong muốn dưới lịch biểu (ô màu xanh lá khi chọn) rồi bấm <strong>Lưu đăng ký</strong>.
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <div className="ds-alert-banner warning">
+                <AlertTriangle size={18} />
+                <div>
+                  <h4>Thời gian đăng ký nguyện vọng đã đóng</h4>
+                  <p>
+                    Đợt chấm đang ở trạng thái <strong>{selectedReview.status}</strong>. Hiện tại chỉ có chế độ xem thông tin ca học và lịch gán chính thức.
+                  </p>
+                </div>
+              </div>
+            )}
+            
+            {user?.role === 'GroupMember' && (
+              <div className="ds-alert-banner info" style={{ marginTop: '12px' }}>
+                <Info size={18} />
+                <div>
+                  <h4>Tài khoản Thành viên nhóm đồ án (Xem-only)</h4>
+                  <p>Chỉ có tài khoản Trưởng nhóm (StudentLeader) mới có quyền bấm sửa và lưu đăng ký lịch chấm.</p>
+                </div>
+              </div>
+            )}
+            
+            {user?.role === 'Admin' && (
+              <div className="ds-alert-banner info" style={{ marginTop: '12px' }}>
+                <Info size={18} />
+                <div>
+                  <h4>Tài khoản Quản trị viên (Admin - Xem-only)</h4>
+                  <p>Trang này hiển thị biểu đồ rảnh của đợt. Thao tác đăng ký dành riêng cho Giảng viên phản biện và các Nhóm đồ án.</p>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Timetable Grid Schedule */}
+          {loadingSlots ? (
+            <div className="ds-loading-placeholder" style={{ padding: '60px 0' }}>
+              <Clock className="spin text-primary" size={32} style={{ marginBottom: '12px' }} />
+              <p>Đang tải sơ đồ ca chấm...</p>
+            </div>
+          ) : dateList.length === 0 ? (
+            <div className="ds-empty-state" style={{ padding: '60px 0' }}>
+              <AlertCircle size={48} className="text-muted" style={{ marginBottom: '16px' }} />
+              <h3>Chưa thiết lập ca thi nào</h3>
+              <p className="text-muted">Đợt đánh giá chưa được khởi tạo các ca chấm (slots). Admin cần mở đợt chấm trước.</p>
+            </div>
+          ) : (
+            <div className="ds-timetable-scroller">
+              <table className="ds-timetable-grid">
+                <thead>
+                  <tr>
+                    <th className="ds-time-column-header">Ca thi</th>
+                    {dateList.map((d, index) => (
+                      <th key={index} className="ds-date-column-header">
+                        {formatDateDayMonth(d)}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {SHIFT_TIMES.map(shift => (
+                    <tr key={shift.index}>
+                      {/* Left vertical header (Shift Time details) */}
+                      <td className="ds-time-cell-header">
+                        <strong className="tnum">{shift.label}</strong>
+                        <span className="tnum">{shift.time}</span>
+                      </td>
+                      
+                      {/* Main schedule date columns cells */}
+                      {dateList.map((date, colIdx) => {
+                        const slot = slots.find(s => s.slotDate.startsWith(date) && s.slotIndex === shift.index);
+                        if (!slot) {
+                          return <td key={colIdx} className="ds-slot-cellempty">—</td>;
+                        }
+
+                        const isLocallySelected = selectedSlotIds.has(slot.id);
+                        const isAssigned = slot.isCurrentUserAssigned;
+                        
+                        let cellClass = '';
+                        if (isAssigned) {
+                          cellClass = 'assigned-locked';
+                        } else if (isLocallySelected) {
+                          cellClass = 'selected-active';
+                        } else {
+                          cellClass = 'available-cell';
+                        }
+
+                        return (
+                          <td 
+                            key={colIdx} 
+                            onClick={() => handleToggleSlot(slot)}
+                            className={`ds-slot-cell ${cellClass}`}
+                          >
+                            <div className="ds-slot-cell-card">
+                              
+                              {/* Checkbox state top icon */}
+                              <div className="ds-slot-check-icon">
+                                {isAssigned ? (
+                                  <Lock size={16} className="text-warning" />
+                                ) : isLocallySelected ? (
+                                  <CheckSquare size={16} className="text-primary" />
+                                ) : (
+                                  <Square size={16} className="text-muted-checkbox" />
+                                )}
+                              </div>
+
+                              {/* Capacity details & notes */}
+                              <div className="ds-slot-details">
+                                {user?.role === 'Lecturer' || user?.role === 'Reviewer' ? (
+                                  <p className="tnum">Số nhóm đề xuất: <strong>{slot.groupPreferenceCount}</strong></p>
+                                ) : (
+                                  <p className="tnum">Số GV rảnh: <strong>{slot.lecturerPreferenceCount}</strong></p>
+                                )}
+                                <p className="tnum" style={{ marginTop: '2px' }}>
+                                  Hội đồng đã xếp: <strong>{slot.assignmentCount}</strong>/{slot.roomCount} phòng
+                                </p>
+                              </div>
+
+                              {/* Slot Bottom Badges */}
+                              {isAssigned && (
+                                <span className="ds-assigned-badge">Lịch chính thức</span>
+                              )}
+                              
+                              {slot.note && (
+                                <span className="ds-slot-note-hint" title={slot.note}>
+                                  Ghi chú: {slot.note}
+                                </span>
+                              )}
+
+                            </div>
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+        </div>
+      ) : (
+        <div className="ds-card" style={{ textAlign: 'center', padding: '60px 20px' }}>
+          <Calendar size={48} className="text-muted" style={{ marginBottom: '16px' }} />
+          <h3>Chưa chọn đợt đánh giá</h3>
+          <p className="text-muted">Vui lòng chọn học kỳ và đợt đánh giá ở bộ lọc phía trên để bắt đầu thao tác.</p>
+        </div>
+      )}
+
+      {/* Floating Save changes action bar */}
+      {hasChanges() && (
+        <div className="ds-floating-bar-wrapper">
+          <div className="ds-floating-bar-container">
+            <div className="ds-floating-bar-info">
+              <Clock size={20} className="text-primary" />
+              <div>
+                <p><strong>Bạn có thay đổi chưa lưu!</strong></p>
+                <p className="text-muted" style={{ fontSize: '0.8rem' }}>
+                  {registerCount > 0 && `Đăng ký thêm: ${registerCount} ca. `}
+                  {unregisterCount > 0 && `Hủy đăng ký: ${unregisterCount} ca.`}
+                </p>
+              </div>
+            </div>
+            
+            <div className="ds-floating-bar-btns">
+              <button 
+                className="ds-btn ds-btn-secondary" 
+                onClick={handleCancelChanges}
+                disabled={saving}
+              >
+                <RotateCcw size={16} />
+                <span>Hủy bỏ</span>
+              </button>
+              
+              <button 
+                className="ds-btn ds-btn-primary" 
+                onClick={handleSaveChanges}
+                disabled={saving}
+              >
+                <Save size={16} />
+                <span>{saving ? 'Đang lưu...' : 'Lưu nguyện vọng'}</span>
+              </button>
+            </div>
           </div>
         </div>
       )}
+
+      {/* Embedded page styles */}
+      <style>{`
+        .ds-slots-page {
+          width: 100%;
+          animation: ds-page-in 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+          padding-bottom: 80px; /* Space for floating bar */
+        }
+
+        .ds-slots-header {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          margin-bottom: 24px;
+        }
+
+        .ds-filter-selectors-row {
+          display: flex;
+          gap: 16px;
+        }
+
+        .ds-filter-select-group {
+          display: flex;
+          flex-direction: column;
+          gap: 4px;
+        }
+
+        .ds-select-small {
+          padding: 8px 12px;
+          border-radius: var(--radius-sm);
+          font-weight: 500;
+          font-size: 0.85rem;
+          min-width: 180px;
+        }
+
+        .ds-slots-banner-container {
+          margin-bottom: 24px;
+        }
+
+        .ds-alert-banner {
+          display: flex;
+          align-items: flex-start;
+          gap: 12px;
+          padding: 14px 20px;
+          border-radius: var(--radius-md);
+          font-size: 0.85rem;
+          line-height: 1.4;
+        }
+
+        .ds-alert-banner h4 {
+          font-weight: 700;
+          margin-bottom: 2px;
+        }
+
+        .ds-alert-banner.success {
+          background-color: color-mix(in oklch, var(--color-success) 6%, transparent);
+          border: 1px solid color-mix(in oklch, var(--color-success) 15%, transparent);
+          color: var(--color-success);
+        }
+
+        .ds-alert-banner.warning {
+          background-color: color-mix(in oklch, var(--color-danger) 6%, transparent);
+          border: 1px solid color-mix(in oklch, var(--color-danger) 15%, transparent);
+          color: var(--color-danger);
+        }
+
+        .ds-alert-banner.info {
+          background-color: color-mix(in oklch, var(--color-primary) 6%, transparent);
+          border: 1px solid color-mix(in oklch, var(--color-primary) 15%, transparent);
+          color: var(--color-primary);
+        }
+
+        .ds-loading-placeholder {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          color: var(--color-muted);
+        }
+
+        .ds-empty-state {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          text-align: center;
+        }
+
+        .ds-empty-state h3 {
+          font-size: 1.2rem;
+          margin-bottom: 6px;
+        }
+
+        /* Timetable grid schedule layout */
+        .ds-timetable-scroller {
+          width: 100%;
+          overflow-x: auto;
+          border: 1px solid var(--color-border);
+          border-radius: var(--radius-lg);
+          background-color: var(--color-surface);
+        }
+
+        .ds-timetable-grid {
+          width: 100%;
+          border-collapse: collapse;
+          table-layout: fixed;
+          min-width: 900px;
+        }
+
+        .ds-timetable-grid th, 
+        .ds-timetable-grid td {
+          border: 1px solid var(--color-border);
+          padding: 0;
+          vertical-align: top;
+        }
+
+        .ds-time-column-header {
+          width: 130px;
+          background-color: var(--color-bg);
+          padding: 16px 12px;
+          text-align: center;
+          font-size: 0.85rem;
+          font-weight: 700;
+        }
+
+        .ds-date-column-header {
+          background-color: var(--color-bg);
+          padding: 16px 12px;
+          text-align: center;
+          font-size: 0.9rem;
+          font-weight: 700;
+          color: var(--color-ink);
+        }
+
+        .ds-time-cell-header {
+          background-color: var(--color-bg);
+          padding: 16px 12px;
+          text-align: center;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          height: 110px;
+          box-sizing: border-box;
+        }
+
+        .ds-time-cell-header strong {
+          font-size: 1rem;
+          color: var(--color-ink);
+        }
+
+        .ds-time-cell-header span {
+          font-size: 0.75rem;
+          color: var(--color-muted);
+          margin-top: 4px;
+        }
+
+        .ds-slot-cellempty {
+          background-color: var(--color-surface);
+          color: var(--color-border);
+          text-align: center;
+          vertical-align: middle;
+          font-size: 1.2rem;
+          height: 110px;
+        }
+
+        /* Slot card style */
+        .ds-slot-cell {
+          height: 110px;
+          cursor: pointer;
+          transition: background-color var(--transition-fast), border-color var(--transition-fast);
+          padding: 8px;
+          box-sizing: border-box;
+          background-color: var(--color-bg);
+        }
+
+        .ds-slot-cell.available-cell:hover {
+          background-color: var(--color-surface);
+        }
+
+        /* Selected registered active cell */
+        .ds-slot-cell.selected-active {
+          background-color: color-mix(in oklch, var(--color-success) 5%, transparent);
+          border: 2px solid var(--color-success);
+        }
+
+        .ds-slot-cell.selected-active:hover {
+          background-color: color-mix(in oklch, var(--color-success) 9%, transparent);
+        }
+
+        /* Assigned official locked cell */
+        .ds-slot-cell.assigned-locked {
+          background-color: color-mix(in oklch, var(--color-primary) 5%, transparent);
+          border: 2px solid var(--color-primary);
+          cursor: not-allowed;
+        }
+
+        .ds-slot-cell-card {
+          display: flex;
+          flex-direction: column;
+          justify-content: space-between;
+          height: 100%;
+          position: relative;
+        }
+
+        .ds-slot-check-icon {
+          display: flex;
+          justify-content: flex-end;
+          color: var(--color-muted);
+        }
+
+        .text-muted-checkbox {
+          color: var(--color-border);
+        }
+
+        .ds-slot-details {
+          margin-top: 2px;
+        }
+
+        .ds-slot-details p {
+          font-size: 0.75rem;
+          color: var(--color-muted);
+          line-height: 1.3;
+        }
+
+        .ds-slot-details strong {
+          color: var(--color-ink);
+        }
+
+        .ds-assigned-badge {
+          align-self: flex-start;
+          font-size: 0.7rem;
+          font-weight: 700;
+          color: var(--color-primary);
+          background-color: color-mix(in oklch, var(--color-primary) 8%, transparent);
+          padding: 2px 6px;
+          border-radius: var(--radius-sm);
+          margin-top: 4px;
+        }
+
+        .ds-slot-note-hint {
+          position: absolute;
+          bottom: 0;
+          right: 0;
+          font-size: 0.65rem;
+          color: var(--color-muted);
+          background-color: var(--color-surface);
+          border: 1px solid var(--color-border);
+          border-radius: var(--radius-sm);
+          padding: 1px 4px;
+          max-width: 100px;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+
+        /* Floating action bar styling */
+        .ds-floating-bar-wrapper {
+          position: fixed;
+          bottom: 24px;
+          left: 50%;
+          transform: translateX(-50%);
+          z-index: 100;
+          width: calc(100% - 48px);
+          max-width: 800px;
+          animation: ds-modal-in 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+
+        .ds-floating-bar-container {
+          background-color: var(--color-bg);
+          border: 1px solid var(--color-border);
+          border-radius: var(--radius-lg);
+          padding: 14px 24px;
+          box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          backdrop-filter: blur(10px);
+        }
+
+        .ds-floating-bar-info {
+          display: flex;
+          align-items: center;
+          gap: 16px;
+        }
+
+        .ds-floating-bar-info p {
+          margin: 0;
+          line-height: 1.3;
+        }
+
+        .ds-floating-bar-btns {
+          display: flex;
+          gap: 12px;
+        }
+
+        .spin {
+          animation: ds-spin 1s linear infinite;
+        }
+
+        @keyframes ds-spin {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
+        }
+
+        @keyframes ds-modal-in {
+          from {
+            transform: translate(-50%, 40px);
+            opacity: 0;
+          }
+          to {
+            transform: translate(-50%, 0);
+            opacity: 1;
+          }
+        }
+      `}</style>
+      
     </div>
   );
 };

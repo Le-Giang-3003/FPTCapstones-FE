@@ -1,264 +1,684 @@
-import { useState, useRef, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Outlet, Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { useToast } from '../contexts/ToastContext';
+import { 
+  LayoutDashboard, 
+  BookOpen, 
+  Lightbulb, 
+  Users, 
+  UserCheck, 
+  FileUp, 
+  Calendar, 
+  Settings, 
+  Clock, 
+  UserSquare2, 
+  GitBranch, 
+  CalendarRange, 
+  LogOut, 
+  Menu,
+  Compass,
+  Sun,
+  Moon,
+  ChevronLeft,
+  ChevronRight
+} from 'lucide-react';
 import { hasAnyRole } from '../utils/role';
-import { useTheme } from '../contexts/ThemeContext';
-import { LayoutDashboard, Users, FolderKanban, LogOut, Upload, ClipboardList, Sun, Moon, ChevronDown, GraduationCap, CalendarRange, ChevronLeft, ChevronRight, BookOpen, CalendarCheck, UserCheck, CalendarClock } from 'lucide-react';
-import { Tooltip } from './Tooltip';
-const Layout = () => {
+
+export const Layout: React.FC = () => {
   const { user, logout } = useAuth();
-  const { isDark, toggleTheme } = useTheme();
+  const { showToast } = useToast();
   const location = useLocation();
-  const [dropdownOpen, setDropdownOpen] = useState(false);
-  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
-  const dropdownRef = useRef<HTMLDivElement>(null);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-        setDropdownOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, []);
+  const [theme, setTheme] = useState(() => {
+    return localStorage.getItem('theme') || 'light';
+  });
 
-  const myProjectPath = user?.groupId ? `/projects/${user.groupId}` : '/no-project';
+  const toggleTheme = () => {
+    const newTheme = theme === 'light' ? 'dark' : 'light';
+    setTheme(newTheme);
+    localStorage.setItem('theme', newTheme);
+    document.documentElement.setAttribute('data-theme', newTheme);
+    showToast(`Đã chuyển sang giao diện ${newTheme === 'light' ? 'Sáng' : 'Xanh đêm'}`, 'info');
+  };
 
-  const navItems = [
-    { path: '/dashboard', label: 'Dashboard', icon: <LayoutDashboard size={20} />, roles: ['Admin', 'Lecturer', 'Reviewer', 'StudentLeader', 'GroupMember'] },
-    { path: '/topics', label: 'Quản lý đồ án', icon: <FolderKanban size={20} />, roles: ['Admin', 'Lecturer'] },
-    { path: '/topic-ideas', label: 'Quản lý đề tài', icon: <BookOpen size={20} />, roles: ['Lecturer'] },
-    { path: '/admin/users', label: 'Quản lý user', icon: <Users size={20} />, roles: ['Admin'] },
-    { path: '/admin/lecturers', label: 'Giảng viên', icon: <GraduationCap size={20} />, roles: ['Admin'] },
-    { path: '/admin/semesters', label: 'Lịch trình kỳ', icon: <CalendarRange size={20} />, roles: ['Admin'] },
-    { path: '/admin/import', label: 'Import Excel', icon: <Upload size={20} />, roles: ['Admin'] },
-    { path: '/admin/reviewers', label: 'Chọn reviewer', icon: <UserCheck size={20} />, roles: ['Admin'] },
-    { path: '/admin/scheduling', label: 'Xếp lịch review', icon: <CalendarClock size={20} />, roles: ['Admin'] },
-    { path: '/audit-logs', label: 'Audit Logs', icon: <ClipboardList size={20} />, roles: ['Admin'] },
-    // Đăng ký slot chỉ hiện cho: StudentLeader/GroupMember (đăng ký nhóm) + Reviewer (GV được admin chỉ định)
-    { path: '/reviews/slots', label: 'Đăng ký slot review', icon: <CalendarCheck size={20} />, roles: ['Reviewer', 'StudentLeader', 'GroupMember'] },
-    { path: myProjectPath, label: 'Nhóm của tôi', icon: <FolderKanban size={20} />, roles: ['StudentLeader', 'GroupMember', 'Student'] },
+  if (!user) return null;
+
+  const handleLogout = () => {
+    logout();
+    showToast('Đăng xuất thành công', 'success');
+  };
+
+  // Define sidebar menu items based on role
+  const menuItems = [
+    {
+      label: 'Tổng quan',
+      path: '/dashboard',
+      icon: LayoutDashboard,
+      roles: ['Admin', 'Lecturer', 'Reviewer', 'StudentLeader', 'GroupMember'],
+    },
+    {
+      label: 'Đề tài đồ án',
+      path: '/topics',
+      icon: BookOpen,
+      roles: ['Admin', 'Lecturer'],
+    },
+    {
+      label: 'Ý tưởng đề tài',
+      path: '/topic-ideas',
+      icon: Lightbulb,
+      roles: ['Lecturer'],
+    },
+    {
+      label: 'Đăng ký Slot Chấm',
+      path: '/reviews/slots',
+      icon: CalendarRange,
+      roles: ['Admin', 'Reviewer', 'StudentLeader', 'GroupMember'],
+    },
+    {
+      label: 'Nhóm đồ án',
+      path: user.groupId ? `/projects/${user.groupId}` : '/no-project',
+      icon: Compass,
+      roles: ['StudentLeader', 'GroupMember'],
+      customCheck: () => true
+    },
+    // Admin Sections
+    {
+      label: 'Quản lý Người dùng',
+      path: '/admin/users',
+      icon: Users,
+      roles: ['Admin'],
+    },
+    {
+      label: 'Quản lý Giảng viên',
+      path: '/admin/lecturers',
+      icon: UserSquare2,
+      roles: ['Admin'],
+    },
+    {
+      label: 'Nhập dữ liệu Excel',
+      path: '/admin/import',
+      icon: FileUp,
+      roles: ['Admin'],
+    },
+    {
+      label: 'Quản lý Học kỳ',
+      path: '/admin/semesters',
+      icon: Calendar,
+      roles: ['Admin'],
+    },
+    {
+      label: 'Mẫu Ngày lễ',
+      path: '/admin/holiday-templates',
+      icon: Settings,
+      roles: ['Admin'],
+    },
+    {
+      label: 'Hội đồng Chấm',
+      path: '/admin/reviewers',
+      icon: UserCheck,
+      roles: ['Admin'],
+    },
+    {
+      label: 'Thuật toán Xếp lịch',
+      path: '/admin/scheduling',
+      icon: GitBranch,
+      roles: ['Admin'],
+    },
+    {
+      label: 'Lịch sử hệ thống',
+      path: '/audit-logs',
+      icon: Clock,
+      roles: ['Admin', 'Lecturer', 'Reviewer', 'StudentLeader', 'GroupMember'],
+    },
   ];
 
-  return (
-    <div className="app-container" style={{ height: '100vh', overflow: 'hidden' }}>
-      <aside className={`sidebar glass-panel ${isSidebarCollapsed ? 'collapsed' : ''}`} style={{ margin: '1rem 0 1rem 1rem', height: 'calc(100vh - 2rem)', position: 'relative', flexShrink: 0 }}>
-        <button
-          onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
-          style={{
-            position: 'absolute',
-            top: '1.5rem',
-            right: '-12px',
-            background: 'var(--surface-glass)',
-            border: '1px solid var(--border-glass)',
-            borderRadius: '50%',
-            width: '24px',
-            height: '24px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            cursor: 'pointer',
-            color: 'var(--text-primary)',
-            zIndex: 10,
-          }}
-        >
-          {isSidebarCollapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
-        </button>
+  const filteredItems = menuItems.filter(item => 
+    hasAnyRole(user.role, item.roles as any) && (!item.customCheck || item.customCheck())
+  );
 
-        <div style={{ padding: '1rem 0', marginBottom: '2rem', borderBottom: '1px solid var(--border-glass)', display: 'flex', flexDirection: 'column', alignItems: isSidebarCollapsed ? 'center' : 'flex-start' }}>
-          {isSidebarCollapsed ? (
-            <h2 className="text-gradient" style={{ fontSize: '1.2rem' }}>FC</h2>
-          ) : (
-            <>
-              <h2 className="text-gradient">FPT Capstones</h2>
-              <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>{user?.role}</p>
-            </>
-          )}
+  const getRoleLabel = (role: string) => {
+    switch(role) {
+      case 'Admin': return 'Quản trị viên';
+      case 'Lecturer': return 'Giảng viên';
+      case 'Reviewer': return 'Hội đồng chấm';
+      case 'StudentLeader': return 'Trưởng nhóm';
+      case 'GroupMember': return 'Thành viên nhóm';
+      default: return role;
+    }
+  };
+
+  return (
+    <div className="ds-layout-container">
+      {/* Sidebar Panel */}
+      <aside className={`ds-sidebar ${sidebarOpen ? 'open' : 'closed'} ${sidebarCollapsed ? 'collapsed' : ''}`}>
+        <div className="ds-sidebar-brand">
+          {!sidebarCollapsed && <h2>FPT Capstone</h2>}
+          <button
+            className="ds-sidebar-toggle-btn"
+            onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+            aria-label={sidebarCollapsed ? 'Mở rộng sidebar' : 'Thu nhỏ sidebar'}
+            title={sidebarCollapsed ? 'Mở rộng' : 'Thu nhỏ'}
+          >
+            {sidebarCollapsed ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}
+          </button>
         </div>
 
-        <nav style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', flex: 1 }}>
-          {navItems
-            .filter(item => user && hasAnyRole(user?.role, item.roles as import('../types').Role[]))
-            .map(item => {
-              const isActive = location.pathname === item.path || location.pathname.startsWith(item.path + '/');
-              const linkElement = (
-                <Link
-                  to={item.path}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: isSidebarCollapsed ? 'center' : 'flex-start',
-                    gap: isSidebarCollapsed ? '0' : '0.75rem',
-                    padding: isSidebarCollapsed ? '0.75rem 0' : '0.75rem 1rem',
-                    borderRadius: '8px',
-                    color: isActive ? 'var(--accent-text)' : 'var(--text-secondary)',
-                    background: isActive ? 'var(--accent-primary)' : 'transparent',
-                    transition: 'all 0.2s',
-                    textDecoration: 'none',
-                  }}
-                >
-                  {item.icon}
-                  {!isSidebarCollapsed && <span style={{ fontWeight: 500, whiteSpace: 'nowrap' }}>{item.label}</span>}
-                </Link>
-              );
-              
-              if (isSidebarCollapsed) {
-                return (
-                  <Tooltip key={item.path} content={item.label} variant="glass-card" placement="right">
-                    {linkElement}
-                  </Tooltip>
-                );
-              }
-              return <div key={item.path}>{linkElement}</div>;
-            })}
+        <nav className="ds-sidebar-nav">
+          {filteredItems.map(item => {
+            const Icon = item.icon;
+            const isActive = location.pathname === item.path || (item.path !== '/dashboard' && location.pathname.startsWith(item.path));
+            return (
+              <Link 
+                key={item.path} 
+                to={item.path} 
+                className={`ds-nav-item ${isActive ? 'active' : ''}`}
+                title={sidebarCollapsed ? item.label : undefined}
+              >
+                <Icon size={18} className="ds-nav-icon" />
+                {!sidebarCollapsed && <span className="ds-nav-label">{item.label}</span>}
+              </Link>
+            );
+          })}
         </nav>
+
+        <div className="ds-sidebar-footer">
+          <div className="ds-user-badge">
+            <div className="ds-user-avatar">
+              {user.fullName.charAt(0).toUpperCase()}
+            </div>
+            {!sidebarCollapsed && (
+              <div className="ds-user-info">
+                <span className="ds-user-name">{user.fullName}</span>
+                <span className="ds-user-role">{getRoleLabel(user.role)}</span>
+              </div>
+            )}
+          </div>
+          <button onClick={handleLogout} className="ds-logout-btn" title={sidebarCollapsed ? 'Đăng xuất' : undefined}>
+            <LogOut size={16} />
+            {!sidebarCollapsed && <span>Đăng xuất</span>}
+          </button>
+        </div>
       </aside>
 
-      <main className="main-content">
-        {/* User Profile Dropdown inside scrollable container */}
-        <div
-          ref={dropdownRef}
-          style={{
-            position: 'absolute',
-            top: '2.4rem',
-            right: '2rem',
-            zIndex: 100,
-          }}
-        >
-          <button
-            onClick={() => setDropdownOpen(!dropdownOpen)}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.625rem',
-              background: 'var(--surface-glass)',
-              backdropFilter: 'blur(12px)',
-              border: '1px solid var(--border-glass)',
-              padding: '0.5rem 1rem',
-              borderRadius: '9999px',
-              cursor: 'pointer',
-              boxShadow: 'var(--shadow-md)',
-              color: 'var(--text-primary)',
-              transition: 'all 0.2s',
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.borderColor = 'var(--accent-primary)';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.borderColor = 'var(--border-glass)';
-            }}
-          >
-            <div style={{
-              width: '28px',
-              height: '28px',
-              borderRadius: '50%',
-              background: 'var(--accent-primary)',
-              color: 'var(--accent-text)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontWeight: 600,
-              fontSize: '0.8rem'
-            }}>
-              {user?.fullName?.charAt(0).toUpperCase()}
-            </div>
-            <span style={{ fontSize: '0.875rem', fontWeight: 500, maxWidth: '140px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-              {user?.fullName}
-            </span>
-            <ChevronDown
-              size={16}
-              style={{
-                transition: 'transform 0.2s',
-                transform: dropdownOpen ? 'rotate(180deg)' : 'none',
-                color: 'var(--text-secondary)'
-              }}
-            />
-          </button>
+      {/* Main Container */}
+      <div className="ds-main-viewport">
+        {/* Header bar */}
+        <header className="ds-header">
+          <div className="ds-header-left">
+            {!sidebarOpen && (
+              <button className="ds-menu-trigger-btn" onClick={() => setSidebarOpen(true)} aria-label="Mở thanh điều hướng">
+                <Menu size={20} />
+              </button>
+            )}
+            <h1 className="ds-header-title">
+              {filteredItems.find(item => location.pathname === item.path || (item.path !== '/dashboard' && location.pathname.startsWith(item.path)))?.label || 'Dự án'}
+            </h1>
+          </div>
 
-          {dropdownOpen && (
-            <div
-              className="glass-panel animate-fade-in"
+          <div className="ds-header-right" style={{ display: 'flex', alignItems: 'center' }}>
+            <button 
+              onClick={toggleTheme} 
+              className="ds-theme-toggle-btn"
               style={{
-                position: 'absolute',
-                top: 'calc(100% + 0.5rem)',
-                right: 0,
-                width: '280px',
-                padding: '1.25rem',
-                boxShadow: 'var(--shadow-lg)',
-                border: '1px solid var(--border-glass)',
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                color: 'var(--color-muted)',
+                width: '40px',
+                height: '40px',
+                borderRadius: 'var(--radius-sm)',
                 display: 'flex',
-                flexDirection: 'column',
-                gap: '1rem',
-                // Override bg đục 100% — không cho content phía sau lộ qua dropdown
-                background: 'var(--surface-glass)',
+                alignItems: 'center',
+                justifyContent: 'center',
+                transition: 'background-color var(--transition-fast), color var(--transition-fast)',
+                marginRight: '12px'
               }}
+              title={theme === 'light' ? 'Chuyển sang giao diện tối' : 'Chuyển sang giao diện sáng'}
             >
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', paddingBottom: '0.75rem', borderBottom: '1px solid var(--border-glass)' }}>
-                <div style={{
-                  width: '40px',
-                  height: '40px',
-                  borderRadius: '50%',
-                  background: 'linear-gradient(135deg, var(--accent-primary), var(--accent-hover))',
-                  color: 'white',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  fontWeight: 600,
-                  fontSize: '1rem'
-                }}>
-                  {user?.fullName?.charAt(0).toUpperCase()}
-                </div>
-                <div style={{ overflow: 'hidden' }}>
-                  <p style={{ fontWeight: 600, fontSize: '0.9rem', whiteSpace: 'nowrap', textOverflow: 'ellipsis', color: 'var(--text-primary)' }}>{user?.fullName}</p>
-                  <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>{user?.email}</p>
-                  <span className="badge" style={{ display: 'inline-block', marginTop: '0.35rem', background: 'var(--bg-secondary)', color: 'var(--text-secondary)', padding: '0.125rem 0.5rem', fontSize: '0.7rem', border: '1px solid var(--border-glass)' }}>
-                    {user?.role}
-                  </span>
-                </div>
-              </div>
+              {theme === 'light' ? <Moon size={20} /> : <Sun size={20} />}
+            </button>
+            {user.groupId && (
+              <span className="ds-group-badge">Nhóm {user.groupId}</span>
+            )}
+          </div>
+        </header>
 
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                <button
-                  onClick={() => {
-                    toggleTheme();
-                  }}
-                  className="theme-toggle"
-                  style={{ margin: 0, width: '100%' }}
-                >
-                  {isDark ? <Sun size={16} /> : <Moon size={16} />}
-                  {isDark ? 'Giao diện sáng' : 'Giao diện tối'}
-                  <span className="theme-toggle-track">
-                    <span className={`theme-toggle-thumb ${isDark ? 'dark' : 'light'}`} />
-                  </span>
-                </button>
+        {/* Content Viewport with animations */}
+        <main className="ds-content-container">
+          <div key={location.pathname} className="ds-page-transition-wrapper">
+            <Outlet />
+          </div>
+        </main>
+      </div>
 
-                <button
-                  onClick={logout}
-                  className="btn btn-secondary"
-                  style={{
-                    width: '100%',
-                    justifyContent: 'flex-start',
-                    border: '1px solid rgba(239, 68, 68, 0.2)',
-                    color: 'var(--danger)'
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.background = 'rgba(239, 68, 68, 0.08)';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.background = 'transparent';
-                  }}
-                >
-                  <LogOut size={18} /> Đăng xuất
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
-        <Outlet />
-      </main>
+      <style>{`
+        .ds-layout-container {
+          display: flex;
+          height: 100vh;
+          width: 100vw;
+          overflow: hidden;
+          background-color: var(--color-surface);
+        }
+
+        /* Sidebar styling */
+        .ds-sidebar {
+          width: 280px;
+          height: 100%;
+          /* Light: warm ivory gradient; Dark: overridden below */
+          background: linear-gradient(
+            180deg,
+            var(--color-bg) 0%,
+            color-mix(in oklch, var(--color-primary) 3%, var(--color-bg)) 100%
+          );
+          border-right: 1px solid var(--color-border);
+          display: flex;
+          flex-direction: column;
+          transition: width var(--transition-normal);
+          flex-shrink: 0;
+          z-index: 1000;
+          overflow: hidden;
+        }
+
+        /* Dark mode sidebar: glassmorphism floating panel */
+        [data-theme="dark"] .ds-sidebar {
+          background: linear-gradient(
+            160deg,
+            oklch(0.22 0.024 42 / 0.92) 0%,
+            oklch(0.15 0.014 42 / 0.96) 55%,
+            oklch(0.17 0.020 42 / 0.94) 100%
+          );
+          backdrop-filter: blur(20px) saturate(150%);
+          -webkit-backdrop-filter: blur(20px) saturate(150%);
+          border-right: 1px solid oklch(0.38 0.08 42 / 0.35);
+          box-shadow: 4px 0 24px oklch(0.14 0.012 42 / 0.8);
+        }
+
+        .ds-sidebar.collapsed {
+          width: 68px;
+        }
+
+        .ds-sidebar.closed {
+          width: 0;
+          border-right: none;
+        }
+
+        .ds-sidebar-brand {
+          padding: 20px 14px;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          border-bottom: 1px solid var(--color-border);
+          min-height: 72px;
+          overflow: hidden;
+          position: relative;
+        }
+
+        /* Orange accent bar at top of brand area in dark mode */
+        [data-theme="dark"] .ds-sidebar-brand::before {
+          content: '';
+          position: absolute;
+          top: 0;
+          left: 0;
+          right: 0;
+          height: 2px;
+          background: linear-gradient(to right, var(--color-primary), transparent);
+        }
+
+        .ds-sidebar.collapsed .ds-sidebar-brand {
+          justify-content: center;
+          padding: 20px 0;
+        }
+
+        .ds-sidebar-brand h2 {
+          font-family: 'Montserrat', sans-serif;
+          font-size: 1.15rem;
+          font-weight: 700;
+          white-space: nowrap;
+          /* FPT Orange → deep red gradient on the text */
+          background: linear-gradient(135deg, oklch(0.70 0.20 42), oklch(0.52 0.22 25));
+          -webkit-background-clip: text;
+          -webkit-text-fill-color: transparent;
+          background-clip: text;
+        }
+
+        .ds-sidebar-toggle-btn {
+          display: flex;
+          background: none;
+          border: none;
+          cursor: pointer;
+          color: var(--color-muted);
+          width: 36px;
+          height: 36px;
+          align-items: center;
+          justify-content: center;
+          border-radius: var(--radius-sm);
+          flex-shrink: 0;
+          transition: background-color var(--transition-fast), color var(--transition-fast);
+        }
+
+        .ds-sidebar-toggle-btn:hover {
+          background-color: color-mix(in oklch, var(--color-primary) 8%, transparent);
+          color: var(--color-primary);
+        }
+
+        .ds-theme-toggle-btn:hover {
+          background-color: var(--color-border);
+          color: var(--color-ink);
+        }
+
+        .ds-sidebar-nav {
+          flex: 1;
+          padding: 16px 10px;
+          display: flex;
+          flex-direction: column;
+          gap: 4px;
+          overflow-y: auto;
+          overflow-x: hidden;
+        }
+
+        .ds-nav-item {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          padding: 11px 12px;
+          text-decoration: none;
+          color: var(--color-muted);
+          border-radius: var(--radius-md);
+          font-family: 'Montserrat', sans-serif;
+          font-weight: 700;
+          font-size: 0.9rem;
+          border-left: 3px solid transparent;
+          white-space: nowrap;
+          overflow: hidden;
+          transition: background-color var(--transition-fast), color var(--transition-fast),
+                      transform var(--transition-fast), border-color var(--transition-fast);
+        }
+
+        .ds-sidebar.collapsed .ds-nav-item {
+          justify-content: center;
+          padding: 11px 0;
+          border-left: none;
+          border-radius: var(--radius-md);
+        }
+
+        .ds-sidebar.collapsed .ds-nav-item.active {
+          background: color-mix(in oklch, var(--color-primary) 12%, transparent);
+        }
+
+        .ds-nav-item:hover {
+          background-color: color-mix(in oklch, var(--color-primary) 6%, transparent);
+          color: var(--color-ink);
+          transform: translateX(3px);
+          border-left-color: color-mix(in oklch, var(--color-primary) 40%, transparent);
+        }
+
+        .ds-sidebar.collapsed .ds-nav-item:hover {
+          transform: none;
+        }
+
+        .ds-nav-item.active {
+          background: linear-gradient(
+            to right,
+            color-mix(in oklch, var(--color-primary) 12%, transparent),
+            color-mix(in oklch, var(--color-primary) 4%, transparent)
+          );
+          color: var(--color-primary);
+          border-left-color: var(--color-primary);
+        }
+
+        /* Orange dot badge on active item */
+        .ds-nav-item.active::after {
+          content: '';
+          display: block;
+          width: 6px;
+          height: 6px;
+          border-radius: 50%;
+          background: var(--color-primary);
+          margin-left: auto;
+          flex-shrink: 0;
+          box-shadow: 0 0 6px var(--color-primary);
+        }
+
+        .ds-sidebar.collapsed .ds-nav-item.active::after {
+          display: none;
+        }
+
+        .ds-nav-icon {
+          flex-shrink: 0;
+        }
+
+        .ds-sidebar-footer {
+          padding: 16px 10px;
+          border-top: 1px solid var(--color-border);
+          display: flex;
+          flex-direction: column;
+          gap: 12px;
+          overflow: hidden;
+        }
+
+        .ds-user-badge {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          overflow: hidden;
+        }
+
+        .ds-sidebar.collapsed .ds-user-badge {
+          justify-content: center;
+        }
+
+        .ds-sidebar.collapsed .ds-logout-btn {
+          justify-content: center;
+          padding: 10px 0;
+        }
+
+        .ds-user-avatar {
+          width: 40px;
+          height: 40px;
+          border-radius: 50%;
+          background: linear-gradient(135deg, oklch(0.70 0.20 42), oklch(0.55 0.22 30));
+          color: #ffffff;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-family: 'Montserrat', sans-serif;
+          font-weight: 700;
+          font-size: 1.1rem;
+          box-shadow: 0 0 0 2px var(--color-bg), 0 0 0 4px var(--color-primary);
+          flex-shrink: 0;
+        }
+
+        .ds-user-info {
+          display: flex;
+          flex-direction: column;
+        }
+
+        .ds-user-name {
+          font-size: 0.95rem;
+          font-weight: 700;
+          color: var(--color-ink);
+        }
+
+        .ds-user-role {
+          font-size: 0.8rem;
+          color: var(--color-muted);
+        }
+
+        .ds-logout-btn {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 8px;
+          width: 100%;
+          padding: 10px;
+          background-color: var(--color-surface);
+          border: 1px solid var(--color-border);
+          color: var(--color-muted);
+          border-radius: var(--radius-sm);
+          font-family: 'Roboto', sans-serif;
+          font-weight: 500;
+          font-size: 0.9rem;
+          cursor: pointer;
+          transition: background-color var(--transition-fast), color var(--transition-fast),
+                      border-color var(--transition-fast);
+        }
+
+        .ds-logout-btn:hover {
+          background-color: color-mix(in oklch, var(--color-primary) 8%, transparent);
+          border-color: color-mix(in oklch, var(--color-primary) 30%, transparent);
+          color: var(--color-primary);
+        }
+
+        /* Viewport Styling */
+        .ds-main-viewport {
+          flex: 1;
+          display: flex;
+          flex-direction: column;
+          height: 100%;
+          overflow: hidden;
+          background-color: var(--color-surface);
+        }
+
+        /* Dark mode: subtle radial orange glow in top-right corner */
+        [data-theme="dark"] .ds-main-viewport {
+          background-image: radial-gradient(
+            ellipse 60% 40% at 90% 0%,
+            color-mix(in oklch, var(--color-primary) 6%, transparent),
+            transparent 70%
+          );
+        }
+
+        .ds-header {
+          height: 72px;
+          background-color: var(--color-bg);
+          /* Animated shimmer: subtle orange-gold gradient moving across */
+          background-image: linear-gradient(
+            90deg,
+            transparent 0%,
+            color-mix(in oklch, var(--color-primary) 5%, transparent) 30%,
+            color-mix(in oklch, var(--color-accent) 4%, transparent) 60%,
+            transparent 100%
+          );
+          background-size: 200% 100%;
+          animation: ds-header-shimmer 6s ease-in-out infinite;
+          /* Orange accent underline */
+          border-bottom: none;
+          box-shadow:
+            0 1px 0 0 var(--color-border),
+            0 2px 0 0 color-mix(in oklch, var(--color-primary) 35%, transparent);
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding: 0 32px;
+          flex-shrink: 0;
+        }
+
+        @keyframes ds-header-shimmer {
+          0%   { background-position: 200% 0; }
+          50%  { background-position: -200% 0; }
+          100% { background-position: 200% 0; }
+        }
+
+        .ds-header-left {
+          display: flex;
+          align-items: center;
+          gap: 16px;
+        }
+
+        .ds-menu-trigger-btn {
+          background: none;
+          border: none;
+          cursor: pointer;
+          color: var(--color-ink);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          width: 44px;
+          height: 44px;
+          border-radius: var(--radius-sm);
+          transition: background-color var(--transition-fast);
+        }
+
+        .ds-menu-trigger-btn:hover {
+          background-color: var(--color-surface);
+        }
+
+        .ds-header-title {
+          font-size: 1.5rem;
+          font-weight: 700;
+        }
+
+        .ds-header-right {
+          display: flex;
+          align-items: center;
+          gap: 16px;
+        }
+
+        .ds-header-email {
+          color: var(--color-muted);
+          font-size: 0.9rem;
+        }
+
+        .ds-group-badge {
+          background-color: color-mix(in oklch, var(--color-primary) 10%, transparent);
+          color: var(--color-primary);
+          padding: 4px 12px;
+          border-radius: var(--radius-md);
+          font-size: 0.8rem;
+          font-weight: 700;
+          border: 1px solid color-mix(in oklch, var(--color-primary) 25%, transparent);
+          letter-spacing: 0.3px;
+        }
+
+        .ds-content-container {
+          flex: 1;
+          overflow-y: auto;
+          padding: 32px;
+          position: relative;
+        }
+
+        /* Page transition slide-up + fade-in */
+        .ds-page-transition-wrapper {
+          animation: ds-page-in 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+          height: 100%;
+        }
+
+        @keyframes ds-page-in {
+          from {
+            transform: translateY(12px);
+            opacity: 0;
+          }
+          to {
+            transform: translateY(0);
+            opacity: 1;
+          }
+        }
+
+        /* Responsive Mobile settings */
+        @media (max-width: 768px) {
+          .ds-sidebar {
+            position: absolute;
+            left: 0;
+            top: 0;
+            bottom: 0;
+          }
+          .ds-sidebar.open {
+            width: 280px;
+          }
+          .ds-sidebar-toggle-btn {
+            display: flex;
+          }
+          .ds-header {
+            padding: 0 16px;
+          }
+          .ds-content-container {
+            padding: 16px;
+          }
+        }
+      `}</style>
     </div>
   );
 };

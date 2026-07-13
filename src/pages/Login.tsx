@@ -1,67 +1,320 @@
+import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { hasRole, hasAnyRole } from '../utils/role';
+import { useToast } from '../contexts/ToastContext';
 import { GoogleLogin } from '@react-oauth/google';
-import { Navigate, useNavigate } from 'react-router-dom';
-import { Shield, Sparkles } from 'lucide-react';
+import { KeyRound, Mail, Sparkles } from 'lucide-react';
 
-const routeForUser = (role: string | undefined | null, groupId?: number | null) => {
-  if (hasRole(role, 'Admin') || hasRole(role, 'Lecturer')) return '/dashboard';
-  if (hasAnyRole(role, ['StudentLeader', 'GroupMember', 'Student']) && groupId) {
-    return `/projects/${groupId}`;
-  }
-  return '/no-project';
-};
-
-const formatError = (err: any) => {
-  const data = err?.response?.data;
-  const code = data?.code;
-  const message = data?.message;
-  const status = err?.response?.status;
-  if (!err?.response) {
-    return `Không kết nối được BE (${err?.message}). Kiểm tra HTTPS dev cert + đúng port.`;
-  }
-  return `Đăng nhập thất bại [${status}]${code ? ` ${code}` : ''}\n${message || err?.message || ''}`;
-};
-
-const Login = () => {
-  const { user, login } = useAuth();
+export const Login: React.FC = () => {
+  const { loginWithGoogle, loginWithEmail } = useAuth();
+  const { showToast } = useToast();
   const navigate = useNavigate();
+  const [email, setEmail] = useState('');
+  const [showTestLogin, setShowTestLogin] = useState(false);
+  const [loadingLocal, setLoadingLocal] = useState(false);
 
-  if (user) {
-    return <Navigate to={routeForUser(user.role, user.groupId)} replace />;
-  }
+  const handleGoogleSuccess = async (credentialResponse: any) => {
+    try {
+      if (credentialResponse.credential) {
+        await loginWithGoogle(credentialResponse.credential);
+        showToast('Đăng nhập thành công', 'success');
+        navigate('/');
+      }
+    } catch (err: any) {
+      showToast('Đăng nhập Google thất bại. Hãy kiểm tra cấu hình.', 'error');
+    }
+  };
+
+  const handleGoogleError = () => {
+    showToast('Đăng nhập Google thất bại. Vui lòng thử lại.', 'error');
+  };
+
+  const handleEmailLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!email) {
+      showToast('Vui lòng nhập Email', 'warning');
+      return;
+    }
+    
+    setLoadingLocal(true);
+    try {
+      await loginWithEmail(email);
+      showToast('Đăng nhập thử nghiệm thành công', 'success');
+      navigate('/');
+    } catch (err: any) {
+      showToast('Đăng nhập thất bại. Email không tồn tại hoặc bị khóa.', 'error');
+    } finally {
+      setLoadingLocal(false);
+    }
+  };
 
   return (
-    <div className="app-container" style={{ justifyContent: 'center', alignItems: 'center' }}>
-      <div className="glass-card" style={{ width: '100%', maxWidth: 380, textAlign: 'center', padding: '3rem 2.5rem' }}>
-        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '1.5rem' }}>
-          <div style={{ background: 'var(--surface-glass)', padding: '1rem', borderRadius: '50%', boxShadow: 'var(--shadow-glow)' }}>
-            <Shield size={44} color="var(--accent-primary)" />
+    <div className="ds-login-container">
+      <div className="ds-login-card">
+        <div className="ds-login-header">
+          <div className="ds-login-logo">
+            <Sparkles size={32} className="ds-logo-icon" />
+          </div>
+          <h1>FPT Capstones</h1>
+          <p>Hệ thống tự động hóa quản lý và xếp lịch chấm đồ án tốt nghiệp đại học FPT</p>
+        </div>
+
+        <div className="ds-login-actions">
+          {/* Official Google OAuth Login */}
+          <div className="ds-google-login-wrapper">
+            <GoogleLogin
+              onSuccess={handleGoogleSuccess}
+              onError={handleGoogleError}
+              useOneTap
+              theme="outline"
+              size="large"
+              width="320"
+            />
+          </div>
+
+          <div className="ds-divider">
+            <span>HOẶC</span>
+          </div>
+
+          {/* Test Login Form Switcher */}
+          <div className="ds-test-login-section">
+            <button 
+              className={`ds-btn ds-btn-secondary ds-login-toggle-btn ${showTestLogin ? 'ds-hidden' : ''}`}
+              onClick={() => setShowTestLogin(true)}
+            >
+              <KeyRound size={16} />
+              <span>Đăng nhập thử nghiệm (Bypass Google)</span>
+            </button>
+
+            <div className={`ds-login-form-container ${showTestLogin ? 'ds-open' : ''}`}>
+              <form onSubmit={handleEmailLogin} className="ds-login-form">
+                <div className="ds-form-group">
+                  <label className="ds-form-label">Email thử nghiệm (Không cần mật khẩu)</label>
+                  <div className="ds-input-icon-wrapper">
+                    <Mail size={16} className="ds-input-icon" />
+                    <input
+                      type="email"
+                      placeholder="VD: admin@fpt.edu.vn"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      disabled={loadingLocal}
+                      required
+                    />
+                  </div>
+                </div>
+                <button 
+                  type="submit" 
+                  className="ds-btn ds-btn-primary ds-login-submit-btn"
+                  disabled={loadingLocal}
+                >
+                  {loadingLocal ? 'Đang đăng nhập...' : 'Đăng nhập ngay'}
+                </button>
+                <button 
+                  type="button" 
+                  className="ds-btn ds-btn-secondary ds-login-back-btn" 
+                  onClick={() => setShowTestLogin(false)}
+                  disabled={loadingLocal}
+                >
+                  Quay lại
+                </button>
+              </form>
+            </div>
           </div>
         </div>
-        <h1 className="text-gradient" style={{ marginBottom: '0.25rem', fontSize: '1.6rem' }}>FPT Capstones</h1>
-        <p style={{ color: 'var(--text-secondary)', marginBottom: '2.5rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', fontSize: '0.85rem' }}>
-          <Sparkles size={14} /> Hệ thống quản lý đồ án tốt nghiệp
-        </p>
-
-        <div style={{ display: 'flex', justifyContent: 'center' }}>
-          <GoogleLogin
-            onSuccess={async (credentialResponse) => {
-              try {
-                const u = await login(credentialResponse);
-                navigate(routeForUser(u.role, u.groupId), { replace: true });
-              } catch (err) {
-                alert(formatError(err));
-              }
-            }}
-            onError={() => alert('Đăng nhập Google thất bại')}
-            theme="filled_black"
-            shape="pill"
-            size="large"
-            text="continue_with"
-          />
-        </div>
       </div>
+
+      <style>{`
+        .ds-login-container {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          min-height: 100vh;
+          width: 100vw;
+          background-color: var(--color-surface);
+          padding: 24px;
+        }
+
+        .ds-login-card {
+          width: 100%;
+          max-width: 440px;
+          background-color: var(--color-bg);
+          border: 1px solid var(--color-border);
+          border-radius: var(--radius-lg);
+          padding: 40px;
+          box-shadow: var(--shadow-card-hover);
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          text-align: center;
+          animation: ds-login-in 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+
+        .ds-login-header {
+          margin-bottom: 32px;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+        }
+
+        .ds-login-logo {
+          width: 64px;
+          height: 64px;
+          border-radius: var(--radius-md);
+          background-color: rgba(234, 88, 12, 0.08);
+          color: var(--color-primary);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          margin-bottom: 20px;
+        }
+
+        .ds-login-header h1 {
+          font-family: 'Montserrat', sans-serif;
+          font-size: 1.8rem;
+          margin-bottom: 12px;
+          color: var(--color-ink);
+        }
+
+        .ds-login-header p {
+          font-size: 0.9rem;
+          color: var(--color-muted);
+          line-height: 1.5;
+        }
+
+        .ds-login-actions {
+          width: 100%;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 16px;
+        }
+
+        .ds-google-login-wrapper {
+          display: flex;
+          justify-content: center;
+          width: 100%;
+        }
+
+        .ds-divider {
+          display: flex;
+          align-items: center;
+          width: 100%;
+          margin: 12px 0;
+          color: var(--color-border);
+        }
+
+        .ds-divider::before,
+        .ds-divider::after {
+          content: '';
+          flex: 1;
+          border-bottom: 1px solid var(--color-border);
+        }
+
+        .ds-divider span {
+          padding: 0 12px;
+          font-family: 'Montserrat', sans-serif;
+          font-weight: 700;
+          font-size: 0.75rem;
+          color: var(--color-muted);
+        }
+
+        .ds-login-toggle-btn {
+          width: 100%;
+        }
+
+        .ds-test-login-section {
+          width: 100%;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+        }
+
+        .ds-hidden {
+          display: none !important;
+        }
+
+        .ds-login-form-container {
+          max-height: 0;
+          overflow: hidden;
+          opacity: 0;
+          width: 100%;
+          transition: max-height var(--transition-normal), opacity var(--transition-normal);
+        }
+
+        .ds-login-form-container.ds-open {
+          max-height: 300px;
+          opacity: 1;
+        }
+
+        .ds-login-form {
+          width: 100%;
+          display: flex;
+          flex-direction: column;
+          gap: 16px;
+          text-align: left;
+        }
+
+        .ds-form-group {
+          display: flex;
+          flex-direction: column;
+          gap: 6px;
+        }
+
+        .ds-form-label {
+          font-size: 0.85rem;
+          font-weight: 500;
+          color: var(--color-muted);
+        }
+
+        .ds-input-icon-wrapper {
+          position: relative;
+          display: flex;
+          align-items: center;
+        }
+
+        .ds-input-icon {
+          position: absolute;
+          left: 14px;
+          color: var(--color-muted);
+          pointer-events: none;
+        }
+
+        .ds-input-icon-wrapper input {
+          padding-left: 42px;
+        }
+
+        .ds-login-submit-btn {
+          width: 100%;
+        }
+
+        .ds-login-back-btn {
+          width: 100%;
+        }
+
+        @keyframes ds-login-in {
+          from {
+            transform: translateY(20px);
+            opacity: 0;
+          }
+          to {
+            transform: translateY(0);
+            opacity: 1;
+          }
+        }
+
+        @media (max-width: 480px) {
+          .ds-login-card {
+            padding: 24px 16px;
+          }
+          .ds-login-logo {
+            width: 48px;
+            height: 48px;
+          }
+          .ds-login-header h1 {
+            font-size: 1.5rem;
+          }
+        }
+      `}</style>
     </div>
   );
 };

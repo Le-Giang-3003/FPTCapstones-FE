@@ -1,21 +1,22 @@
-import React from 'react'
-import ReactDOM from 'react-dom/client'
-import App from './App.tsx'
-import './index.css'
-import { GoogleOAuthProvider } from '@react-oauth/google'
-import { AuthProvider } from './contexts/AuthContext.tsx'
-import { ThemeProvider } from './contexts/ThemeContext.tsx'
+import React from 'react';
+import ReactDOM from 'react-dom/client';
+import App from './App';
+import './index.css';
+import { AuthProvider } from './contexts/AuthContext';
+import { GoogleOAuthProvider } from '@react-oauth/google';
 
-const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || 'YOUR_GOOGLE_OAUTH_CLIENT_ID.apps.googleusercontent.com';
+// Immediate theme bootstrap
+const savedTheme = localStorage.getItem('theme') || 'light';
+document.documentElement.setAttribute('data-theme', savedTheme);
+
+const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-    <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
-      <ThemeProvider>
-        <AuthProvider>
-          <App />
-        </AuthProvider>
-      </ThemeProvider>
+    <GoogleOAuthProvider clientId={googleClientId}>
+      <AuthProvider>
+        <App />
+      </AuthProvider>
     </GoogleOAuthProvider>
-  </React.StrictMode>,
-)
+  </React.StrictMode>
+);

@@ -1,563 +1,335 @@
-@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@500;600;700;800&family=Roboto:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@700&family=Roboto:wght@400;500;700&display=swap');
 
-/* ──────────────────────────────────────────────────────────────
-   LottieFiles-style design system (xem DESIGN_Lottie.md)
-   "Playful precision" — nền trắng Cloud White, neutral achromatic,
-   accent teal #019d91 (CTA/active/link) với điểm nhấn vàng #f0b100.
-   MỘT shadow rất nhẹ duy nhất. Bo mềm: card 16px, nút 12px, form 8px.
-   Font giữ Be Vietnam Pro (tối ưu tiếng Việt) thay cho DM Sans/Inter.
-   Theme sáng là chuẩn; :root.dark là biến thể tối.
-   ────────────────────────────────────────────────────────────── */
-
-/* Đăng ký CSS custom properties dạng <color> để browser interpolate khi đổi theme. */
-@property --bg-primary        { syntax: '<color>'; inherits: true; initial-value: #ffffff; }
-@property --bg-secondary      { syntax: '<color>'; inherits: true; initial-value: #f4f4f5; }
-@property --text-primary      { syntax: '<color>'; inherits: true; initial-value: #09090b; }
-@property --text-secondary    { syntax: '<color>'; inherits: true; initial-value: #71717b; }
-@property --surface-glass     { syntax: '<color>'; inherits: true; initial-value: #ffffff; }
-@property --border-glass      { syntax: '<color>'; inherits: true; initial-value: #e4e4e7; }
-@property --accent-glow       { syntax: '<color>'; inherits: true; initial-value: rgba(1, 157, 145, 0.22); }
-@property --glass-card-bg     { syntax: '<color>'; inherits: true; initial-value: #ffffff; }
-@property --input-bg          { syntax: '<color>'; inherits: true; initial-value: #fafafa; }
-@property --table-row-bg      { syntax: '<color>'; inherits: true; initial-value: #ffffff; }
-@property --table-row-hover   { syntax: '<color>'; inherits: true; initial-value: #f4f4f5; }
-@property --modal-overlay-bg  { syntax: '<color>'; inherits: true; initial-value: rgba(255, 255, 255, 0.55); }
-@property --btn-hover-bg      { syntax: '<color>'; inherits: true; initial-value: #f4f4f5; }
-@property --accent-primary    { syntax: '<color>'; inherits: true; initial-value: #019d91; }
-@property --accent-hover      { syntax: '<color>'; inherits: true; initial-value: #017d73; }
-@property --accent-text       { syntax: '<color>'; inherits: true; initial-value: #ffffff; }
-@property --accent-violet      { syntax: '<color>'; inherits: true; initial-value: #019d91; }
-@property --accent-blue        { syntax: '<color>'; inherits: true; initial-value: #00ddb3; }
-
+/* ============================================
+   DESIGN TOKENS (theme-independent)
+   ============================================ */
 :root {
-  /* --- LottieFiles Light (mặc định) --- */
-  --bg-primary: #ffffff;        /* Cloud White */
-  --bg-secondary: #f4f4f5;      /* Dark Graphite — section/nền phụ */
-  --text-primary: #09090b;      /* Carbon Black */
-  --text-secondary: #71717b;    /* Steel Gray */
-  --text-tertiary: #9f9fa9;     /* Cadet Gray — placeholder */
-  --heading-color: #09090b;
-  --accent-primary: #f37021;    /* FPT Orange — CTA / active */
-  --accent-hover: #d95f12;
-  --accent-text: #ffffff;
-  --accent-violet: #f37021;     /* link = cam */
-  --accent-blue: #ff8a3d;       /* cam sáng — hover link */
-  --accent-yellow: #f0b100;     /* Sunshine Yellow — điểm nhấn phụ */
-  --accent-glow: rgba(243, 112, 33, 0.22);
-  --success: #15803d;
-  --danger: #e5484d;
-  --warning: #f0b100;
-  --signal-blue: #3a86ff;
-  --surface-glass: #ffffff;
-  --border-glass: #e4e4e7;      /* Slate Gray */
-  --glass-card-bg: #ffffff;
-  --input-bg: #fafafa;          /* Ash White */
-  --table-row-bg: #ffffff;
-  --table-row-hover: #f4f4f5;
-  --modal-overlay-bg: rgba(255, 255, 255, 0.55);  /* mờ trắng — light mode */
-  --btn-hover-bg: #f4f4f5;
+  /* FPT Orange brand: #F26724 ≈ oklch(0.66 0.19 42) */
+  --color-primary:       oklch(0.64 0.20 42);   /* FPT Orange */
+  --color-primary-hover: oklch(0.57 0.19 42);   /* FPT Orange - hover */
+  --color-primary-glow:  rgba(242, 103, 36, 0.22);
 
-  /* MỘT shadow nhẹ duy nhất — triết lý elevation tối giản của Lottie */
-  --shadow-sm: rgba(0, 0, 0, 0.05) 0px 1px 2px 0px;
-  --shadow-md: rgba(0, 0, 0, 0.05) 0px 1px 2px 0px;
-  --shadow-lg: rgba(0, 0, 0, 0.08) 0px 4px 12px 0px;
-  --shadow-glow: 0 0 0 3px var(--accent-glow);
+  /* Shared semantic colors */
+  --color-success: oklch(0.65 0.16 145);  /* Emerald green */
+  --color-danger:  oklch(0.56 0.21 20);   /* Deep red */
+  --color-accent:  oklch(0.80 0.14 85);   /* Amber gold - complement FPT orange */
 
-  /* Fonts — Montserrat cho tiêu đề; Roboto cho nội dung (render sắc nét trên Windows, hỗ trợ tiếng Việt) */
-  --font-display: 'Montserrat', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  --font-body: 'Roboto', 'Segoe UI', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+  /* Radius */
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
 
-  --transition-fast: 0.12s ease;
-  --transition-normal: 0.25s ease;
-
-  transition:
-    --bg-primary       0.25s ease,
-    --bg-secondary     0.25s ease,
-    --text-primary     0.25s ease,
-    --text-secondary   0.25s ease,
-    --surface-glass    0.25s ease,
-    --border-glass     0.25s ease,
-    --accent-glow      0.25s ease,
-    --accent-primary   0.25s ease,
-    --accent-hover     0.25s ease,
-    --accent-text      0.25s ease,
-    --accent-violet    0.25s ease,
-    --accent-blue      0.25s ease,
-    --glass-card-bg    0.25s ease,
-    --input-bg         0.25s ease,
-    --table-row-bg     0.25s ease,
-    --table-row-hover  0.25s ease,
-    --modal-overlay-bg 0.25s ease,
-    --btn-hover-bg     0.25s ease;
+  /* Motion */
+  --transition-fast:   0.15s cubic-bezier(0.16, 1, 0.3, 1);
+  --transition-normal: 0.28s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-/* --- Biến thể tối (zinc + teal) --- */
-:root.dark {
-  --bg-primary: #09090b;
-  --bg-secondary: #18181b;
-  --text-primary: #fafafa;
-  --text-secondary: #a1a1aa;
-  --text-tertiary: #71717b;
-  --heading-color: #ffffff;
-  --accent-primary: #ff7a33;    /* cam sáng hơn trên nền tối */
-  --accent-hover: #f37021;
-  --accent-text: #ffffff;
-  --accent-violet: #ff8a3d;
-  --accent-blue: #ffa766;
-  --accent-glow: rgba(255, 122, 51, 0.3);
-  --success: #4ade80;
-  --danger: #f87171;
-  --warning: #f0b100;
-  --surface-glass: #18181b;
-  --border-glass: #27272a;
-  --glass-card-bg: #18181b;
-  --input-bg: #111113;
-  --table-row-bg: #18181b;
-  --table-row-hover: #27272a;
-  --modal-overlay-bg: rgba(0, 0, 0, 0.7);
-  --btn-hover-bg: #27272a;
-  --shadow-md: rgba(0, 0, 0, 0.4) 0px 1px 2px 0px;
-  --shadow-lg: rgba(0, 0, 0, 0.5) 0px 4px 12px 0px;
+/* ============================================
+   LIGHT — "FPT Pearl"
+   Nền trắng ngà ấm áp, cam FPT nổi bật
+   ============================================ */
+[data-theme="light"] {
+  /* Surfaces — warm ivory, not cold white */
+  --color-bg:      oklch(0.99 0.006 60);   /* Trắng ngà cực nhạt ấm */
+  --color-surface: oklch(0.96 0.010 55);   /* Kem mịn nhẹ */
+  --color-border:  oklch(0.87 0.012 50);   /* Viền warm-gray */
+
+  /* Typography — warm charcoal, not harsh black */
+  --color-ink:     oklch(0.20 0.015 40);   /* Than đen ấm */
+  --color-muted:   oklch(0.50 0.012 45);   /* Xám ấm */
+
+  /* Shadows — warm-tinted, subtle */
+  --shadow-focus:      0 0 0 3px var(--color-primary-glow);
+  --shadow-card:       0px 2px 10px rgba(180, 90, 20, 0.07);
+  --shadow-card-hover: 0px 6px 24px rgba(180, 90, 20, 0.14);
 }
 
-* {
+/* ============================================
+   DARK — "FPT Carbon"
+   Than đen ấm (warm charcoal), cam FPT phát sáng
+   ============================================ */
+[data-theme="dark"] {
+  /* Surfaces — warm dark charcoal, not cold navy */
+  --color-bg:      oklch(0.14 0.012 42);   /* Than đen ấm sâu */
+  --color-surface: oklch(0.19 0.016 42);   /* Charcoal nhạt hơn */
+  --color-border:  oklch(0.28 0.022 42);   /* Viền cam-than ẩn */
+
+  /* Typography — high contrast warm white */
+  --color-ink:     oklch(0.98 0.004 60);   /* Gần trắng hoàn toàn, ấm nhẹ */
+  --color-muted:   oklch(0.74 0.010 50);   /* Xám sáng hơn — dễ đọc trên nền tối */
+
+  /* Shadows — glowing orange aura */
+  --shadow-focus:      0 0 0 3px var(--color-primary-glow);
+  --shadow-card:       0px 4px 18px rgba(0, 0, 0, 0.45);
+  --shadow-card-hover: 0px 8px 30px rgba(242, 103, 36, 0.18);
+}
+
+/* Base Styles & Reset */
+*, *::before, *::after {
+  box-sizing: border-box;
   margin: 0;
   padding: 0;
-  box-sizing: border-box;
-}
-
-html {
-  height: 100%;
-  overflow: hidden;
 }
 
 body {
-  font-family: var(--font-body);
-  background-color: var(--bg-primary);
-  color: var(--text-primary);
-  line-height: 1.6;
-  letter-spacing: 0;
+  background-color: var(--color-bg);
+  color: var(--color-ink);
+  font-family: 'Roboto', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-size: 1rem;
+  line-height: 1.5;
   -webkit-font-smoothing: antialiased;
-  text-rendering: optimizeLegibility;
-  height: 100%;
-  overflow: hidden;
+  -moz-osx-font-smoothing: grayscale;
+  transition: background-color 0.3s ease, color 0.3s ease;
 }
 
-#root {
-  height: 100%;
-}
-
-/* Headline — tracking thoáng cho tiếng Việt, line-height rộng để dấu không cụng */
 h1, h2, h3, h4, h5, h6 {
-  font-family: var(--font-display);
-  font-weight: 600;
-  letter-spacing: -0.01em;
-  color: var(--heading-color);
-  line-height: 1.25;
+  font-family: 'Montserrat', sans-serif;
+  font-weight: 700;
+  color: var(--color-ink);
+  line-height: 1.2;
 }
 
-h1 { font-weight: 700; letter-spacing: -0.015em; }
-h2 { font-weight: 600; letter-spacing: -0.012em; }
-
-a {
-  color: var(--accent-violet);
-  text-decoration: none;
-  transition: color var(--transition-fast);
+h1 {
+  font-size: 2rem;
+  letter-spacing: -0.02em;
 }
 
-a:hover {
-  color: var(--accent-blue);
+h2 {
+  font-size: 1.5rem;
 }
 
-/* Surfaces — card bo 16px, shadow nhẹ duy nhất */
-.glass-panel {
-  background: var(--surface-glass);
-  border: 1px solid var(--border-glass);
-  border-radius: 16px;
-  box-shadow: var(--shadow-md);
+h3 {
+  font-size: 1.25rem;
 }
 
-.glass-card {
-  background: var(--glass-card-bg);
-  border: 1px solid var(--border-glass);
-  border-radius: 16px;
-  padding: 2rem;
-  box-shadow: var(--shadow-md);
-  transition: border-color var(--transition-normal);
+p {
+  max-width: 75ch;
+  color: var(--color-muted);
 }
 
-/* Card tĩnh không phản hồi hover — chỉ card có .is-interactive (click được) mới sáng viền */
-.glass-card.is-interactive {
-  cursor: pointer;
+/* Forms & Inputs */
+input, select, textarea {
+  width: 100%;
+  padding: 10px 14px;
+  font-family: 'Roboto', sans-serif;
+  font-size: 0.95rem;
+  color: var(--color-ink);
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
 }
 
-.glass-card.is-interactive:hover {
-  border-color: var(--accent-primary);
+input::placeholder {
+  color: var(--color-muted);
+  opacity: 0.8;
 }
 
-/* Buttons — bo 12px (bo mềm, friendly) */
-.btn {
+input:focus, select:focus, textarea:focus {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: var(--shadow-focus);
+}
+
+input:disabled, select:disabled, textarea:disabled {
+  background-color: var(--color-surface);
+  color: var(--color-muted);
+  cursor: not-allowed;
+}
+
+/* Primary Button Styles */
+.ds-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 0.5rem;
-  padding: 0.55rem 1.4rem;
-  border-radius: 12px;
-  font-weight: 600;
+  gap: 8px;
+  padding: 10px 20px;
+  font-family: 'Montserrat', sans-serif;
+  font-weight: 700;
   font-size: 0.9rem;
+  border-radius: var(--radius-md);
   cursor: pointer;
-  transition: all var(--transition-fast);
-  border: 1px solid transparent;
-  font-family: var(--font-body);
-  letter-spacing: 0;
+  border: none;
+  transition: background-color var(--transition-fast), transform var(--transition-fast), box-shadow var(--transition-fast);
 }
 
-.btn-primary {
-  background: var(--accent-primary);
-  color: var(--accent-text);
-  border: 1px solid transparent;
-  box-shadow: var(--shadow-sm);
-}
-
-.btn-primary:hover {
-  background: var(--accent-hover);
-}
-
-.btn-secondary {
-  background: var(--surface-glass);
-  color: var(--text-primary);
-  border: 1px solid var(--border-glass);
-  box-shadow: var(--shadow-sm);
-}
-
-.btn-secondary:hover {
-  background: var(--btn-hover-bg);
-  border-color: var(--accent-primary);
-}
-
-.btn-danger {
-  background: var(--danger);
+.ds-btn-primary {
+  background-color: var(--color-primary);
   color: #ffffff;
-  border: 1px solid transparent;
 }
 
-.btn-danger:hover {
-  filter: brightness(0.94);
+.ds-btn-primary:hover:not(:disabled) {
+  background-color: var(--color-primary-hover);
 }
 
-/* Form Elements */
-.input-group {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-  margin-bottom: 1rem;
-}
-
-.input-label {
-  font-size: 0.875rem;
-  font-weight: 600;
-  color: var(--text-secondary);
-}
-
-.input-field {
-  width: 100%;
-  padding: 0.65rem 0.9rem;
-  border-radius: 8px;
-  background: var(--input-bg);
-  border: 1px solid var(--border-glass);
-  color: var(--text-primary);
-  font-family: var(--font-body);
-  font-size: 0.9rem;
-  letter-spacing: 0;
-  transition:
-    border-color var(--transition-fast),
-    box-shadow var(--transition-fast);
-}
-
-.input-field::placeholder {
-  color: var(--text-tertiary);
-}
-
-/* Checkbox tùy biến — bo góc mềm, cam FPT khi tích, animation mượt */
-input[type="checkbox"] {
-  appearance: none;
-  -webkit-appearance: none;
-  width: 19px;
-  height: 19px;
-  border-radius: 6px;
-  border: 1.5px solid var(--border-glass);
-  background: var(--surface-glass);
-  cursor: pointer;
-  position: relative;
-  flex-shrink: 0;
-  display: inline-grid;
-  place-content: center;
-  transition: background-color 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease, transform 0.12s ease;
-}
-
-input[type="checkbox"]::before {
-  content: "";
-  width: 11px;
-  height: 11px;
-  transform: scale(0);
-  transform-origin: center;
-  transition: transform 0.18s cubic-bezier(0.34, 1.56, 0.64, 1);
-  background-color: #ffffff;
-  /* dấu check */
-  clip-path: polygon(14% 47%, 0 60%, 40% 100%, 100% 22%, 86% 10%, 39% 70%);
-}
-
-input[type="checkbox"]:hover:not(:disabled) {
-  border-color: var(--accent-primary);
-  box-shadow: 0 0 0 3px var(--accent-glow);
-}
-
-input[type="checkbox"]:checked {
-  background: var(--accent-primary);
-  border-color: var(--accent-primary);
-}
-
-input[type="checkbox"]:checked::before {
-  transform: scale(1);
-}
-
-input[type="checkbox"]:focus-visible {
+.ds-btn-primary:focus-visible {
   outline: none;
-  box-shadow: 0 0 0 3px var(--accent-glow);
+  box-shadow: 0 0 0 3px rgba(234, 88, 12, 0.22);
 }
 
-input[type="checkbox"]:active:not(:disabled) {
-  transform: scale(0.92);
+.ds-btn-secondary {
+  background-color: var(--color-surface);
+  color: var(--color-ink);
+  border: 1px solid var(--color-border);
 }
 
-input[type="checkbox"]:disabled {
+.ds-btn-secondary:hover:not(:disabled) {
+  background-color: var(--color-border);
+}
+
+.ds-btn-secondary:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(234, 88, 12, 0.22);
+}
+
+.ds-btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }
 
-.input-field:focus {
-  outline: none;
-  border-color: var(--accent-primary);
-  box-shadow: 0 0 0 3px var(--accent-glow);
+/* Card layout */
+.ds-card {
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: 24px;
+  box-shadow: var(--shadow-card);
+  transition: box-shadow var(--transition-normal), transform var(--transition-normal), border-color var(--transition-normal);
 }
 
-/* Layout */
-.app-container {
-  display: flex;
-  min-height: 100vh;
+.ds-card:hover {
+  box-shadow:
+    var(--shadow-card-hover),
+    0 0 0 1px color-mix(in oklch, var(--color-primary) 25%, transparent),
+    0 0 20px color-mix(in oklch, var(--color-primary) 12%, transparent);
+  transform: translateY(-2px);
+  border-color: color-mix(in oklch, var(--color-primary) 40%, var(--color-border));
 }
 
-.sidebar {
-  width: 260px;
-  border-right: 1px solid var(--border-glass);
-  display: flex;
-  flex-direction: column;
-  padding: 1.5rem;
-  position: sticky;
-  top: 1rem;
-  flex-shrink: 0;
-  transition: width 0.3s ease, padding 0.3s ease;
-}
-
-.sidebar.collapsed {
-  width: 84px;
-  padding: 1.5rem 0.5rem;
-}
-
-.main-content {
-  flex: 1;
-  padding: 2rem;
-  overflow-y: auto;
-  position: relative;
-  min-height: 0;
-  scroll-behavior: smooth;
-}
-
-.topbar {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 2rem;
-  padding-right: 260px;
-}
-
-/* Logo wordmark — gradient teal → vivid aqua, năng động kiểu Lottie */
-.text-gradient {
-  font-family: var(--font-display);
-  font-weight: 700;
-  letter-spacing: -0.015em;
-  background: linear-gradient(135deg, #f37021, #ff9a3d);
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
-}
-
-.badge {
-  padding: 0.2rem 0.7rem;
-  border-radius: 48px;
-  font-size: 0.72rem;
-  font-weight: 600;
-  letter-spacing: 0;
-}
-
-.badge-success { background: rgba(21, 128, 61, 0.12); color: var(--success); border: 1px solid rgba(21, 128, 61, 0.25); }
-.badge-warning { background: rgba(240, 177, 0, 0.14); color: #eab308; border: 1px solid rgba(240, 177, 0, 0.3); }
-.badge-danger  { background: rgba(229, 72, 77, 0.12); color: var(--danger); border: 1px solid rgba(229, 72, 77, 0.25); }
-.badge-info    { background: rgba(58, 134, 255, 0.12); color: var(--signal-blue); border: 1px solid rgba(58, 134, 255, 0.25); }
-.badge-ongoing { background: rgba(0, 221, 179, 0.14); color: #2dd4bf; border: 1px solid rgba(0, 221, 179, 0.3); }
-
-/* Table */
-.data-table {
+/* Tables styling */
+.ds-table-container {
   width: 100%;
-  border-collapse: separate;
-  border-spacing: 0 0.5rem;
+  overflow-x: auto;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background-color: var(--color-surface);
 }
 
-.data-table th {
+.ds-table {
+  width: 100%;
+  border-collapse: collapse;
   text-align: left;
-  padding: 0.85rem 1rem;
-  color: var(--text-secondary);
-  font-size: 0.82rem;
-  font-weight: 600;
-  border-bottom: 1px solid var(--border-glass);
-}
-
-.data-table td {
-  padding: 0.9rem 1rem;
-  background: var(--table-row-bg);
-  border-top: 1px solid var(--border-glass);
-  border-bottom: 1px solid var(--border-glass);
   font-size: 0.95rem;
+}
+
+.ds-table th {
+  background-color: var(--color-bg);
+  color: var(--color-ink);
+  font-family: 'Roboto', sans-serif;
   font-weight: 500;
-  color: var(--text-primary);
-  transition: background var(--transition-fast);
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--color-border);
 }
 
-.data-table tbody tr {
-  transition: background var(--transition-fast);
+.ds-table td {
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--color-border);
+  color: var(--color-ink);
+}
+
+.ds-table tr:last-child td {
+  border-bottom: none;
+}
+
+/* Striped rows */
+.ds-table tbody tr:nth-child(even) {
+  background-color: color-mix(in oklch, var(--color-primary) 2.5%, var(--color-surface));
+}
+
+.ds-table tbody tr {
+  transition: background-color var(--transition-fast), transform var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.ds-table tbody tr:hover {
+  background-color: color-mix(in oklch, var(--color-primary) 6%, var(--color-surface)) !important;
   cursor: pointer;
 }
 
-.data-table tbody tr:hover td {
-  background: var(--table-row-hover);
+/* Skeleton Loading Animation */
+.ds-skeleton {
+  background: linear-gradient(90deg, var(--color-surface) 25%, var(--color-border) 50%, var(--color-surface) 75%);
+  background-size: 200% 100%;
+  animation: ds-loading 1.5s infinite;
+  border-radius: var(--radius-sm);
 }
 
-.data-table tbody tr:hover td:first-child {
-  box-shadow: inset 3px 0 0 var(--accent-primary);
+@keyframes ds-loading {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
 }
 
-.data-table td:first-child  { border-left: 1px solid var(--border-glass); border-top-left-radius: 10px; border-bottom-left-radius: 10px; }
-.data-table td:last-child   { border-right: 1px solid var(--border-glass); border-top-right-radius: 10px; border-bottom-right-radius: 10px; }
-
-/* Animations */
-@keyframes fadeIn {
-  from { opacity: 0; transform: translateY(10px); }
-  to { opacity: 1; transform: translateY(0); }
+/* Utilities */
+.text-success { color: var(--color-success); }
+.text-danger { color: var(--color-danger); }
+.text-muted { color: var(--color-muted); }
+.tnum {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
 }
 
-.animate-fade-in {
-  animation: fadeIn 0.25s ease forwards;
+/* Custom Scrollbar — FPT Orange */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: color-mix(in oklch, var(--color-primary) 45%, var(--color-border));
+  border-radius: 99px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-primary);
+}
+/* Status Pills & Badges */
+.ds-status-pill {
+  display: inline-flex;
+  padding: 4px 10px;
+  border-radius: var(--radius-md);
+  font-size: 0.8rem;
+  font-weight: 700;
+  white-space: nowrap;
 }
 
-.delay-100 { animation-delay: 100ms; }
-.delay-200 { animation-delay: 200ms; }
-.delay-300 { animation-delay: 300ms; }
-
-/* Modal */
-.modal-overlay {
-  position: fixed;
-  top: 0; left: 0; right: 0; bottom: 0;
-  background: var(--modal-overlay-bg);
-  backdrop-filter: blur(4px);
-  -webkit-backdrop-filter: blur(4px);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 50;
+.ds-status-pill.success, .ds-status-pill.ongoing {
+  background-color: color-mix(in oklch, var(--color-success) 8%, transparent);
+  color: var(--color-success);
 }
 
-.modal-content {
-  width: 100%;
-  max-width: 500px;
-  max-height: 90vh;
-  overflow-y: auto;
-  border-radius: 24px;
+.ds-status-pill.draft, .ds-status-pill.pending {
+  background-color: color-mix(in oklch, var(--color-primary) 8%, transparent);
+  color: var(--color-primary);
+  border: 1px solid color-mix(in oklch, var(--color-primary) 20%, transparent);
 }
 
-/* Toggle switch */
-.theme-toggle {
-  display: flex;
-  align-items: center;
-  gap: 0.625rem;
-  padding: 0.6rem 1rem;
-  border-radius: 12px;
-  width: 100%;
-  background: var(--surface-glass);
-  border: 1px solid var(--border-glass);
-  color: var(--text-primary);
-  font-family: var(--font-body);
-  font-size: 0.9rem;
-  font-weight: 600;
-  cursor: pointer;
-  margin-bottom: 0.5rem;
-  transition:
-    background var(--transition-fast),
-    border-color var(--transition-fast);
+.ds-status-pill.completed, .ds-status-pill.finished {
+  background-color: var(--color-surface);
+  color: var(--color-muted);
+  border: 1px solid var(--color-border);
 }
 
-.theme-toggle:hover {
-  background: var(--btn-hover-bg);
-  border-color: var(--accent-primary);
+.ds-status-pill.cancelled, .ds-status-pill.danger {
+  background-color: color-mix(in oklch, var(--color-danger) 8%, transparent);
+  color: var(--color-danger);
 }
 
-.theme-toggle-track {
-  position: relative;
-  width: 36px;
-  height: 20px;
-  border-radius: 48px;
-  background: var(--accent-primary);
-  flex-shrink: 0;
-  transition: background var(--transition-fast);
-  margin-left: auto;
-}
-
-.theme-toggle-thumb {
-  position: absolute;
-  top: 2px;
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
-  background: #ffffff;
-  transition: left 0.25s ease;
-}
-
-.theme-toggle-thumb.dark  { left: 2px; }
-.theme-toggle-thumb.light { left: 18px; }
-
-/* Scrollbar tinh giản */
-::-webkit-scrollbar { width: 10px; height: 10px; }
-::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: var(--border-glass); border-radius: 48px; border: 2px solid var(--bg-primary); }
-::-webkit-scrollbar-thumb:hover { background: var(--text-tertiary); }
-
-/* Animations */
-@keyframes toast-slide-in {
-  from {
-    transform: translateX(100%);
-    opacity: 0;
-  }
-  to {
-    transform: translateX(0);
-    opacity: 1;
+/* Accessibility - Reduced Motion */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }
-
-@keyframes spin {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
-}
-

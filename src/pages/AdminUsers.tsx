@@ -1,403 +1,347 @@
-import { createPortal } from 'react-dom';
-import { useEffect, useRef, useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import api from '../services/api';
-import type { UserListItem, UserDetailDto, ImportUsersResultDto } from '../types';
-import {
-  Search, UserCheck, UserX, ChevronLeft, ChevronRight,
-  ChevronsLeft, ChevronsRight, Plus, Eye, Mail, X,
-  Loader2, CheckCircle, AlertTriangle, Users, Upload,
+import { useToast } from '../contexts/ToastContext';
+import { 
+  Plus, 
+  Search, 
+  ChevronLeft, 
+  ChevronRight, 
+  Upload, 
+  X, 
+  Mail, 
+  User, 
+  AlertCircle, 
+  Edit2, 
+  CheckCircle, 
+  Clock, 
+  FileSpreadsheet
 } from 'lucide-react';
 
-type Toast = { type: 'success' | 'error'; message: string } | null;
+interface UserListItem {
+  id: number;
+  email: string;
+  fullName: string;
+  role: string;
+  isActive: boolean;
+  createdAt: string;
+}
 
-// Badge class theo từng role flag
-const roleBadge: Record<string, string> = {
-  Admin:         'badge-danger',
-  Lecturer:      'badge-info',
-  StudentLeader: 'badge-success',
-  GroupMember:   '',
-};
+export const AdminUsers: React.FC = () => {
+  const { showToast } = useToast();
 
-// Hiển thị một hoặc nhiều badge cho user có multi-role ("Admin, Lecturer")
-const RoleBadges = ({ role }: { role: string }) => (
-  <>
-    {role.split(', ').map(r => (
-      <span key={r} className={`badge ${roleBadge[r.trim()] ?? ''}`} style={{ marginRight: '0.25rem' }}>
-        {r.trim()}
-      </span>
-    ))}
-  </>
-);
+  // Lists
+  const [users, setUsers] = useState<UserListItem[]>([]);
+  const [totalCount, setTotalCount] = useState(0);
+  const [loading, setLoading] = useState(true);
 
-// ─── Component phụ ──────────────────────────────────────────────────────────
-
-const InfoRow = ({ label, value }: { label: string; value: React.ReactNode }) => (
-  <div>
-    <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: '0.25rem' }}>{label}</p>
-    <div style={{ fontWeight: 500, fontSize: '0.9rem' }}>{value ?? '—'}</div>
-  </div>
-);
-
-// ─── Toast Component ─────────────────────────────────────────────────────────
-
-const ToastBar = ({ toast }: { toast: Toast }) => {
-  if (!toast) return null;
-  const isSuccess = toast.type === 'success';
-  return (
-    <div style={{
-      position: 'fixed', top: '1.5rem', right: '1.5rem', zIndex: 2000,
-      background: isSuccess ? 'rgba(16,185,129,0.15)' : 'rgba(239,68,68,0.15)',
-      border: `1px solid ${isSuccess ? 'rgba(16,185,129,0.4)' : 'rgba(239,68,68,0.4)'}`,
-      borderRadius: '10px', padding: '0.75rem 1.25rem',
-      backdropFilter: 'blur(12px)',
-      display: 'flex', alignItems: 'center', gap: '0.6rem',
-      color: isSuccess ? 'var(--success)' : 'var(--danger)',
-      fontWeight: 500, boxShadow: 'var(--shadow-lg)',
-      animation: 'fadeIn 0.3s ease-out',
-      maxWidth: '360px',
-    }}>
-      {isSuccess ? <CheckCircle size={18} /> : <AlertTriangle size={18} />}
-      {toast.message}
-    </div>
-  );
-};
-
-// ─── Main Component ──────────────────────────────────────────────────────────
-
-const AdminUsers = () => {
-  // Danh sách
-  const [users, setUsers]           = useState<UserListItem[]>([]);
-  const [search, setSearch]         = useState('');
+  // Filter & Search states
+  const [searchQuery, setSearchQuery] = useState('');
   const [roleFilter, setRoleFilter] = useState('');
-  const [loading, setLoading]       = useState(false);
-  const [busy, setBusy]             = useState<number | null>(null);
-  const [currentPage, setCurrentPage] = useState(1);
-  const [totalCount, setTotalCount]   = useState(0);
-  const itemsPerPage = 10;
+  const [page, setPage] = useState(1);
+  const [pageSize] = useState(15);
 
-  // Toast
-  const [toast, setToast] = useState<Toast>(null);
-  const showToast = (type: 'success' | 'error', message: string) => {
-    setToast({ type, message });
-    setTimeout(() => setToast(null), 3500);
-  };
+  // Create User Modal State
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [modalEmail, setModalEmail] = useState('');
+  const [modalFullName, setModalFullName] = useState('');
+  const [modalRole, setModalRole] = useState('GroupMember');
+  const [creating, setCreating] = useState(false);
 
-  // Import Excel
+  // Edit Email Modal State
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editingUser, setEditingUser] = useState<UserListItem | null>(null);
+  const [editEmailVal, setEditEmailVal] = useState('');
+  const [updating, setUpdating] = useState(false);
+
+  // Import Modal State
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [importing, setImporting] = useState(false);
+  const [importResult, setImportResult] = useState<{ importedCount?: number, updatedCount?: number } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [importing, setImporting]         = useState(false);
-  const [importResult, setImportResult]   = useState<ImportUsersResultDto | null>(null);
 
-  // Modal tạo user
-  const [showCreate, setShowCreate]   = useState(false);
-  const [createForm, setCreateForm]   = useState({ email: '', fullName: '', role: 'Lecturer' });
-  const [creating, setCreating]       = useState(false);
+  useEffect(() => {
+    fetchUsers();
+  }, [page, roleFilter, searchQuery]);
 
-  // Modal chi tiết user
-  const [detail, setDetail]               = useState<UserDetailDto | null>(null);
-  const [loadingDetail, setLoadingDetail] = useState(false);
-
-  // Sửa email (nằm trong modal chi tiết)
-  const [showEditEmail, setShowEditEmail] = useState(false);
-  const [newEmail, setNewEmail]           = useState('');
-  const [savingEmail, setSavingEmail]     = useState(false);
-
-  // ── Load danh sách ─────────────────────────────────────────────────────────
-
-  const load = async () => {
+  // Fetch paginated user accounts
+  const fetchUsers = async () => {
+    setLoading(true);
     try {
-      setLoading(true);
-      const params: Record<string, string | number> = { page: currentPage, pageSize: itemsPerPage };
-      if (search)     params.search = search;
-      if (roleFilter) params.role   = roleFilter;
-      const res = await api.get<{ items: UserListItem[]; totalCount: number }>('/api/admin/users', { params });
-      setUsers(res.data.items);
-      setTotalCount(res.data.totalCount);
-    } catch (e) {
-      console.error('Load users failed', e);
+      const res = await api.get('/api/admin/users', {
+        params: {
+          search: searchQuery || undefined,
+          role: roleFilter || undefined,
+          page,
+          pageSize
+        }
+      });
+      // Backend returns PagedResult with { items, totalCount }
+      setUsers(res.data.items || []);
+      setTotalCount(res.data.totalCount || 0);
+    } catch (err) {
+      showToast('Không thể tải danh sách tài khoản người dùng', 'error');
     } finally {
       setLoading(false);
     }
   };
 
-  useEffect(() => {
-    const t = setTimeout(load, search ? 250 : 0);
-    return () => clearTimeout(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentPage, search, roleFilter]);
+  // Handle Search Input Change
+  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setSearchQuery(e.target.value);
+    setPage(1);
+  };
 
-  // Reset về trang 1 khi đổi bộ lọc
-  useEffect(() => { setCurrentPage(1); }, [search, roleFilter]);
+  // Handle Role Filter Change
+  const handleRoleFilterChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    setRoleFilter(e.target.value);
+    setPage(1);
+  };
 
-  // ── Handlers ───────────────────────────────────────────────────────────────
-
-  const toggle = async (id: number, isActive: boolean, email: string) => {
-    const action = isActive ? 'deactivate' : 'activate';
-    if (!window.confirm(`${isActive ? 'Vô hiệu hóa' : 'Kích hoạt'} user ${email}?`)) return;
+  // Toggle Account Active Status
+  const handleToggleActive = async (userItem: UserListItem) => {
+    const actionStr = userItem.isActive ? 'deactivate' : 'activate';
+    const actionViet = userItem.isActive ? 'khoá hoạt động' : 'kích hoạt';
     try {
-      setBusy(id);
-      await api.post(`/api/admin/users/${id}/${action}`);
-      showToast('success', `${isActive ? 'Đã vô hiệu hóa' : 'Đã kích hoạt'} ${email}`);
-      await load();
-      // Refresh detail nếu đang xem cùng user
-      if (detail?.id === id) await loadDetail(id);
-    } catch (e: any) {
-      showToast('error', e?.response?.data?.message || 'Thao tác thất bại');
-    } finally {
-      setBusy(null);
+      await api.post(`/api/admin/users/${userItem.id}/${actionStr}`);
+      showToast(`Đã ${actionViet} tài khoản "${userItem.fullName}"`, 'success');
+      fetchUsers();
+    } catch (err) {
+      showToast(`Không thể ${actionViet} tài khoản`, 'error');
     }
   };
 
-  const loadDetail = async (id: number) => {
-    setLoadingDetail(true);
-    setShowEditEmail(false);
-    try {
-      const res = await api.get<UserDetailDto>(`/api/admin/users/${id}`);
-      setDetail(res.data);
-    } catch (e: any) {
-      showToast('error', e?.response?.data?.message || 'Không thể tải thông tin user');
-      setDetail(null);
-    } finally {
-      setLoadingDetail(false);
-    }
+  // Open Create Modal
+  const handleOpenCreate = () => {
+    setModalEmail('');
+    setModalFullName('');
+    setModalRole('GroupMember');
+    setShowCreateModal(true);
   };
 
-  const closeDetail = () => {
-    setDetail(null);
-    setShowEditEmail(false);
-  };
-
-  const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    try {
-      setImporting(true);
-      setImportResult(null);
-      const formData = new FormData();
-      formData.append('file', file);
-      const res = await api.post<ImportUsersResultDto>('/api/admin/users/import', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      });
-      setImportResult(res.data);
-      await load();
-    } catch (err: any) {
-      showToast('error', err?.response?.data?.message || 'Import thất bại');
-    } finally {
-      setImporting(false);
-      if (fileInputRef.current) fileInputRef.current.value = '';
-    }
-  };
-
+  // Submit Create User
   const handleCreateUser = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!modalEmail.trim() || !modalFullName.trim()) {
+      showToast('Vui lòng điền đầy đủ email và họ tên', 'warning');
+      return;
+    }
+
+    setCreating(true);
     try {
-      setCreating(true);
-      await api.post('/api/admin/users', createForm);
-      showToast('success', `Đã tạo user ${createForm.email}`);
-      setShowCreate(false);
-      setCreateForm({ email: '', fullName: '', role: 'Lecturer' });
-      await load();
-    } catch (e: any) {
-      showToast('error', e?.response?.data?.message || 'Tạo user thất bại');
+      await api.post('/api/admin/users', {
+        email: modalEmail.trim(),
+        fullName: modalFullName.trim(),
+        role: modalRole
+      });
+      showToast('Tạo tài khoản người dùng thành công!', 'success');
+      setShowCreateModal(false);
+      fetchUsers();
+    } catch (err: any) {
+      showToast(err.response?.data?.message || 'Tạo tài khoản thất bại', 'error');
     } finally {
       setCreating(false);
     }
   };
 
+  // Open Edit Email Modal
+  const handleOpenEdit = (userItem: UserListItem) => {
+    setEditingUser(userItem);
+    setEditEmailVal(userItem.email);
+    setShowEditModal(true);
+  };
+
+  // Submit Update Email (Patch)
   const handleUpdateEmail = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!detail) return;
+    if (!editEmailVal.trim()) {
+      showToast('Vui lòng nhập địa chỉ email hợp lệ', 'warning');
+      return;
+    }
+    if (!editingUser) return;
+
+    setUpdating(true);
     try {
-      setSavingEmail(true);
-      await api.patch(`/api/admin/users/${detail.id}/email`, { email: newEmail });
-      showToast('success', `Đã cập nhật email thành ${newEmail}`);
-      setShowEditEmail(false);
-      await loadDetail(detail.id);
-      await load();
-    } catch (e: any) {
-      showToast('error', e?.response?.data?.message || 'Cập nhật email thất bại');
+      await api.patch(`/api/admin/users/${editingUser.id}/email`, {
+        email: editEmailVal.trim()
+      });
+      showToast(`Đã thay đổi email thành công cho "${editingUser.fullName}"`, 'success');
+      setShowEditModal(false);
+      fetchUsers();
+    } catch (err: any) {
+      showToast(err.response?.data?.message || 'Cập nhật email thất bại', 'error');
     } finally {
-      setSavingEmail(false);
+      setUpdating(false);
     }
   };
 
-  // ── Pagination helpers ─────────────────────────────────────────────────────
-
-  const totalPages = Math.ceil(totalCount / itemsPerPage);
-
-  const getPageNumbers = () => {
-    const blockSize  = 10;
-    const blockIndex = Math.floor((currentPage - 1) / blockSize);
-    const start = blockIndex * blockSize + 1;
-    const end   = Math.min(totalPages, (blockIndex + 1) * blockSize);
-    return Array.from({ length: end - start + 1 }, (_, i) => start + i);
+  // Open Import Modal
+  const handleOpenImport = () => {
+    setSelectedFile(null);
+    setImportResult(null);
+    setShowImportModal(true);
   };
 
-  const isLastBlock = Math.floor((totalPages - 1) / 10) === Math.floor((currentPage - 1) / 10);
+  // Submit Excel Import Users
+  const handleImportUsers = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedFile) {
+      showToast('Vui lòng chọn tệp Excel trước', 'warning');
+      return;
+    }
 
-  // ── Render ─────────────────────────────────────────────────────────────────
+    setImporting(true);
+    setImportResult(null);
+    const formData = new FormData();
+    formData.append('file', selectedFile);
+
+    try {
+      const res = await api.post('/api/admin/users/import', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+      showToast('Import danh sách tài khoản thành công!', 'success');
+      setImportResult(res.data);
+      setSelectedFile(null);
+      fetchUsers();
+    } catch (err: any) {
+      showToast(err.response?.data?.message || 'Nhập Excel thất bại. Vui lòng xem lại định dạng các cột (Email, Họ và Tên, Role).', 'error');
+    } finally {
+      setImporting(false);
+    }
+  };
+
+  // Format date representation
+  const formatDate = (dateStr: string) => {
+    if (!dateStr) return '—';
+    const d = new Date(dateStr);
+    return d.toLocaleDateString('vi-VN') + ' ' + d.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+  };
+
+  // Format role badges
+  const renderRoleBadge = (role: string) => {
+    switch (role) {
+      case 'Admin':
+        return <span className="ds-role-badge admin">Quản trị viên</span>;
+      case 'Lecturer':
+        return <span className="ds-role-badge lecturer">Giảng viên</span>;
+      case 'Reviewer':
+        return <span className="ds-role-badge reviewer">Phản biện</span>;
+      case 'StudentLeader':
+        return <span className="ds-role-badge student-leader">Trưởng nhóm</span>;
+      default:
+        return <span className="ds-role-badge student-member">Sinh viên</span>;
+    }
+  };
+
+  const totalPages = Math.ceil(totalCount / pageSize) || 1;
 
   return (
-    <div className="animate-fade-in">
-      <ToastBar toast={toast} />
-
-      {/* Topbar */}
-      <div className="topbar">
+    <div className="ds-users-page">
+      
+      {/* Header */}
+      <div className="ds-users-header">
         <div>
-          <h1>Quản lý người dùng</h1>
-          <p style={{ color: 'var(--text-secondary)' }}>
-            Tạo, kích hoạt và quản lý tài khoản trong hệ thống
-          </p>
+          <h1>Quản lý Tài khoản Người dùng</h1>
+          <p className="text-muted">Thêm mới, cập nhật email hoặc điều khiển bật/tắt hoạt động của các tài khoản truy cập hệ thống</p>
         </div>
-        <div style={{ display: 'flex', gap: '0.75rem' }}>
-          <button
-            className="btn btn-secondary"
-            onClick={() => fileInputRef.current?.click()}
-            disabled={importing}
-          >
-            {importing ? <Loader2 size={16} className="spin" /> : <Upload size={16} />}
-            {importing ? 'Đang Import...' : 'Import Excel'}
+
+        <div className="ds-header-actions">
+          <button className="ds-btn ds-btn-secondary" onClick={handleOpenImport}>
+            <Upload size={16} />
+            <span>Nhập từ Excel</span>
           </button>
-          <input
-            type="file" accept=".xlsx,.xls" ref={fileInputRef}
-            style={{ display: 'none' }} onChange={handleImport}
-          />
-          <button className="btn btn-primary" onClick={() => setShowCreate(true)}>
-            <Plus size={16} /> Thêm User
+          
+          <button className="ds-btn ds-btn-primary" onClick={handleOpenCreate}>
+            <Plus size={16} />
+            <span>Thêm tài khoản</span>
           </button>
         </div>
       </div>
 
-      {/* Kết quả import */}
-      {importResult && (
-        <div className="glass-card animate-fade-in" style={{ marginBottom: '1.5rem', borderLeft: '4px solid var(--success)' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem' }}>
-            <CheckCircle size={20} color="var(--success)" />
-            <h3 style={{ margin: 0 }}>Kết quả Import Users</h3>
-          </div>
-          <div style={{ display: 'flex', gap: '2rem', marginBottom: '0.75rem', flexWrap: 'wrap' }}>
-            <span style={{ color: 'var(--text-secondary)' }}>
-              Tạo mới: <strong style={{ color: 'var(--success)' }}>{importResult.created}</strong>
-            </span>
-            <span style={{ color: 'var(--text-secondary)' }}>
-              Cập nhật: <strong style={{ color: 'var(--accent-primary)' }}>{importResult.updated}</strong>
-            </span>
-            <span style={{ color: 'var(--text-secondary)' }}>
-              Bỏ qua: <strong>{importResult.skipped}</strong>
-            </span>
-          </div>
-          {importResult.errors.length > 0 && (
-            <div style={{ background: 'rgba(239,68,68,0.08)', padding: '0.75rem 1rem', borderRadius: '8px', marginBottom: '0.75rem' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--danger)', marginBottom: '0.5rem' }}>
-                <AlertTriangle size={15} />
-                <strong>Cảnh báo / Lỗi ({importResult.errors.length})</strong>
-              </div>
-              <div style={{ maxHeight: '180px', overflowY: 'auto' }}>
-                <ul style={{ margin: 0, paddingLeft: '1.5rem', color: 'var(--text-secondary)', fontSize: '0.84rem', lineHeight: 1.7 }}>
-                  {importResult.errors.map((err, i) => (
-                    <li key={i}>
-                      {err.rowNumber > 0 ? `Dòng ${err.rowNumber}: ` : ''}{err.reason}
-                    </li>
-                  ))}
-                </ul>
-              </div>
+      {/* Roster list main Card */}
+      <div className="ds-card">
+        <div className="ds-card-header-with-filter">
+          <h2>Danh sách người dùng ({totalCount})</h2>
+          
+          <div className="ds-filters-row">
+            {/* Filter select role */}
+            <select 
+              value={roleFilter} 
+              onChange={handleRoleFilterChange}
+              className="ds-select-small"
+            >
+              <option value="">-- Tất cả vai trò --</option>
+              <option value="Admin">Quản trị viên</option>
+              <option value="Lecturer">Giảng viên</option>
+              <option value="Reviewer">Hội đồng phản biện</option>
+              <option value="StudentLeader">Trưởng nhóm sinh viên</option>
+              <option value="GroupMember">Thành viên sinh viên</option>
+            </select>
+
+            {/* Filter search box */}
+            <div className="ds-search-wrapper">
+              <Search size={16} className="ds-search-icon" />
+              <input 
+                type="text" 
+                placeholder="Tìm tên, email..."
+                value={searchQuery}
+                onChange={handleSearchChange}
+                className="ds-input-search"
+              />
             </div>
-          )}
-          <button className="btn btn-secondary" style={{ fontSize: '0.85rem' }} onClick={() => setImportResult(null)}>
-            Đóng
-          </button>
-        </div>
-      )}
-
-      {/* Bộ lọc */}
-      <div className="glass-card" style={{ marginBottom: '2rem', display: 'flex', gap: '1rem', flexWrap: 'wrap', alignItems: 'center' }}>
-        <div className="input-group" style={{ marginBottom: 0, flex: 1, minWidth: 200 }}>
-          <div style={{ position: 'relative' }}>
-            <Search size={18} style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-secondary)' }} />
-            <input
-              type="text" className="input-field"
-              placeholder="Tìm theo email hoặc tên..."
-              style={{ paddingLeft: '2.5rem' }}
-              value={search} onChange={e => setSearch(e.target.value)}
-            />
           </div>
         </div>
-        <select className="input-field" value={roleFilter} onChange={e => setRoleFilter(e.target.value)} style={{ width: 'auto' }}>
-          <option value="">Tất cả role</option>
-          <option value="Admin">Admin</option>
-          <option value="Lecturer">Lecturer</option>
-          <option value="StudentLeader">Student Leader</option>
-          <option value="GroupMember">Group Member</option>
-        </select>
-        {(search || roleFilter) && (
-          <button className="btn btn-secondary" onClick={() => { setSearch(''); setRoleFilter(''); }}>
-            <X size={14} /> Xóa bộ lọc
-          </button>
-        )}
-      </div>
 
-      {/* Bảng danh sách */}
-      <div className="glass-card" style={{ padding: 0, overflow: 'hidden' }}>
         {loading ? (
-          <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.75rem' }}>
-            <Loader2 size={20} className="spin" /> Đang tải...
+          <div className="ds-loading-placeholder">
+            <div className="ds-skeleton" style={{ height: '40px', marginBottom: '12px' }}></div>
+            <div className="ds-skeleton" style={{ height: '40px', marginBottom: '12px' }}></div>
+            <div className="ds-skeleton" style={{ height: '40px' }}></div>
           </div>
         ) : users.length === 0 ? (
-          <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-secondary)' }}>
-            <Users size={48} style={{ margin: '0 auto 1rem', opacity: 0.3, display: 'block' }} />
-            <p>Không có user nào{search ? ` khớp với "${search}"` : ''}.</p>
+          <div className="ds-empty-state">
+            <AlertCircle size={48} className="text-muted" style={{ marginBottom: '16px' }} />
+            <h3>Không tìm thấy tài khoản người dùng</h3>
+            <p className="text-muted">Vui lòng thay đổi từ khóa tìm kiếm hoặc lọc vai trò khác.</p>
           </div>
         ) : (
           <>
-            <div style={{ overflowX: 'auto' }}>
-              <table className="data-table">
+            <div className="ds-table-container">
+              <table className="ds-table">
                 <thead>
                   <tr>
-                    <th>ID</th>
-                    <th>Họ tên</th>
-                    <th>Email</th>
-                    <th>Role</th>
-                    <th>Trạng thái</th>
-                    <th>Tạo lúc</th>
+                    <th>Họ và Tên người dùng</th>
+                    <th>Địa chỉ Email (FPT)</th>
+                    <th>Vai trò chính</th>
+                    <th>Ngày tạo</th>
+                    <th style={{ textAlign: 'center' }}>Trạng thái</th>
                     <th style={{ textAlign: 'right' }}>Thao tác</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {users.map(u => (
-                    <tr key={u.id} onClick={() => loadDetail(u.id)} title="Xem chi tiết">
-                      <td style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>#{u.id}</td>
-                      <td style={{ fontWeight: 500 }}>{u.fullName}</td>
-                      <td style={{ color: 'var(--text-secondary)', fontSize: '0.875rem' }}>{u.email}</td>
-                      <td><RoleBadges role={u.role} /></td>
-                      <td>
-                        <span className={`badge ${u.isActive ? 'badge-success' : 'badge-warning'}`}>
-                          {u.isActive ? 'Active' : 'Inactive'}
-                        </span>
-                      </td>
-                      <td style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
-                        {new Date(u.createdAt).toLocaleDateString('vi-VN')}
+                  {users.map((u) => (
+                    <tr key={u.id} className={!u.isActive ? 'ds-row-inactive' : ''}>
+                      <td style={{ fontWeight: 700 }}>{u.fullName}</td>
+                      <td className="tnum">{u.email}</td>
+                      <td>{renderRoleBadge(u.role)}</td>
+                      <td className="tnum text-muted" style={{ fontSize: '0.8rem' }}>{formatDate(u.createdAt)}</td>
+                      <td style={{ textAlign: 'center' }}>
+                        <button 
+                          className={`ds-toggle-btn ${u.isActive ? 'active' : ''}`}
+                          onClick={() => handleToggleActive(u)}
+                          title={u.isActive ? 'Bấm để khoá tài khoản' : 'Bấm để kích hoạt tài khoản'}
+                        >
+                          <span className="ds-toggle-slider"></span>
+                        </button>
                       </td>
                       <td style={{ textAlign: 'right' }}>
-                        {/* stopPropagation để click nút không trigger row onClick */}
-                        <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }} onClick={e => e.stopPropagation()}>
-                          <button
-                            className="btn btn-secondary"
-                            style={{ padding: '0.3rem 0.6rem', fontSize: '0.75rem' }}
-                            onClick={() => loadDetail(u.id)}
-                            title="Xem chi tiết"
+                        <div className="ds-action-buttons">
+                          <button 
+                            className="ds-action-btn edit" 
+                            onClick={() => handleOpenEdit(u)}
+                            title="Sửa email tài khoản"
                           >
-                            <Eye size={14} />
-                          </button>
-                          <button
-                            className={`btn ${u.isActive ? 'btn-danger' : 'btn-primary'}`}
-                            style={{ padding: '0.3rem 0.6rem', fontSize: '0.75rem' }}
-                            disabled={busy === u.id}
-                            onClick={() => toggle(u.id, u.isActive, u.email)}
-                            title={u.isActive ? 'Vô hiệu hóa' : 'Kích hoạt'}
-                          >
-                            {busy === u.id
-                              ? <Loader2 size={14} className="spin" />
-                              : u.isActive ? <UserX size={14} /> : <UserCheck size={14} />
-                            }
+                            <Edit2 size={14} />
                           </button>
                         </div>
                       </td>
@@ -407,270 +351,610 @@ const AdminUsers = () => {
               </table>
             </div>
 
-            {/* Pagination */}
-            {totalPages > 1 && (
-              <div style={{
-                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                padding: '1rem 1.5rem', borderTop: '1px solid var(--border-glass)',
-                background: 'var(--surface-glass)', flexWrap: 'wrap', gap: '1rem',
-              }}>
-                <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-                  Hiển thị{' '}
-                  <strong>{totalCount === 0 ? 0 : (currentPage - 1) * itemsPerPage + 1}–{Math.min(totalCount, currentPage * itemsPerPage)}</strong>{' '}
-                  trong tổng số <strong>{totalCount}</strong> kết quả
-                </span>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                  <PagBtn disabled={currentPage <= 10} onClick={() => setCurrentPage(Math.max(1, Math.floor((currentPage-1)/10)*10))} title="Cụm trước"><ChevronsLeft size={16} /></PagBtn>
-                  <PagBtn disabled={currentPage === 1} onClick={() => setCurrentPage(p => Math.max(p-1, 1))}><ChevronLeft size={16} /></PagBtn>
-                  {getPageNumbers().map(page => (
-                    <button
-                      key={page}
-                      onClick={() => setCurrentPage(page)}
-                      className={`btn ${currentPage === page ? 'btn-primary' : 'btn-secondary'}`}
-                      style={{
-                        padding: '0.4rem 0.75rem', minWidth: '32px',
-                        background: currentPage === page ? 'var(--accent-primary)' : 'transparent',
-                        border: currentPage === page ? 'none' : '1px solid var(--border-glass)',
-                        color: currentPage === page ? 'white' : 'var(--text-primary)',
-                      }}
-                    >{page}</button>
-                  ))}
-                  <PagBtn disabled={currentPage === totalPages} onClick={() => setCurrentPage(p => Math.min(p+1, totalPages))}><ChevronRight size={16} /></PagBtn>
-                  <PagBtn disabled={isLastBlock} onClick={() => setCurrentPage(Math.min(totalPages, (Math.floor((currentPage-1)/10)+1)*10+1))} title="Cụm sau"><ChevronsRight size={16} /></PagBtn>
-                </div>
-              </div>
-            )}
+            {/* Pagination controls */}
+            <div className="ds-pagination">
+              <button 
+                className="ds-btn ds-btn-secondary ds-btn-icon-only" 
+                onClick={() => setPage(p => Math.max(1, p - 1))}
+                disabled={page === 1}
+              >
+                <ChevronLeft size={16} />
+              </button>
+              <span className="ds-page-info tnum">Trang {page} / {totalPages}</span>
+              <button 
+                className="ds-btn ds-btn-secondary ds-btn-icon-only" 
+                onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                disabled={page === totalPages}
+              >
+                <ChevronRight size={16} />
+              </button>
+            </div>
           </>
         )}
       </div>
 
-      {/* ── Modal: Tạo User ───────────────────────────────────────────────────── */}
-      {showCreate && (
-        <ModalOverlay onClose={() => !creating && setShowCreate(false)}>
-          <div className="glass-panel animate-fade-in" style={{ width: '100%', maxWidth: 480, padding: '2rem' }} onClick={e => e.stopPropagation()}>
-            <ModalHeader title="Thêm người dùng mới" onClose={() => setShowCreate(false)} disabled={creating} />
-            <form onSubmit={handleCreateUser}>
-              <div className="input-group">
-                <label className="input-label">Email <Required /></label>
-                <input required type="email" className="input-field" placeholder="example@fpt.edu.vn"
-                  value={createForm.email} onChange={e => setCreateForm({ ...createForm, email: e.target.value })} />
+      {/* Create User Modal */}
+      {showCreateModal && (
+        <div className="ds-modal-backdrop">
+          <div className="ds-modal-container" style={{ maxWidth: '500px' }}>
+            <div className="ds-modal-header">
+              <h2>Thêm tài khoản người dùng mới</h2>
+              <button className="ds-modal-close" onClick={() => setShowCreateModal(false)}>
+                <X size={20} />
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateUser} className="ds-modal-form">
+              <div className="ds-form-group">
+                <label className="ds-form-label">Họ và tên người dùng</label>
+                <div className="ds-input-with-icon">
+                  <User size={16} className="ds-input-icon-inner" />
+                  <input 
+                    type="text" 
+                    placeholder="Ví dụ: Nguyễn Văn A"
+                    value={modalFullName}
+                    onChange={(e) => setModalFullName(e.target.value)}
+                    required
+                    disabled={creating}
+                  />
+                </div>
               </div>
-              <div className="input-group">
-                <label className="input-label">Họ tên <Required /></label>
-                <input required type="text" className="input-field" placeholder="Nguyễn Văn A"
-                  value={createForm.fullName} onChange={e => setCreateForm({ ...createForm, fullName: e.target.value })} />
+
+              <div className="ds-form-group">
+                <label className="ds-form-label">Email trường cấp (@fpt.edu.vn)</label>
+                <div className="ds-input-with-icon">
+                  <Mail size={16} className="ds-input-icon-inner" />
+                  <input 
+                    type="email" 
+                    placeholder="anv@fpt.edu.vn"
+                    value={modalEmail}
+                    onChange={(e) => setModalEmail(e.target.value)}
+                    required
+                    disabled={creating}
+                  />
+                </div>
               </div>
-              <div className="input-group">
-                <label className="input-label">Role <Required /></label>
-                <select required className="input-field" value={createForm.role} onChange={e => setCreateForm({ ...createForm, role: e.target.value })}>
-                  <option value="Admin">Admin</option>
-                  <option value="Lecturer">Lecturer</option>
-                  <option value="StudentLeader">Student Leader</option>
-                  <option value="GroupMember">Group Member</option>
+
+              <div className="ds-form-group">
+                <label className="ds-form-label">Phân quyền hệ thống</label>
+                <select 
+                  value={modalRole} 
+                  onChange={(e) => setModalRole(e.target.value)}
+                  disabled={creating}
+                >
+                  <option value="Admin">Quản trị viên (Admin)</option>
+                  <option value="Lecturer">Giảng viên hướng dẫn (Lecturer)</option>
+                  <option value="Reviewer">Hội đồng chấm (Reviewer)</option>
+                  <option value="StudentLeader">Trưởng nhóm sinh viên (StudentLeader)</option>
+                  <option value="GroupMember">Thành viên sinh viên (GroupMember)</option>
                 </select>
               </div>
-              <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '1.5rem', lineHeight: 1.5 }}>
-                User sẽ được liên kết với Google khi đăng nhập lần đầu tiên.
-              </p>
-              <div style={{ display: 'flex', gap: '1rem', justifyContent: 'flex-end' }}>
-                <button type="button" className="btn btn-secondary" onClick={() => setShowCreate(false)} disabled={creating}>Hủy</button>
-                <button type="submit" className="btn btn-primary" disabled={creating}>
-                  {creating ? <><Loader2 size={16} className="spin" /> Đang tạo...</> : <><Plus size={16} /> Tạo User</>}
+
+              <div className="ds-modal-footer">
+                <button 
+                  type="button" 
+                  className="ds-btn ds-btn-secondary" 
+                  onClick={() => setShowCreateModal(false)}
+                  disabled={creating}
+                >
+                  Hủy
+                </button>
+                <button 
+                  type="submit" 
+                  className="ds-btn ds-btn-primary"
+                  disabled={creating}
+                >
+                  {creating ? 'Đang tạo...' : 'Tạo tài khoản'}
                 </button>
               </div>
             </form>
           </div>
-        </ModalOverlay>
+        </div>
       )}
 
-      {/* ── Modal: Chi tiết User ──────────────────────────────────────────────── */}
-      {(detail || loadingDetail) && (
-        <ModalOverlay onClose={closeDetail}>
-          <div
-            className="glass-panel animate-fade-in"
-            style={{ width: '100%', maxWidth: 560, padding: '2rem', maxHeight: '90vh', overflowY: 'auto', position: 'relative' }}
-            onClick={e => e.stopPropagation()}
-          >
-            {/* Loading overlay khi đang fetch detail mới */}
-            {loadingDetail && (
-              <div style={{
-                position: 'absolute', inset: 0, background: 'var(--modal-overlay-bg)',
-                borderRadius: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10,
-              }}>
-                <Loader2 size={28} className="spin" style={{ color: 'var(--accent-primary)' }} />
+      {/* Edit Email Modal */}
+      {showEditModal && (
+        <div className="ds-modal-backdrop">
+          <div className="ds-modal-container" style={{ maxWidth: '480px' }}>
+            <div className="ds-modal-header">
+              <h2>Sửa Email Người dùng</h2>
+              <button className="ds-modal-close" onClick={() => setShowEditModal(false)}>
+                <X size={20} />
+              </button>
+            </div>
+
+            <form onSubmit={handleUpdateEmail} className="ds-modal-form">
+              <div className="ds-form-group">
+                <p style={{ fontSize: '0.9rem', color: 'var(--color-muted)', marginBottom: '8px' }}>
+                  Đang chỉnh sửa email cho tài khoản: <strong>{editingUser?.fullName}</strong>
+                </p>
+                <label className="ds-form-label">Địa chỉ email mới</label>
+                <div className="ds-input-with-icon">
+                  <Mail size={16} className="ds-input-icon-inner" />
+                  <input 
+                    type="email" 
+                    value={editEmailVal}
+                    onChange={(e) => setEditEmailVal(e.target.value)}
+                    required
+                    disabled={updating}
+                  />
+                </div>
               </div>
-            )}
 
-            {detail && (
-              <>
-                <ModalHeader
-                  title="Chi tiết người dùng"
-                  subtitle={`ID #${detail.id}`}
-                  onClose={closeDetail}
-                />
-
-                {/* Grid thông tin cơ bản */}
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1.5rem' }}>
-                  <InfoRow label="Họ tên" value={detail.fullName} />
-                  <InfoRow label="Role" value={<RoleBadges role={detail.role} />} />
-                  <InfoRow label="Trạng thái" value={
-                    <span className={`badge ${detail.isActive ? 'badge-success' : 'badge-warning'}`}>
-                      {detail.isActive ? 'Active' : 'Inactive'}
-                    </span>
-                  } />
-                  <InfoRow label="Tài khoản Google" value={
-                    detail.googleSubject
-                      ? <span className="badge badge-success">Đã liên kết</span>
-                      : <span className="badge badge-warning">Chưa liên kết</span>
-                  } />
-                  <InfoRow label="Tạo lúc" value={new Date(detail.createdAt).toLocaleString('vi-VN')} />
-                  {detail.updatedAt && (
-                    <InfoRow label="Cập nhật lúc" value={new Date(detail.updatedAt).toLocaleString('vi-VN')} />
-                  )}
-                </div>
-
-                {/* Email section */}
-                <div style={{
-                  background: 'rgba(251,146,60,0.05)', border: '1px solid var(--border-glass)',
-                  borderRadius: '10px', padding: '1rem', marginBottom: '1rem',
-                }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem' }}>
-                    <div style={{ minWidth: 0, flex: 1 }}>
-                      <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: '0.25rem' }}>Email</p>
-                      <p style={{ fontWeight: 500, wordBreak: 'break-all' }}>{detail.email}</p>
-                    </div>
-                    {!showEditEmail && (
-                      <button
-                        className="btn btn-secondary"
-                        style={{ padding: '0.4rem 0.75rem', fontSize: '0.8rem', flexShrink: 0 }}
-                        onClick={() => { setShowEditEmail(true); setNewEmail(detail.email); }}
-                      >
-                        <Mail size={14} /> Sửa email
-                      </button>
-                    )}
-                  </div>
-
-                  {showEditEmail && (
-                    <form onSubmit={handleUpdateEmail} style={{ marginTop: '1rem', borderTop: '1px solid var(--border-glass)', paddingTop: '1rem' }}>
-                      <div className="input-group" style={{ marginBottom: '0.75rem' }}>
-                        <label className="input-label">Email mới</label>
-                        <input
-                          required type="email" className="input-field"
-                          value={newEmail} onChange={e => setNewEmail(e.target.value)}
-                          autoFocus
-                        />
-                      </div>
-                      <div style={{ display: 'flex', gap: '0.5rem' }}>
-                        <button type="button" className="btn btn-secondary" style={{ fontSize: '0.8rem', padding: '0.4rem 0.75rem' }}
-                          onClick={() => setShowEditEmail(false)} disabled={savingEmail}>
-                          Hủy
-                        </button>
-                        <button type="submit" className="btn btn-primary" style={{ fontSize: '0.8rem', padding: '0.4rem 0.75rem' }}
-                          disabled={savingEmail}>
-                          {savingEmail ? <><Loader2 size={14} className="spin" /> Đang lưu...</> : 'Lưu'}
-                        </button>
-                      </div>
-                    </form>
-                  )}
-                </div>
-
-                {/* Lecturer Profile */}
-                {detail.lecturerProfile && (
-                  <div style={{
-                    background: 'rgba(59,130,246,0.05)', border: '1px solid rgba(59,130,246,0.2)',
-                    borderRadius: '10px', padding: '1rem', marginBottom: '1rem',
-                  }}>
-                    <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>Lecturer Profile</p>
-                    <div style={{ display: 'flex', gap: '2rem', fontSize: '0.875rem' }}>
-                      <span>Lecturer ID: <strong>#{detail.lecturerProfile.id}</strong></span>
-                      <span>Mã tên: <strong>{detail.lecturerProfile.code || '—'}</strong></span>
-                    </div>
-                  </div>
-                )}
-
-                {/* Student Profile */}
-                {detail.studentProfile && (
-                  <div style={{
-                    background: 'rgba(16,185,129,0.05)', border: '1px solid rgba(16,185,129,0.2)',
-                    borderRadius: '10px', padding: '1rem', marginBottom: '1rem',
-                  }}>
-                    <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>Student Profile</p>
-                    <span style={{ fontSize: '0.875rem' }}>Student ID: <strong>#{detail.studentProfile.id}</strong></span>
-                  </div>
-                )}
-
-                {/* Nút activate/deactivate từ modal chi tiết */}
-                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '0.5rem' }}>
-                  <button className="btn btn-secondary" onClick={closeDetail}>Đóng</button>
-                  <button
-                    className={`btn ${detail.isActive ? 'btn-danger' : 'btn-primary'}`}
-                    disabled={busy === detail.id}
-                    onClick={() => toggle(detail.id, detail.isActive, detail.email)}
-                  >
-                    {busy === detail.id
-                      ? <><Loader2 size={16} className="spin" /> Đang xử lý...</>
-                      : detail.isActive
-                        ? <><UserX size={16} /> Vô hiệu hóa</>
-                        : <><UserCheck size={16} /> Kích hoạt</>
-                    }
-                  </button>
-                </div>
-              </>
-            )}
+              <div className="ds-modal-footer">
+                <button 
+                  type="button" 
+                  className="ds-btn ds-btn-secondary" 
+                  onClick={() => setShowEditModal(false)}
+                  disabled={updating}
+                >
+                  Hủy
+                </button>
+                <button 
+                  type="submit" 
+                  className="ds-btn ds-btn-primary"
+                  disabled={updating}
+                >
+                  {updating ? 'Đang lưu...' : 'Cập nhật email'}
+                </button>
+              </div>
+            </form>
           </div>
-        </ModalOverlay>
+        </div>
       )}
 
+      {/* Excel Users Import Modal */}
+      {showImportModal && (
+        <div className="ds-modal-backdrop">
+          <div className="ds-modal-container" style={{ maxWidth: '520px' }}>
+            <div className="ds-modal-header">
+              <h2>Nhập danh sách tài khoản từ Excel</h2>
+              <button className="ds-modal-close" onClick={() => setShowImportModal(false)}>
+                <X size={20} />
+              </button>
+            </div>
+
+            <form onSubmit={handleImportUsers} className="ds-modal-form">
+              
+              <div className="ds-excel-import-zone">
+                <input 
+                  type="file" 
+                  ref={fileInputRef}
+                  onChange={(e) => e.target.files && setSelectedFile(e.target.files[0])}
+                  accept=".xlsx"
+                  style={{ display: 'none' }}
+                  disabled={importing}
+                />
+                
+                <div 
+                  className={`ds-drag-area ${selectedFile ? 'has-file' : ''}`}
+                  onClick={() => !importing && fileInputRef.current?.click()}
+                >
+                  <FileSpreadsheet size={36} className="text-muted" />
+                  {selectedFile ? (
+                    <div>
+                      <h4 style={{ color: 'var(--color-success)' }}>{selectedFile.name}</h4>
+                      <p className="tnum" style={{ fontSize: '0.8rem', color: 'var(--color-muted)', marginTop: '4px' }}>
+                        {(selectedFile.size / 1024).toFixed(1)} KB
+                      </p>
+                    </div>
+                  ) : (
+                    <div>
+                      <h4>Chọn tệp Excel danh sách tài khoản</h4>
+                      <p className="text-muted" style={{ fontSize: '0.8rem', marginTop: '4px' }}>Tệp Excel yêu cầu có 3 cột: Email, Họ và Tên, Role</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Display Result Summary */}
+              {importResult && (
+                <div className="ds-import-result-summary">
+                  <CheckCircle size={18} className="text-success" />
+                  <div>
+                    <h4 className="text-success">Import tài khoản thành công!</h4>
+                    <p style={{ fontSize: '0.8rem', marginTop: '4px', lineHeight: '1.4' }}>
+                      Đã thêm mới: <strong className="tnum">{importResult.importedCount ?? 0}</strong> tài khoản.
+                      Đã cập nhật: <strong className="tnum">{importResult.updatedCount ?? 0}</strong> dòng thông tin.
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              <div className="ds-modal-footer">
+                <button 
+                  type="button" 
+                  className="ds-btn ds-btn-secondary" 
+                  onClick={() => setShowImportModal(false)}
+                  disabled={importing}
+                >
+                  Đóng
+                </button>
+                <button 
+                  type="submit" 
+                  className="ds-btn ds-btn-primary"
+                  disabled={importing || !selectedFile}
+                >
+                  {importing ? (
+                    <>
+                      <Clock size={16} className="spin" />
+                      <span>Đang nạp file...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Upload size={16} />
+                      <span>Bắt đầu import</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Embedded Component Styles */}
       <style>{`
-        .spin { animation: spin 1s linear infinite; }
-        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        .ds-users-page {
+          width: 100%;
+          animation: ds-page-in 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+
+        .ds-users-header {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          margin-bottom: 24px;
+        }
+
+        .ds-header-actions {
+          display: flex;
+          gap: 12px;
+        }
+
+        .ds-card-header-with-filter {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          margin-bottom: 20px;
+          border-bottom: 1px solid var(--color-border);
+          padding-bottom: 16px;
+        }
+
+        .ds-filters-row {
+          display: flex;
+          gap: 16px;
+        }
+
+        .ds-select-small {
+          padding: 8px 12px;
+          border-radius: var(--radius-sm);
+          font-weight: 500;
+          font-size: 0.85rem;
+          background-color: var(--color-bg);
+          border: 1px solid var(--color-border);
+        }
+
+        /* Search wrapper */
+        .ds-search-wrapper {
+          position: relative;
+          display: flex;
+          align-items: center;
+        }
+
+        .ds-search-icon {
+          position: absolute;
+          left: 12px;
+          color: var(--color-muted);
+        }
+
+        .ds-input-search {
+          padding: 8px 12px 8px 36px;
+          font-size: 0.85rem;
+          border-radius: var(--radius-sm);
+          border: 1px solid var(--color-border);
+          width: 250px;
+          background-color: var(--color-bg);
+          transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+        }
+
+        .ds-input-search:focus {
+          border-color: var(--color-primary);
+          box-shadow: 0 0 0 3px rgba(234, 88, 12, 0.1);
+        }
+
+        .ds-loading-placeholder {
+          padding: 20px 0;
+        }
+
+        .ds-empty-state {
+          padding: 48px 0;
+          text-align: center;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+        }
+
+        .ds-empty-state h3 {
+          margin-bottom: 8px;
+          font-size: 1.2rem;
+        }
+
+        .ds-row-inactive td {
+          opacity: 0.55;
+          text-decoration: line-through;
+          color: var(--color-muted);
+        }
+
+        /* User Role Badges */
+        .ds-role-badge {
+          font-size: 0.75rem;
+          font-weight: 700;
+          padding: 3px 8px;
+          border-radius: var(--radius-sm);
+          display: inline-block;
+        }
+
+        .ds-role-badge.admin {
+          color: var(--color-primary);
+          background-color: color-mix(in oklch, var(--color-primary) 8%, transparent);
+        }
+
+        .ds-role-badge.lecturer {
+          color: #2563eb;
+          background-color: rgba(37, 99, 235, 0.08);
+        }
+
+        .ds-role-badge.reviewer {
+          color: #7c3aed;
+          background-color: rgba(124, 58, 237, 0.08);
+        }
+
+        .ds-role-badge.student-leader {
+          color: #16a34a;
+          background-color: rgba(22, 163, 74, 0.08);
+        }
+
+        .ds-role-badge.student-member {
+          color: var(--color-muted);
+          background-color: var(--color-surface);
+        }
+
+        /* Toggle switch style */
+        .ds-toggle-btn {
+          border: none;
+          background-color: var(--color-border);
+          width: 44px;
+          height: 24px;
+          border-radius: 12px;
+          position: relative;
+          cursor: pointer;
+          transition: background-color var(--transition-fast);
+          display: inline-flex;
+          align-items: center;
+          padding: 2px;
+        }
+
+        .ds-toggle-btn.active {
+          background-color: var(--color-success);
+        }
+
+        .ds-toggle-slider {
+          background-color: white;
+          width: 20px;
+          height: 20px;
+          border-radius: 50%;
+          display: block;
+          transition: transform var(--transition-fast);
+          box-shadow: 0 1px 3px rgba(0,0,0,0.15);
+        }
+
+        .ds-toggle-btn.active .ds-toggle-slider {
+          transform: translateX(20px);
+        }
+
+        .ds-action-buttons {
+          display: flex;
+          gap: 8px;
+          justify-content: flex-end;
+        }
+
+        .ds-action-btn {
+          border: none;
+          background: var(--color-surface);
+          color: var(--color-muted);
+          width: 32px;
+          height: 32px;
+          border-radius: var(--radius-sm);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          cursor: pointer;
+          transition: background-color var(--transition-fast), color var(--transition-fast), transform var(--transition-fast);
+        }
+
+        .ds-action-btn:hover {
+          background-color: var(--color-border);
+          color: var(--color-ink);
+          transform: translateY(-1px);
+        }
+
+        .ds-pagination {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 16px;
+          margin-top: 20px;
+          padding-top: 16px;
+          border-top: 1px solid var(--color-border);
+        }
+
+        .ds-btn-icon-only {
+          padding: 0;
+          width: 36px;
+          height: 36px;
+          border-radius: var(--radius-sm);
+        }
+
+        .ds-page-info {
+          font-size: 0.85rem;
+          font-weight: 700;
+        }
+
+        /* Input with icon inner */
+        .ds-input-with-icon {
+          position: relative;
+          display: flex;
+          align-items: center;
+          width: 100%;
+        }
+
+        .ds-input-icon-inner {
+          position: absolute;
+          left: 12px;
+          color: var(--color-muted);
+        }
+
+        .ds-input-with-icon input {
+          padding-left: 36px !important;
+        }
+
+        /* Excel Upload Zone */
+        .ds-excel-import-zone {
+          border: 2px dashed var(--color-border);
+          background-color: var(--color-surface);
+          border-radius: var(--radius-md);
+          padding: 24px 16px;
+          text-align: center;
+          cursor: pointer;
+          transition: border-color var(--transition-fast), background-color var(--transition-fast);
+        }
+
+        .ds-excel-import-zone:hover {
+          border-color: var(--color-primary);
+          background-color: color-mix(in oklch, var(--color-primary) 1%, transparent);
+        }
+
+        .ds-drag-area {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 12px;
+        }
+
+        .ds-drag-area.has-file {
+          border-color: var(--color-success);
+        }
+
+        .ds-import-result-summary {
+          background-color: color-mix(in oklch, var(--color-success) 6%, transparent);
+          border: 1px solid color-mix(in oklch, var(--color-success) 15%, transparent);
+          border-radius: var(--radius-md);
+          padding: 12px 16px;
+          display: flex;
+          align-items: flex-start;
+          gap: 12px;
+          margin-top: 12px;
+        }
+
+        /* Modal styling */
+        .ds-modal-backdrop {
+          position: fixed;
+          top: 0;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          background-color: rgba(18, 18, 18, 0.4);
+          backdrop-filter: blur(4px);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          z-index: 1000;
+          animation: ds-fade-in 0.2s ease-out;
+        }
+
+        .ds-modal-container {
+          background-color: var(--color-bg);
+          border: 1px solid var(--color-border);
+          border-radius: var(--radius-lg);
+          width: 100%;
+          box-shadow: var(--shadow-card-hover);
+          animation: ds-modal-in 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+          overflow: hidden;
+        }
+
+        .ds-modal-header {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding: 20px 24px;
+          border-bottom: 1px solid var(--color-border);
+        }
+
+        .ds-modal-close {
+          border: none;
+          background: none;
+          color: var(--color-muted);
+          cursor: pointer;
+          width: 36px;
+          height: 36px;
+          border-radius: var(--radius-sm);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          transition: background-color var(--transition-fast), color var(--transition-fast);
+        }
+
+        .ds-modal-close:hover {
+          background-color: var(--color-surface);
+          color: var(--color-ink);
+        }
+
+        .ds-modal-form {
+          padding: 24px;
+          display: flex;
+          flex-direction: column;
+          gap: 16px;
+        }
+
+        .ds-modal-footer {
+          display: flex;
+          justify-content: flex-end;
+          gap: 12px;
+          margin-top: 16px;
+          padding-top: 16px;
+          border-top: 1px solid var(--color-border);
+        }
+
+        .spin {
+          animation: ds-spin 1s linear infinite;
+        }
+
+        @keyframes ds-fade-in {
+          from { opacity: 0; }
+          to { opacity: 1; }
+        }
+
+        @keyframes ds-modal-in {
+          from {
+            transform: translateY(24px) scale(0.98);
+            opacity: 0;
+          }
+          to {
+            transform: translateY(0) scale(1);
+            opacity: 1;
+          }
+        }
+
+        @keyframes ds-spin {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
+        }
       `}</style>
+      
     </div>
   );
 };
-
-// ─── Shared UI helpers ────────────────────────────────────────────────────────
-
-const Required = () => <span style={{ color: 'var(--danger)' }}>*</span>;
-
-const ModalOverlay = ({ children, onClose }: { children: React.ReactNode; onClose: () => void }) => {
-  return createPortal(
-    <div
-      style={{
-        position: 'fixed', inset: 0,
-        background: 'var(--modal-overlay-bg)',
-        zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem',
-      }}
-      onClick={onClose}
-    >
-      {children}
-    </div>,
-    document.body
-  );
-};
-
-const ModalHeader = ({
-  title, subtitle, onClose, disabled = false,
-}: { title: string; subtitle?: string; onClose: () => void; disabled?: boolean }) => (
-  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1.5rem' }}>
-    <div>
-      <h2 style={{ margin: 0 }}>{title}</h2>
-      {subtitle && <p style={{ color: 'var(--text-secondary)', margin: '0.25rem 0 0', fontSize: '0.85rem' }}>{subtitle}</p>}
-    </div>
-    <button className="btn btn-secondary" style={{ padding: '0.3rem 0.5rem', flexShrink: 0 }} onClick={onClose} disabled={disabled}>
-      <X size={18} />
-    </button>
-  </div>
-);
-
-const PagBtn = ({ children, disabled, onClick, title }: { children: React.ReactNode; disabled: boolean; onClick: () => void; title?: string }) => (
-  <button
-    onClick={onClick} disabled={disabled} title={title}
-    className="btn btn-secondary"
-    style={{ padding: '0.4rem 0.6rem', border: '1px solid var(--border-glass)', opacity: disabled ? 0.5 : 1, cursor: disabled ? 'not-allowed' : 'pointer' }}
-  >
-    {children}
-  </button>
-);
 
 export default AdminUsers;
