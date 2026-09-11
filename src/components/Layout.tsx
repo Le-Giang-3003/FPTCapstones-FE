@@ -3,7 +3,8 @@ import { Outlet, Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { hasAnyRole } from '../utils/role';
 import { useTheme } from '../contexts/ThemeContext';
-import { LayoutDashboard, Users, FolderKanban, LogOut, Upload, ClipboardList, Sun, Moon, ChevronDown, GraduationCap, CalendarRange, ChevronLeft, ChevronRight, BookOpen, CalendarCheck, UserCheck, CalendarClock } from 'lucide-react';
+import { LayoutDashboard, Users, FolderKanban, LogOut, Upload, ClipboardList, Sun, Moon, ChevronDown, GraduationCap, CalendarRange, ChevronLeft, ChevronRight, BookOpen, CalendarCheck, UserCheck, CalendarClock, LifeBuoy } from 'lucide-react';
+import type { Role } from '../types';
 import { Tooltip } from './Tooltip';
 const Layout = () => {
   const { user, logout } = useAuth();
@@ -27,7 +28,17 @@ const Layout = () => {
 
   const myProjectPath = user?.groupId ? `/projects/${user.groupId}` : '/no-project';
 
-  const navItems = [
+  // excludeRoles: Super Admin mang sẵn cờ Admin trong token (UserManagementAccess.Effective),
+  // nên muốn giấu một mục khỏi Super Admin thì phải loại trừ tường minh.
+  type NavItem = {
+    path: string;
+    label: string;
+    icon: React.ReactNode;
+    roles: Role[];
+    excludeRoles?: Role[];
+  };
+
+  const navItems: NavItem[] = [
     { path: '/dashboard', label: 'Dashboard', icon: <LayoutDashboard size={20} />, roles: ['Admin', 'Lecturer', 'Reviewer', 'StudentLeader', 'GroupMember'] },
     { path: '/topics', label: 'Quản lý đồ án', icon: <FolderKanban size={20} />, roles: ['Admin', 'Lecturer'] },
     { path: '/topic-ideas', label: 'Quản lý đề tài', icon: <BookOpen size={20} />, roles: ['Lecturer'] },
@@ -38,9 +49,11 @@ const Layout = () => {
     { path: '/admin/reviewers', label: 'Chọn reviewer', icon: <UserCheck size={20} />, roles: ['Admin'] },
     { path: '/admin/scheduling', label: 'Xếp lịch review', icon: <CalendarClock size={20} />, roles: ['Admin'] },
     { path: '/audit-logs', label: 'Audit Logs', icon: <ClipboardList size={20} />, roles: ['Admin'] },
+    { path: '/admin/support-tickets', label: 'Ticket hỗ trợ', icon: <LifeBuoy size={20} />, roles: ['Admin'], excludeRoles: ['SuperAdmin'] },
     // Đăng ký slot chỉ hiện cho: StudentLeader/GroupMember (đăng ký nhóm) + Reviewer (GV được admin chỉ định)
     { path: '/reviews/slots', label: 'Đăng ký slot review', icon: <CalendarCheck size={20} />, roles: ['Reviewer', 'StudentLeader', 'GroupMember'] },
     { path: myProjectPath, label: 'Nhóm của tôi', icon: <FolderKanban size={20} />, roles: ['StudentLeader', 'GroupMember', 'Student'] },
+    { path: '/support', label: 'Hỗ trợ', icon: <LifeBuoy size={20} />, roles: ['Lecturer', 'Reviewer', 'StudentLeader', 'GroupMember', 'Student'] },
   ];
 
   return (
@@ -81,7 +94,8 @@ const Layout = () => {
 
         <nav style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', flex: 1 }}>
           {navItems
-            .filter(item => user && hasAnyRole(user?.role, item.roles as import('../types').Role[]))
+            .filter(item => user && hasAnyRole(user.role, item.roles)
+              && !(item.excludeRoles && hasAnyRole(user.role, item.excludeRoles)))
             .map(item => {
               const isActive = location.pathname === item.path || location.pathname.startsWith(item.path + '/');
               const linkElement = (

@@ -1,4 +1,4 @@
-export type Role = 'Admin' | 'Lecturer' | 'StudentLeader' | 'GroupMember' | 'Student' | 'Reviewer';
+export type Role = 'Admin' | 'SuperAdmin' | 'Lecturer' | 'StudentLeader' | 'GroupMember' | 'Student' | 'Reviewer';
 
 export interface User {
   userId?: number;
@@ -444,4 +444,38 @@ export interface HolidayTemplateDto {
   defaultStartMonth: number;     // 1-12
   defaultStartDay: number;       // 1-31
   defaultDurationDays: number;
+}
+
+// ─── Ticket hỗ trợ ───────────────────────────────────────────────────────────
+// Student/Lecturer gửi lên, Admin xử lý. Super Admin không nằm trong luồng này:
+// BE trả 403 cho token có cờ SuperAdmin dù token đó cũng mang cờ Admin.
+
+export type TicketUrgency = 'Low' | 'Medium' | 'High';
+export type TicketStatus = 'Open' | 'InProgress' | 'Done';
+
+// Một lần Admin đổi trạng thái. ToStatus === FromStatus nghĩa là chỉ bổ sung ghi chú.
+export interface SupportTicketUpdateDto {
+  id: number;
+  fromStatus: TicketStatus;
+  toStatus: TicketStatus;
+  note: string | null;
+  changedByName: string;
+  createdAt: string;
+}
+
+export interface SupportTicketDto {
+  id: number;
+  title: string;
+  description: string;
+  urgency: TicketUrgency;
+  status: TicketStatus;
+  createdByUserId: number;
+  createdByName: string;
+  createdByEmail: string;
+  createdByRole: string;          // [Flags] enum.ToString() — dùng hasRole() để đọc
+  handledByName: string | null;   // Admin chạm vào gần nhất
+  createdAt: string;
+  updatedAt: string | null;
+  resolvedAt: string | null;
+  updates: SupportTicketUpdateDto[];
 }

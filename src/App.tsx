@@ -17,6 +17,8 @@ import ProjectDetail from './pages/ProjectDetail';
 import ReviewSlots from './pages/ReviewSlots';
 import AdminReviewers from './pages/AdminReviewers';
 import AdminScheduling from './pages/AdminScheduling';
+import Support from './pages/Support';
+import AdminSupportTickets from './pages/AdminSupportTickets';
 import Layout from './components/Layout';
 
 const PrivateRoute = ({ children, roles }: { children: React.ReactNode; roles?: Role[] }) => {
@@ -105,6 +107,21 @@ const App = () => {
           <Route
             path="/admin/scheduling"
             element={<PrivateRoute roles={['Admin']}><AdminScheduling /></PrivateRoute>}
+          />
+          {/* Ticket hỗ trợ: người gửi và người xử lý là hai màn hình khác nhau.
+              Route Admin không chặn SuperAdmin ở đây — BE mới là nơi quyết (403),
+              FE chỉ giấu mục menu đi cho khỏi mời gọi. */}
+          <Route
+            path="/support"
+            element={
+              <PrivateRoute roles={['Lecturer', 'Reviewer', 'StudentLeader', 'GroupMember', 'Student']}>
+                <Support />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/admin/support-tickets"
+            element={<PrivateRoute roles={['Admin']}><AdminSupportTickets /></PrivateRoute>}
           />
         </Route>
 
