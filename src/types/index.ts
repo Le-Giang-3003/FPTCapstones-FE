@@ -197,6 +197,59 @@ export interface LinkGroupsResultDto {
   skippedGroups: string[];
 }
 
+// ---- Reset dữ liệu theo học kỳ (BE: AdminController /api/admin/semesters/{id}/reset-*) ----
+// Thao tác KHÔNG hoàn tác được — FE luôn gọi reset-preview trước để hiện màn hình xác nhận.
+
+// Account sinh viên bị FK Restrict giữ lại: leader còn version/document tham chiếu,
+// hoặc account kiêm luôn role Admin/Lecturer.
+export interface KeptAccountDto {
+  email: string;
+  reason: string;
+}
+
+// GET /api/admin/semesters/{id}/reset-preview — đếm trước số bản ghi sẽ bị xoá (read-only)
+export interface SemesterResetPreviewDto {
+  semesterId: number;
+  semesterCode: string;
+  semesterStatus: SemesterStatus;
+  groups: number;
+  memberships: number;
+  leaders: number;
+  distinctStudents: number;
+  orphanStudents: number;      // SV không còn nhóm nào sau reset -> account sẽ bị xoá
+  versions: number;
+  documents: number;
+  slotRegistrations: number;   // nguyện vọng slot (ReviewSlotGroup) của các nhóm trong kỳ
+  assignments: number;         // ReviewAssignment của các nhóm trong kỳ
+}
+
+// POST /api/admin/semesters/{id}/reset-students
+export interface ResetSemesterStudentsResultDto {
+  semesterId: number;
+  semesterCode: string;
+  groupsAffected: number;
+  membershipsRemoved: number;
+  leadersRemoved: number;
+  studentsDeleted: number;
+  usersDeleted: number;
+  keptAccounts: KeptAccountDto[];
+}
+
+// POST /api/admin/semesters/{id}/reset-projects?deleteOrphanStudentAccounts=false
+export interface ResetSemesterProjectsResultDto {
+  semesterId: number;
+  semesterCode: string;
+  groupsDeleted: number;
+  membershipsRemoved: number;
+  versionsDeleted: number;
+  documentsDeleted: number;
+  slotRegistrationsDeleted: number;
+  assignmentsDeleted: number;
+  studentsDeleted: number;
+  usersDeleted: number;
+  keptAccounts: KeptAccountDto[];
+}
+
 // Review window / Defence window — 1 review = 1 cửa sổ thời gian (vd 2 tuần) để book slot.
 // BE đã rename SemesterMilestone -> Review. Endpoint /api/admin/reviews.
 export type ReviewType = 'Review' | 'Defence';
