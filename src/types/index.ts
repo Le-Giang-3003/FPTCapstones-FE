@@ -1,4 +1,4 @@
-export type Role = 'Admin' | 'Lecturer' | 'StudentLeader' | 'GroupMember' | 'Student' | 'Reviewer';
+export type Role = 'Admin' | 'SuperAdmin' | 'Lecturer' | 'StudentLeader' | 'GroupMember' | 'Student' | 'Reviewer';
 
 export interface User {
   userId?: number;
@@ -106,7 +106,8 @@ export interface UserDetailDto {
   studentProfile: { id: number } | null;
 }
 
-export type ImportJobStatus = 'Pending' | 'Processing' | 'Success' | 'Failed';
+// Khớp enum ImportJobStatus của BE (Pending/Processing/Completed/Failed) — không có giá trị "Success"
+export type ImportJobStatus = 'Pending' | 'Processing' | 'Completed' | 'Failed';
 
 export interface ImportStatusDto {
   id: number;
@@ -115,6 +116,37 @@ export interface ImportStatusDto {
   groupsCreated: number | null;
   usersCreated: number | null;
   completedAt: string | null;
+}
+
+// ---- Cấu hình TÊN CỘT cho import Excel (BE: /api/admin/import-columns) ----
+// Parser dò header theo tên thay vì vị trí cột, nên đổi ở đây ăn ngay vào lần import kế tiếp.
+export type ImportColumnScope = 'ProjectGroup' | 'Lecturer';
+
+export interface ImportColumnDto {
+  id: number;              // 0 = scope chưa seed vào DB, BE đang trả danh mục gốc → lưu phải POST chứ không PUT
+  scope: ImportColumnScope;
+  fieldKey: string;        // Khóa logic parser đọc — không tự chế được, phải nằm trong catalog của BE
+  displayName: string;
+  aliases: string[];       // Các tên header trong file Excel được chấp nhận cho field này
+  isRequired: boolean;     // Thiếu cột này trong file → BE reject cả file
+  isCore: boolean;         // Cột lõi: không xóa được, không bỏ Bắt buộc được
+  sortOrder: number;
+  description: string;
+}
+
+export interface CreateImportColumnRequest {
+  scope: ImportColumnScope;
+  fieldKey: string;
+  displayName?: string | null;
+  aliases: string[];
+  isRequired?: boolean | null;
+}
+
+// Field null = không đổi
+export interface UpdateImportColumnRequest {
+  displayName?: string | null;
+  aliases?: string[] | null;
+  isRequired?: boolean | null;
 }
 
 export interface AuditLogDto {
@@ -444,4 +476,38 @@ export interface HolidayTemplateDto {
   defaultStartMonth: number;     // 1-12
   defaultStartDay: number;       // 1-31
   defaultDurationDays: number;
+}
+
+// ─── Ticket hỗ trợ ───────────────────────────────────────────────────────────
+// Student/Lecturer gửi lên, Admin xử lý. Super Admin không nằm trong luồng này:
+// BE trả 403 cho token có cờ SuperAdmin dù token đó cũng mang cờ Admin.
+
+export type TicketUrgency = 'Low' | 'Medium' | 'High';
+export type TicketStatus = 'Open' | 'InProgress' | 'Done';
+
+// Một lần Admin đổi trạng thái. ToStatus === FromStatus nghĩa là chỉ bổ sung ghi chú.
+export interface SupportTicketUpdateDto {
+  id: number;
+  fromStatus: TicketStatus;
+  toStatus: TicketStatus;
+  note: string | null;
+  changedByName: string;
+  createdAt: string;
+}
+
+export interface SupportTicketDto {
+  id: number;
+  title: string;
+  description: string;
+  urgency: TicketUrgency;
+  status: TicketStatus;
+  createdByUserId: number;
+  createdByName: string;
+  createdByEmail: string;
+  createdByRole: string;          // [Flags] enum.ToString() — dùng hasRole() để đọc
+  handledByName: string | null;   // Admin chạm vào gần nhất
+  createdAt: string;
+  updatedAt: string | null;
+  resolvedAt: string | null;
+  updates: SupportTicketUpdateDto[];
 }

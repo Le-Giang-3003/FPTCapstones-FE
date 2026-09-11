@@ -1,8 +1,10 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { createPortal } from 'react-dom';
+import { Link } from 'react-router-dom';
 import api from '../services/api';
 import type { LecturerListItemDto, ImportLecturersResultDto } from '../types';
-import { Search, Upload, Edit, ChevronLeft, ChevronRight, Loader2, CheckCircle, AlertTriangle } from 'lucide-react';
+import { Search, Upload, Edit, ChevronLeft, ChevronRight, Loader2, CheckCircle, AlertTriangle, Columns3 } from 'lucide-react';
+import { isPlaceholderEmail } from '../utils/placeholderEmail';
 
 const AdminLecturers = () => {
   const [lecturers, setLecturers] = useState<LecturerListItemDto[]>([]);
@@ -73,7 +75,7 @@ const AdminLecturers = () => {
     setEditingLecturer(lec);
     setEditForm({
       fullName: lec.fullName || '',
-      email: lec.email || '',
+      email: isPlaceholderEmail(lec.email) ? '' : (lec.email || ''),
       code: lec.code || ''
     });
   };
@@ -104,6 +106,10 @@ const AdminLecturers = () => {
           <h1>Quản lý Giảng viên</h1>
           <p style={{ color: 'var(--text-secondary)' }}>Danh sách giảng viên hướng dẫn (GVHD)</p>
         </div>
+        {/* Tên cột của file DanhSach_GVHD cấu hình ở scope Lecturer */}
+        <Link to="/admin/import-columns" className="btn btn-secondary" style={{ textDecoration: 'none' }}>
+          <Columns3 size={16} /> Cấu hình cột
+        </Link>
         <button 
           className="btn btn-primary" 
           onClick={() => fileInputRef.current?.click()}
@@ -190,7 +196,11 @@ const AdminLecturers = () => {
                       <td>
                         {l.code ? <span className="badge badge-success">{l.code}</span> : <span className="badge badge-warning">Chưa có</span>}
                       </td>
-                      <td>{l.email}</td>
+                      <td>
+                        {isPlaceholderEmail(l.email)
+                          ? <span className="badge badge-warning">Chưa có</span>
+                          : l.email}
+                      </td>
                       <td>
                         <span className={`badge ${l.isActive ? 'badge-success' : 'badge-warning'}`}>
                           {l.isActive ? 'Active' : 'Inactive'}
@@ -262,7 +272,7 @@ const AdminLecturers = () => {
             </div>
             <div className="input-group">
               <label className="input-label">Email</label>
-              <input required type="email" className="input-field" value={editForm.email} onChange={e => setEditForm({...editForm, email: e.target.value})} />
+              <input type="email" className="input-field" value={editForm.email} onChange={e => setEditForm({...editForm, email: e.target.value})} placeholder="Để trống = giữ nguyên email hiện tại" />
             </div>
             <div className="input-group">
               <label className="input-label">Mã tên</label>

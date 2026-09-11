@@ -350,9 +350,10 @@ export default AdminHolidayTemplates;
 ```typescript
 
 import { useEffect, useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
 import api from '../services/api';
 import type { ImportStatusDto } from '../types';
-import { Upload, Loader2, CheckCircle, XCircle, RotateCcw } from 'lucide-react';
+import { Upload, Loader2, CheckCircle, XCircle, RotateCcw, Columns3 } from 'lucide-react';
 
 const AdminImport = () => {
   const [file, setFile] = useState<File | null>(null);
@@ -377,7 +378,7 @@ const AdminImport = () => {
         const res = await api.get<ImportStatusDto>(`/api/imports/${id}/status`);
         setStatus(res.data);
         const s = String(res.data.status);
-        if (s === 'Success' || s === 'Failed') {
+        if (s === 'Completed' || s === 'Failed') {
           stopPolling();
         }
       } catch (e) {
@@ -402,22 +403,26 @@ const AdminImport = () => {
       setJobId(id);
       pollStatus(id);
     } catch (e: any) {
-      alert(e?.response?.data?.message || 'Upload tháº¥t báº¡i');
+      alert(e?.response?.data?.message || 'Upload thất bại');
     } finally {
       setUploading(false);
     }
   };
 
   const statusLabel = status ? String(status.status) : '';
-  const isDone = statusLabel === 'Success' || statusLabel === 'Failed';
+  const isDone = statusLabel === 'Completed' || statusLabel === 'Failed';
 
   return (
     <div className="animate-fade-in">
       <div className="topbar">
         <div>
           <h1>Import Excel</h1>
-          <p style={{ color: 'var(--text-secondary)' }}>Nháº­p dá»¯ liá»‡u nhÃ³m tá»« file Excel cá»§a há»‡ thá»‘ng cÅ©</p>
+          <p style={{ color: 'var(--text-secondary)' }}>Nhập dữ liệu nhóm từ file Excel của hệ thống cũ</p>
         </div>
+        {/* Parser dò cột theo tên header — file đổi tên cột thì sửa ở đây thay vì chữa file */}
+        <Link to="/admin/import-columns" className="btn btn-secondary" style={{ textDecoration: 'none' }}>
+          <Columns3 size={16} /> Cấu hình cột
+        </Link>
       </div>
 
       <div className="glass-card" style={{ maxWidth: 700 }}>
@@ -426,7 +431,7 @@ const AdminImport = () => {
         </h3>
 
         <div className="input-group">
-          <label className="input-label">Chá»n file Excel (.xlsx, tá»‘i Ä‘a 10MB)</label>
+          <label className="input-label">Chọn file Excel (.xlsx, tối đa 10MB)</label>
           <input
             type="file"
             className="input-field"
@@ -443,25 +448,26 @@ const AdminImport = () => {
           onClick={handleImport}
           disabled={!file || uploading || (jobId !== null && !isDone)}
         >
-          {uploading ? <><Loader2 size={16} className="spin" /> Äang upload...</> : <><Upload size={16} /> Báº¯t Ä‘áº§u Import</>}
+          {uploading ? <><Loader2 size={16} className="spin" /> Đang upload...</> : <><Upload size={16} /> Bắt đầu Import</>}
         </button>
 
         <p style={{ marginTop: '0.75rem', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-          Import xá»­ lÃ½ Ä‘á»“ng bá»™. Status sáº½ Completed/Failed ngay láº§n poll Ä‘áº§u.
+          Import xử lý đồng bộ. Status sẽ Completed/Failed ngay lần poll đầu.
+          Thứ tự cột trong file tùy ý, miễn tên header khớp <Link to="/admin/import-columns">cấu hình cột</Link>.
         </p>
 
         <button
           className="btn btn-secondary"
           style={{ marginTop: '0.5rem', width: '100%' }}
           onClick={async () => {
-            if (!window.confirm('XÃ³a toÃ n bá»™ ImportJob? (dev only)')) return;
+            if (!window.confirm('Xóa toàn bộ ImportJob? (dev only)')) return;
             try {
               const res = await api.post('/api/imports/reset');
-              alert(`ÄÃ£ xÃ³a ${res.data.removed} job. CÃ³ thá»ƒ import láº¡i.`);
+              alert(`Đã xóa ${res.data.removed} job. Có thể import lại.`);
               setStatus(null);
               setJobId(null);
             } catch (e: any) {
-              alert(e?.response?.data?.message || 'Reset tháº¥t báº¡i');
+              alert(e?.response?.data?.message || 'Reset thất bại');
             }
           }}
         >
@@ -471,34 +477,34 @@ const AdminImport = () => {
 
       {jobId !== null && (
         <div className="glass-card" style={{ marginTop: '2rem', maxWidth: 700 }}>
-          <h3 style={{ marginBottom: '1rem' }}>Tráº¡ng thÃ¡i Job #{jobId}</h3>
+          <h3 style={{ marginBottom: '1rem' }}>Trạng thái Job #{jobId}</h3>
 
           {!status ? (
-            <p style={{ color: 'var(--text-secondary)' }}>Äang Ä‘á»£i káº¿t quáº£...</p>
+            <p style={{ color: 'var(--text-secondary)' }}>Đang đợi kết quả...</p>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <strong>Tráº¡ng thÃ¡i:</strong>
-                {statusLabel === 'Success' && <CheckCircle size={18} color="lightgreen" />}
+                <strong>Trạng thái:</strong>
+                {statusLabel === 'Completed' && <CheckCircle size={18} color="lightgreen" />}
                 {statusLabel === 'Failed' && <XCircle size={18} color="salmon" />}
                 {!isDone && <Loader2 size={18} className="spin" />}
-                <span className={`badge ${statusLabel === 'Success' ? 'badge-success' : statusLabel === 'Failed' ? 'badge-warning' : ''}`}>
+                <span className={`badge ${statusLabel === 'Completed' ? 'badge-success' : statusLabel === 'Failed' ? 'badge-warning' : ''}`}>
                   {statusLabel}
                 </span>
               </div>
 
               {status.groupsCreated != null && (
-                <div><strong>Sá»‘ nhÃ³m táº¡o:</strong> {status.groupsCreated}</div>
+                <div><strong>Số nhóm tạo:</strong> {status.groupsCreated}</div>
               )}
               {status.usersCreated != null && (
-                <div><strong>Sá»‘ user táº¡o:</strong> {status.usersCreated}</div>
+                <div><strong>Số user tạo:</strong> {status.usersCreated}</div>
               )}
               {status.completedAt && (
-                <div><strong>HoÃ n táº¥t lÃºc:</strong> {new Date(status.completedAt).toLocaleString('vi-VN')}</div>
+                <div><strong>Hoàn tất lúc:</strong> {new Date(status.completedAt).toLocaleString('vi-VN')}</div>
               )}
               {status.errorReport && (
                 <div>
-                  <strong>BÃ¡o lá»—i:</strong>
+                  <strong>Báo lỗi:</strong>
                   <pre style={{
                     background: 'rgba(239, 68, 68, 0.1)',
                     padding: '1rem',
@@ -524,14 +530,586 @@ export default AdminImport;
 ```
 
 
+## File: src\pages\AdminImportColumns.tsx
+```typescript
+
+import React, { useEffect, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
+import api from '../services/api';
+import type {
+  ImportColumnDto,
+  ImportColumnScope,
+  CreateImportColumnRequest,
+  UpdateImportColumnRequest,
+} from '../types';
+import { Columns3, Plus, Edit, Trash2, RotateCcw, Loader2, AlertCircle, X, Lock, Info } from 'lucide-react';
+
+// Cấu hình TÊN CỘT cho import Excel (BE: ImportColumnsController).
+// Parser dò header theo tên chứ không theo vị trí cột, nên sửa ở đây ăn ngay vào lần import kế tiếp —
+// phòng đào tạo đổi tên cột trong file thì admin tự sửa, không cần deploy lại BE.
+
+const SCOPES: { value: ImportColumnScope; label: string; hint: string }[] = [
+  { value: 'ProjectGroup', label: 'File danh sách nhóm đồ án', hint: 'File import nhóm + sinh viên (trang Import Excel)' },
+  { value: 'Lecturer', label: 'File danh sách GVHD', hint: 'File DanhSach_GVHD_*.xlsx (trang Giảng viên)' },
+];
+
+// Mirror ImportColumnCatalog của BE — chỉ dùng để gợi ý khi thêm lại cột đã xóa.
+// Không tự chế khóa mới được: BE validate FieldKey và trả 400 UNKNOWN_FIELD_KEY nếu khóa lạ.
+const CATALOG_KEYS: Record<ImportColumnScope, { key: string; label: string }[]> = {
+  ProjectGroup: [
+    { key: 'GroupCode', label: 'Mã nhóm' },
+    { key: 'ProjectCode', label: 'Mã đề tài' },
+    { key: 'ProjectNameEn', label: 'Tên đề tài EN' },
+    { key: 'ProjectNameVi', label: 'Tên đề tài VN' },
+    { key: 'StudentCode', label: 'MSSV' },
+    { key: 'StudentFullName', label: 'Họ và tên' },
+    { key: 'StudentEmail', label: 'Email' },
+    { key: 'Gvhd1', label: 'GVHD1' },
+    { key: 'Gvhd2', label: 'GVHD2' },
+  ],
+  Lecturer: [
+    { key: 'LecturerFullName', label: 'Tên đầy đủ' },
+    { key: 'LecturerCode', label: 'Mã tên' },
+    { key: 'LecturerEmail', label: 'Email' },
+  ],
+};
+
+interface FormState {
+  fieldKey: string;
+  displayName: string;
+  aliases: string[];
+  isRequired: boolean;
+}
+
+const blankForm: FormState = { fieldKey: '', displayName: '', aliases: [], isRequired: false };
+
+// So alias bỏ dấu cách thừa + hoa/thường để chặn trùng ngay trên UI.
+// BE còn chuẩn hóa sâu hơn (ImportTextNormalizer) nên đây chỉ là lớp lọc sơ bộ.
+const aliasKey = (s: string) => s.trim().toLowerCase().replace(/\s+/g, ' ');
+
+const AdminImportColumns = () => {
+  const [all, setAll] = useState<ImportColumnDto[]>([]);
+  const [scope, setScope] = useState<ImportColumnScope>('ProjectGroup');
+  const [loading, setLoading] = useState(false);
+  const [resetting, setResetting] = useState(false);
+
+  // Modal dùng chung: null = ẩn, 'new' = thêm cột, object = sửa cột đang chọn
+  const [editing, setEditing] = useState<ImportColumnDto | 'new' | null>(null);
+  const [form, setForm] = useState<FormState>(blankForm);
+  const [aliasDraft, setAliasDraft] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const load = async () => {
+    try {
+      setLoading(true);
+      // Không truyền scope: lấy cấu hình cả hai loại file trong 1 request, chuyển tab không cần gọi lại
+      const res = await api.get<ImportColumnDto[]>('/api/admin/import-columns');
+      setAll(res.data);
+    } catch (e) {
+      console.error('Load import columns failed', e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { load(); }, []);
+
+  const rows = useMemo(
+    () => all.filter(c => c.scope === scope).sort((a, b) => a.sortOrder - b.sortOrder),
+    [all, scope],
+  );
+
+  // BE trả Id=0 khi scope chưa có dòng nào trong DB (đang chạy bằng danh mục gốc).
+  // Lúc đó chưa có bản ghi để PUT/DELETE — lưu sửa sẽ tự chuyển thành POST tạo mới.
+  const isUnseeded = rows.length > 0 && rows.every(c => c.id === 0);
+
+  const missingKeys = useMemo(
+    () => CATALOG_KEYS[scope].filter(k => !rows.some(r => r.fieldKey.toLowerCase() === k.key.toLowerCase())),
+    [rows, scope],
+  );
+
+  const openCreate = () => {
+    setForm({ ...blankForm, fieldKey: missingKeys[0]?.key ?? '' });
+    setAliasDraft('');
+    setError(null);
+    setEditing('new');
+  };
+
+  const openEdit = (c: ImportColumnDto) => {
+    setForm({
+      fieldKey: c.fieldKey,
+      displayName: c.displayName,
+      aliases: [...c.aliases],
+      isRequired: c.isRequired,
+    });
+    setAliasDraft('');
+    setError(null);
+    setEditing(c);
+  };
+
+  const addAlias = (raw: string, current: string[]): string[] => {
+    const trimmed = raw.trim();
+    if (!trimmed) return current;
+    if (current.some(a => aliasKey(a) === aliasKey(trimmed))) return current;
+    return [...current, trimmed];
+  };
+
+  const handleAliasKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter' || e.key === ',') {
+      e.preventDefault();
+      setForm(f => ({ ...f, aliases: addAlias(aliasDraft, f.aliases) }));
+      setAliasDraft('');
+      return;
+    }
+    // Backspace trên ô rỗng = xóa chip cuối, thao tác quen thuộc của tag input
+    if (e.key === 'Backspace' && aliasDraft === '') {
+      setForm(f => ({ ...f, aliases: f.aliases.slice(0, -1) }));
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+
+    // Gộp cả phần đang gõ dở để admin không mất alias vừa nhập mà quên Enter
+    const aliases = addAlias(aliasDraft, form.aliases);
+    if (aliases.length === 0) { setError('Phải có ít nhất 1 tên cột'); return; }
+    if (editing === 'new' && !form.fieldKey) { setError('Chọn field cần cấu hình'); return; }
+
+    try {
+      setSaving(true);
+
+      if (editing === 'new') {
+        const body: CreateImportColumnRequest = {
+          scope,
+          fieldKey: form.fieldKey,
+          displayName: form.displayName.trim() || null,
+          aliases,
+          isRequired: form.isRequired,
+        };
+        await api.post('/api/admin/import-columns', body);
+      } else if (editing) {
+        const target = editing;
+        let targetId = target.id;
+
+        // Id=0 = scope chưa có dòng nào trong DB, BE đang trả danh mục gốc.
+        // KHÔNG được tạo lẻ 1 dòng: parser chỉ fallback về danh mục gốc khi scope rỗng hoàn toàn,
+        // có 1 dòng là nó chỉ đọc đúng cột đó và mất hết cột còn lại.
+        // Seed nguyên danh mục bằng reset trước, rồi mới PUT dòng tương ứng.
+        if (targetId === 0) {
+          await api.post('/api/admin/import-columns/reset', null, { params: { scope: target.scope } });
+          const seeded = await api.get<ImportColumnDto[]>('/api/admin/import-columns', {
+            params: { scope: target.scope },
+          });
+          const match = seeded.data.find(
+            c => c.fieldKey.toLowerCase() === target.fieldKey.toLowerCase() && c.id !== 0,
+          );
+          if (!match) {
+            setError('Không tạo được cấu hình mặc định cho file này. Thử lại bằng nút "Khôi phục mặc định".');
+            await load();
+            return;
+          }
+          targetId = match.id;
+        }
+
+        const body: UpdateImportColumnRequest = {
+          displayName: form.displayName.trim() || null,
+          aliases,
+          isRequired: form.isRequired,
+        };
+        await api.put(`/api/admin/import-columns/${targetId}`, body);
+      }
+
+      setEditing(null);
+      await load();
+    } catch (err: any) {
+      setError(err?.response?.data?.message || 'Lưu thất bại');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDelete = async (c: ImportColumnDto) => {
+    if (!window.confirm(
+      `Xóa cấu hình cột "${c.displayName}"?\n\nTừ lần import sau parser sẽ bỏ qua cột này. ` +
+      `Có thể thêm lại bằng nút "Thêm cột".`
+    )) return;
+    try {
+      await api.delete(`/api/admin/import-columns/${c.id}`);
+      await load();
+    } catch (err: any) {
+      alert(err?.response?.data?.message || 'Xóa thất bại');
+    }
+  };
+
+  const handleReset = async () => {
+    const scopeLabel = SCOPES.find(s => s.value === scope)!.label;
+    const warning = isUnseeded
+      ? 'Danh mục gốc sẽ được ghi vào DB. Chưa có tùy chỉnh nào nên không mất gì.'
+      : 'Mọi tên cột admin đã sửa cho file này sẽ mất, cột đã xóa sẽ được thêm lại.';
+    if (!window.confirm(
+      `Khôi phục cấu hình cột của "${scopeLabel}" về mặc định?\n\n${warning}`
+    )) return;
+    try {
+      setResetting(true);
+      await api.post('/api/admin/import-columns/reset', null, { params: { scope } });
+      await load();
+    } catch (err: any) {
+      alert(err?.response?.data?.message || 'Khôi phục thất bại');
+    } finally {
+      setResetting(false);
+    }
+  };
+
+  const modalTitle = editing === 'new'
+    ? 'Thêm cột vào cấu hình'
+    : `Sửa tên cột: ${editing?.displayName ?? ''}`;
+
+  return (
+    <>
+      <div className="animate-fade-in">
+        <div className="topbar">
+          <div>
+            <h1>Cấu hình cột Import Excel</h1>
+            <p style={{ color: 'var(--text-secondary)' }}>
+              Khai báo tên header mà file Excel được phép dùng cho từng cột dữ liệu
+            </p>
+          </div>
+          <div style={{ display: 'flex', gap: '0.75rem' }}>
+            <button
+              className="btn btn-secondary"
+              onClick={handleReset}
+              disabled={resetting || loading}
+              title="Xóa hết tùy chỉnh của file này và nạp lại danh mục gốc"
+            >
+              {resetting ? <Loader2 size={16} className="spin" /> : <RotateCcw size={16} />} Khôi phục mặc định
+            </button>
+            <button
+              className="btn btn-primary"
+              onClick={openCreate}
+              disabled={loading || missingKeys.length === 0}
+              title={missingKeys.length === 0 ? 'Mọi cột của file này đã được cấu hình' : undefined}
+            >
+              <Plus size={16} /> Thêm cột
+            </button>
+          </div>
+        </div>
+
+        {/* Giải thích cơ chế — admin cần hiểu sửa ở đây tác động vào đâu trước khi đụng vào */}
+        <div
+          className="glass-card"
+          style={{ marginBottom: '1.5rem', display: 'flex', gap: '0.75rem', alignItems: 'flex-start' }}
+        >
+          <Info size={18} color="var(--accent-primary)" style={{ flexShrink: 0, marginTop: '0.15rem' }} />
+          <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', lineHeight: 1.6 }}>
+            Parser đọc file theo <strong style={{ color: 'var(--text-primary)' }}>tên header</strong>, không theo vị trí cột,
+            nên thứ tự và số lượng cột trong file tùy ý miễn có đủ các cột <strong style={{ color: 'var(--text-primary)' }}>Bắt buộc</strong>.
+            Mỗi cột dữ liệu nhận nhiều tên header khác nhau — thêm tên mới vào đây là file kiểu cũ lẫn kiểu mới đều import được.
+            Thay đổi có hiệu lực ngay từ lần import kế tiếp.
+          </div>
+        </div>
+
+        {/* Tab chọn loại file — mỗi loại có bộ cột riêng, cấu hình tách biệt */}
+        <div className="glass-card" style={{ marginBottom: '1.5rem', display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
+          {SCOPES.map(s => (
+            <button
+              key={s.value}
+              className={`btn ${scope === s.value ? 'btn-primary' : 'btn-secondary'}`}
+              onClick={() => setScope(s.value)}
+              style={{ flexDirection: 'column', alignItems: 'flex-start', gap: '0.15rem', padding: '0.6rem 1rem' }}
+            >
+              <span style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontWeight: 600 }}>
+                <Columns3 size={15} /> {s.label}
+              </span>
+              <span style={{ fontSize: '0.7rem', opacity: 0.8, fontWeight: 400 }}>{s.hint}</span>
+            </button>
+          ))}
+        </div>
+
+        {isUnseeded && (
+          <div
+            className="glass-card"
+            style={{
+              marginBottom: '1.5rem', display: 'flex', gap: '0.75rem', alignItems: 'flex-start',
+              borderLeft: '4px solid var(--warning)',
+            }}
+          >
+            <AlertCircle size={18} color="var(--warning)" style={{ flexShrink: 0, marginTop: '0.15rem' }} />
+            <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', lineHeight: 1.6 }}>
+              File này đang chạy bằng <strong style={{ color: 'var(--text-primary)' }}>danh mục gốc</strong> — chưa có dòng cấu hình nào trong DB.
+              Import vẫn hoạt động bình thường. Lần sửa đầu tiên sẽ tự ghi toàn bộ danh mục gốc vào DB rồi mới áp thay đổi,
+              nên các cột khác giữ nguyên. Muốn xóa cột thì bấm <strong style={{ color: 'var(--text-primary)' }}>Khôi phục mặc định</strong> trước.
+            </div>
+          </div>
+        )}
+
+        <div className="glass-card" style={{ padding: 0, overflow: 'hidden' }}>
+          {loading ? (
+            <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-secondary)' }}>Đang tải...</div>
+          ) : rows.length === 0 ? (
+            <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-secondary)' }}>
+              Chưa có cột nào được cấu hình cho file này. Bấm "Khôi phục mặc định" để nạp danh mục gốc.
+            </div>
+          ) : (
+            <div style={{ overflowX: 'auto' }}>
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th style={{ minWidth: 200 }}>Cột dữ liệu</th>
+                    <th style={{ minWidth: 320 }}>Tên header chấp nhận trong file</th>
+                    <th>Bắt buộc</th>
+                    <th style={{ textAlign: 'right' }}>Thao tác</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map(c => (
+                    <tr key={`${c.scope}-${c.fieldKey}`}>
+                      <td>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                          <strong style={{ color: 'var(--text-primary)' }}>{c.displayName}</strong>
+                          {c.isCore && (
+                            <span
+                              className="badge"
+                              title="Cột lõi: parser không chạy được nếu thiếu — không xóa và không bỏ Bắt buộc được"
+                              style={{
+                                display: 'inline-flex', alignItems: 'center', gap: '0.2rem',
+                                background: 'var(--bg-secondary)', color: 'var(--text-secondary)',
+                                border: '1px solid var(--border-glass)', fontSize: '0.65rem',
+                              }}
+                            >
+                              <Lock size={10} /> Lõi
+                            </span>
+                          )}
+                        </div>
+                        <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.2rem' }}>
+                          {c.description}
+                        </div>
+                      </td>
+                      <td>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem' }}>
+                          {c.aliases.map(a => (
+                            <span
+                              key={a}
+                              className="badge"
+                              style={{
+                                background: 'var(--bg-secondary)', color: 'var(--text-primary)',
+                                border: '1px solid var(--border-glass)', fontFamily: 'monospace', fontSize: '0.72rem',
+                              }}
+                            >
+                              {a}
+                            </span>
+                          ))}
+                        </div>
+                      </td>
+                      <td>
+                        <span className={`badge ${c.isRequired ? 'badge-success' : 'badge-warning'}`}>
+                          {c.isRequired ? 'Bắt buộc' : 'Tùy chọn'}
+                        </span>
+                      </td>
+                      <td style={{ textAlign: 'right' }}>
+                        <div style={{ display: 'inline-flex', gap: '0.4rem' }}>
+                          <button
+                            className="btn btn-secondary"
+                            style={{ padding: '0.3rem 0.55rem', fontSize: '0.75rem' }}
+                            onClick={() => openEdit(c)}
+                          >
+                            <Edit size={13} /> Sửa
+                          </button>
+                          <button
+                            className="btn btn-secondary"
+                            style={{
+                              padding: '0.3rem 0.55rem', fontSize: '0.75rem',
+                              color: 'var(--danger)', border: '1px solid rgba(239, 68, 68, 0.25)',
+                              opacity: c.isCore || c.id === 0 ? 0.4 : 1,
+                            }}
+                            disabled={c.isCore || c.id === 0}
+                            title={
+                              c.isCore ? 'Cột lõi không xóa được — sửa danh sách tên cột thay vì xóa'
+                                : c.id === 0 ? 'Bấm "Khôi phục mặc định" để ghi cấu hình vào DB trước khi xóa'
+                                  : undefined
+                            }
+                            onClick={() => handleDelete(c)}
+                          >
+                            <Trash2 size={13} /> Xóa
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+
+        <style>{`.spin { animation: spin 1s linear infinite; } @keyframes spin { from{transform:rotate(0)} to{transform:rotate(360deg)} }`}</style>
+      </div>
+
+      {/* Modal thêm / sửa cột */}
+      {editing !== null && createPortal(
+        <div style={{
+          position: 'fixed', inset: 0, background: 'var(--modal-overlay-bg)',
+          zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem',
+        }}>
+          <div className="glass-panel animate-fade-in" style={{ width: '100%', maxWidth: 620, padding: '2rem', maxHeight: '90vh', overflowY: 'auto' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.5rem' }}>
+              <Columns3 size={22} color="var(--accent-primary)" />
+              <h2 style={{ margin: 0, color: 'var(--text-primary)' }}>{modalTitle}</h2>
+            </div>
+            <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginBottom: '1.25rem' }}>
+              Tên header được so khớp bỏ qua hoa/thường, dấu cách thừa và dấu tiếng Việt. Chỉ cần khai báo khi file dùng
+              một cách gọi hoàn toàn khác.
+            </p>
+
+            <form onSubmit={handleSubmit}>
+              {editing === 'new' ? (
+                <div className="input-group">
+                  <label className="input-label">Cột dữ liệu <span style={{ color: 'var(--danger)' }}>*</span></label>
+                  <select
+                    className="input-field"
+                    value={form.fieldKey}
+                    onChange={e => setForm({ ...form, fieldKey: e.target.value })}
+                  >
+                    {missingKeys.map(k => (
+                      <option key={k.key} value={k.key}>{k.label} ({k.key})</option>
+                    ))}
+                  </select>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.35rem' }}>
+                    Chỉ liệt kê các cột chưa có cấu hình. Không tạo được cột mới ngoài danh mục — parser phải có code đọc cột đó.
+                  </div>
+                </div>
+              ) : (
+                <div className="input-group">
+                  <label className="input-label">Cột dữ liệu</label>
+                  <input type="text" className="input-field" value={form.fieldKey} disabled readOnly />
+                </div>
+              )}
+
+              <div className="input-group">
+                <label className="input-label">Nhãn hiển thị</label>
+                <input
+                  type="text"
+                  className="input-field"
+                  placeholder="Để trống = dùng nhãn mặc định"
+                  value={form.displayName}
+                  onChange={e => setForm({ ...form, displayName: e.target.value })}
+                />
+                <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.35rem' }}>
+                  Chỉ là tên gọi trong màn hình này, không ảnh hưởng việc dò cột.
+                </div>
+              </div>
+
+              {/* Tag input cho aliases — đây là phần thực sự tác động vào parser */}
+              <div className="input-group">
+                <label className="input-label">Tên header chấp nhận <span style={{ color: 'var(--danger)' }}>*</span></label>
+                <div
+                  className="input-field"
+                  style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem', alignItems: 'center', minHeight: 44, height: 'auto', padding: '0.5rem' }}
+                >
+                  {form.aliases.map(a => (
+                    <span
+                      key={a}
+                      className="badge"
+                      style={{
+                        display: 'inline-flex', alignItems: 'center', gap: '0.3rem',
+                        background: 'var(--bg-secondary)', color: 'var(--text-primary)',
+                        border: '1px solid var(--border-glass)', fontFamily: 'monospace', fontSize: '0.72rem',
+                      }}
+                    >
+                      {a}
+                      <button
+                        type="button"
+                        onClick={() => setForm(f => ({ ...f, aliases: f.aliases.filter(x => x !== a) }))}
+                        style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: 'var(--danger)', display: 'flex' }}
+                        aria-label={`Xóa tên cột ${a}`}
+                      >
+                        <X size={12} />
+                      </button>
+                    </span>
+                  ))}
+                  <input
+                    type="text"
+                    value={aliasDraft}
+                    onChange={e => setAliasDraft(e.target.value)}
+                    onKeyDown={handleAliasKeyDown}
+                    placeholder={form.aliases.length === 0 ? 'Gõ tên cột rồi Enter...' : 'Thêm tên khác...'}
+                    style={{
+                      flex: 1, minWidth: 160, background: 'transparent', border: 'none',
+                      outline: 'none', color: 'var(--text-primary)', fontSize: '0.85rem',
+                    }}
+                  />
+                </div>
+                <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.35rem' }}>
+                  Enter hoặc dấu phẩy để thêm. Cột nào trong file khớp <em>một trong các</em> tên này đều được nhận.
+                </div>
+              </div>
+
+              {/* Cột lõi luôn bắt buộc — BE chặn nên khóa luôn ô này cho khớp */}
+              <div className="input-group" style={{ padding: '0.85rem 1rem', background: 'var(--surface-glass)', border: '1px solid var(--border-glass)', borderRadius: '8px' }}>
+                <label style={{
+                  display: 'flex', alignItems: 'flex-start', gap: '0.6rem', color: 'var(--text-primary)',
+                  cursor: editing !== 'new' && editing.isCore ? 'not-allowed' : 'pointer',
+                }}>
+                  <input
+                    type="checkbox"
+                    checked={editing !== 'new' && editing.isCore ? true : form.isRequired}
+                    disabled={editing !== 'new' && editing.isCore}
+                    onChange={e => setForm({ ...form, isRequired: e.target.checked })}
+                    style={{ accentColor: 'var(--accent-primary)', marginTop: '0.2rem' }}
+                  />
+                  <span>
+                    <strong style={{ fontSize: '0.9rem' }}>Bắt buộc có trong file</strong>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.2rem' }}>
+                      Bật: file thiếu cột này sẽ bị từ chối ngay, không import dòng nào.
+                      Tắt: thiếu cột vẫn import, dữ liệu của cột để trống.
+                      {editing !== 'new' && editing.isCore && ' Cột lõi luôn bắt buộc, không tắt được.'}
+                    </div>
+                  </span>
+                </label>
+              </div>
+
+              {error && (
+                <div style={{
+                  display: 'flex', gap: '0.5rem', alignItems: 'center',
+                  background: 'rgba(239, 68, 68, 0.1)', color: 'var(--danger)',
+                  padding: '0.75rem 1rem', borderRadius: '8px', fontSize: '0.85rem', marginBottom: '1rem',
+                }}>
+                  <AlertCircle size={16} /> {error}
+                </div>
+              )}
+
+              <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end' }}>
+                <button type="button" className="btn btn-secondary" onClick={() => setEditing(null)} disabled={saving}>
+                  Hủy
+                </button>
+                <button type="submit" className="btn btn-primary" disabled={saving}>
+                  {saving ? <><Loader2 size={16} className="spin" /> Đang lưu...</> : 'Lưu thay đổi'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>,
+        document.body
+      )}
+    </>
+  );
+};
+
+export default AdminImportColumns;
+```
+
+
 ## File: src\pages\AdminLecturers.tsx
 ```typescript
 
 import React, { useEffect, useState, useRef } from 'react';
 import { createPortal } from 'react-dom';
+import { Link } from 'react-router-dom';
 import api from '../services/api';
 import type { LecturerListItemDto, ImportLecturersResultDto } from '../types';
-import { Search, Upload, Edit, ChevronLeft, ChevronRight, Loader2, CheckCircle, AlertTriangle } from 'lucide-react';
+import { Search, Upload, Edit, ChevronLeft, ChevronRight, Loader2, CheckCircle, AlertTriangle, Columns3 } from 'lucide-react';
+import { isPlaceholderEmail } from '../utils/placeholderEmail';
 
 const AdminLecturers = () => {
   const [lecturers, setLecturers] = useState<LecturerListItemDto[]>([]);
@@ -591,7 +1169,7 @@ const AdminLecturers = () => {
       setImportResult(res.data);
       await load();
     } catch (err: any) {
-      alert(err?.response?.data?.message || 'Upload tháº¥t báº¡i');
+      alert(err?.response?.data?.message || 'Upload thất bại');
     } finally {
       setImporting(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
@@ -602,7 +1180,7 @@ const AdminLecturers = () => {
     setEditingLecturer(lec);
     setEditForm({
       fullName: lec.fullName || '',
-      email: lec.email || '',
+      email: isPlaceholderEmail(lec.email) ? '' : (lec.email || ''),
       code: lec.code || ''
     });
   };
@@ -616,7 +1194,7 @@ const AdminLecturers = () => {
       setEditingLecturer(null);
       await load();
     } catch (err: any) {
-      alert(err?.response?.data?.message || 'LÆ°u tháº¥t báº¡i');
+      alert(err?.response?.data?.message || 'Lưu thất bại');
     } finally {
       setSaving(false);
     }
@@ -630,16 +1208,20 @@ const AdminLecturers = () => {
     <div className="animate-fade-in">
       <div className="topbar">
         <div>
-          <h1>Quáº£n lÃ½ Giáº£ng viÃªn</h1>
-          <p style={{ color: 'var(--text-secondary)' }}>Danh sÃ¡ch giáº£ng viÃªn hÆ°á»›ng dáº«n (GVHD)</p>
+          <h1>Quản lý Giảng viên</h1>
+          <p style={{ color: 'var(--text-secondary)' }}>Danh sách giảng viên hướng dẫn (GVHD)</p>
         </div>
+        {/* Tên cột của file DanhSach_GVHD cấu hình ở scope Lecturer */}
+        <Link to="/admin/import-columns" className="btn btn-secondary" style={{ textDecoration: 'none' }}>
+          <Columns3 size={16} /> Cấu hình cột
+        </Link>
         <button 
           className="btn btn-primary" 
           onClick={() => fileInputRef.current?.click()}
           disabled={importing}
         >
           {importing ? <Loader2 size={16} className="spin" /> : <Upload size={16} />}
-          {importing ? 'Äang Import...' : 'Import Excel'}
+          {importing ? 'Đang Import...' : 'Import Excel'}
         </button>
         <input 
           type="file" 
@@ -654,30 +1236,30 @@ const AdminLecturers = () => {
         <div className="glass-card animate-fade-in" style={{ marginBottom: '1.5rem', borderLeft: '4px solid var(--success)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
             <CheckCircle size={20} color="var(--success)" />
-            <h3 style={{ margin: 0 }}>Káº¿t quáº£ Import</h3>
+            <h3 style={{ margin: 0 }}>Kết quả Import</h3>
           </div>
           <div style={{ display: 'flex', gap: '2rem', marginBottom: '1rem', color: 'var(--text-secondary)' }}>
-            <span><strong>Táº¡o má»›i:</strong> {importResult.created}</span>
-            <span><strong>Cáº­p nháº­t:</strong> {importResult.updated}</span>
-            <span><strong>Bá» qua:</strong> {importResult.skipped}</span>
+            <span><strong>Tạo mới:</strong> {importResult.created}</span>
+            <span><strong>Cập nhật:</strong> {importResult.updated}</span>
+            <span><strong>Bỏ qua:</strong> {importResult.skipped}</span>
           </div>
           {importResult.errors && importResult.errors.length > 0 && (
             <div style={{ background: 'rgba(239, 68, 68, 0.1)', padding: '1rem', borderRadius: '8px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--danger)', marginBottom: '0.5rem' }}>
                 <AlertTriangle size={16} />
-                <strong>Cáº£nh bÃ¡o / Lá»—i ({importResult.errors.length}):</strong>
+                <strong>Cảnh báo / Lỗi ({importResult.errors.length}):</strong>
               </div>
               <div style={{ maxHeight: '200px', overflowY: 'auto' }}>
                 <ul style={{ margin: 0, paddingLeft: '1.5rem', color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
                   {importResult.errors.map((err, idx) => (
-                    <li key={idx}>DÃ²ng {err.rowNumber}: {err.reason}</li>
+                    <li key={idx}>Dòng {err.rowNumber}: {err.reason}</li>
                   ))}
                 </ul>
               </div>
             </div>
           )}
           <button className="btn btn-secondary" style={{ marginTop: '1rem' }} onClick={() => setImportResult(null)}>
-            ÄÃ³ng
+            Đóng
           </button>
         </div>
       )}
@@ -686,7 +1268,7 @@ const AdminLecturers = () => {
         <div className="input-group" style={{ marginBottom: 0, flex: 1, minWidth: 200 }}>
           <div style={{ position: 'relative' }}>
             <Search size={18} style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-secondary)' }} />
-            <input type="text" className="input-field" placeholder="TÃ¬m theo email, tÃªn hoáº·c mÃ£ tÃªn..."
+            <input type="text" className="input-field" placeholder="Tìm theo email, tên hoặc mã tên..."
               style={{ paddingLeft: '2.5rem' }} value={search} onChange={e => setSearch(e.target.value)} />
           </div>
         </div>
@@ -694,9 +1276,9 @@ const AdminLecturers = () => {
 
       <div className="glass-card" style={{ padding: 0, overflow: 'hidden' }}>
         {loading ? (
-          <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-secondary)' }}>Äang táº£i...</div>
+          <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-secondary)' }}>Đang tải...</div>
         ) : lecturers.length === 0 ? (
-          <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-secondary)' }}>KhÃ´ng cÃ³ giáº£ng viÃªn nÃ o.</div>
+          <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-secondary)' }}>Không có giảng viên nào.</div>
         ) : (
           <>
             <div style={{ overflowX: 'auto' }}>
@@ -704,11 +1286,11 @@ const AdminLecturers = () => {
                 <thead>
                   <tr>
                     <th>ID</th>
-                    <th>Há» tÃªn</th>
-                    <th>MÃ£ tÃªn</th>
+                    <th>Họ tên</th>
+                    <th>Mã tên</th>
                     <th>Email</th>
-                    <th>Tráº¡ng thÃ¡i User</th>
-                    <th style={{ textAlign: 'right' }}>Thao tÃ¡c</th>
+                    <th>Trạng thái User</th>
+                    <th style={{ textAlign: 'right' }}>Thao tác</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -717,9 +1299,13 @@ const AdminLecturers = () => {
                       <td>{l.id}</td>
                       <td>{l.fullName}</td>
                       <td>
-                        {l.code ? <span className="badge badge-success">{l.code}</span> : <span className="badge badge-warning">ChÆ°a cÃ³</span>}
+                        {l.code ? <span className="badge badge-success">{l.code}</span> : <span className="badge badge-warning">Chưa có</span>}
                       </td>
-                      <td>{l.email}</td>
+                      <td>
+                        {isPlaceholderEmail(l.email)
+                          ? <span className="badge badge-warning">Chưa có</span>
+                          : l.email}
+                      </td>
                       <td>
                         <span className={`badge ${l.isActive ? 'badge-success' : 'badge-warning'}`}>
                           {l.isActive ? 'Active' : 'Inactive'}
@@ -731,7 +1317,7 @@ const AdminLecturers = () => {
                           style={{ padding: '0.3rem 0.6rem', fontSize: '0.75rem' }}
                           onClick={() => handleEditClick(l)}
                         >
-                          <Edit size={14} /> Sá»­a
+                          <Edit size={14} /> Sửa
                         </button>
                       </td>
                     </tr>
@@ -743,7 +1329,7 @@ const AdminLecturers = () => {
             {totalPages > 1 && (
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '1rem 1.5rem', borderTop: '1px solid var(--border-glass)', background: 'var(--surface-glass)', flexWrap: 'wrap', gap: '1rem' }}>
                 <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-                  Hiá»ƒn thá»‹ <strong>{Math.min(lecturers.length, (currentPage - 1) * itemsPerPage + 1)}-{Math.min(lecturers.length, currentPage * itemsPerPage)}</strong> trong tá»•ng sá»‘ <strong>{lecturers.length}</strong> káº¿t quáº£
+                  Hiển thị <strong>{Math.min(lecturers.length, (currentPage - 1) * itemsPerPage + 1)}-{Math.min(lecturers.length, currentPage * itemsPerPage)}</strong> trong tổng số <strong>{lecturers.length}</strong> kết quả
                 </span>
                 
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
@@ -783,25 +1369,25 @@ const AdminLecturers = () => {
         padding: '1rem'
       }}>
         <div className="glass-panel animate-fade-in" style={{ width: '100%', maxWidth: 500, padding: '2rem' }}>
-          <h2 style={{ marginBottom: '1.5rem', color: 'var(--text-primary)' }}>Sá»­a thÃ´ng tin GVHD</h2>
+          <h2 style={{ marginBottom: '1.5rem', color: 'var(--text-primary)' }}>Sửa thông tin GVHD</h2>
           <form onSubmit={handleSaveEdit}>
             <div className="input-group">
-              <label className="input-label">Há» tÃªn</label>
+              <label className="input-label">Họ tên</label>
               <input required type="text" className="input-field" value={editForm.fullName} onChange={e => setEditForm({...editForm, fullName: e.target.value})} />
             </div>
             <div className="input-group">
               <label className="input-label">Email</label>
-              <input required type="email" className="input-field" value={editForm.email} onChange={e => setEditForm({...editForm, email: e.target.value})} />
+              <input type="email" className="input-field" value={editForm.email} onChange={e => setEditForm({...editForm, email: e.target.value})} placeholder="Để trống = giữ nguyên email hiện tại" />
             </div>
             <div className="input-group">
-              <label className="input-label">MÃ£ tÃªn</label>
+              <label className="input-label">Mã tên</label>
               <input type="text" className="input-field" value={editForm.code} onChange={e => setEditForm({...editForm, code: e.target.value})} placeholder="VD: HungNN" />
             </div>
             
             <div style={{ display: 'flex', gap: '1rem', marginTop: '2rem', justifyContent: 'flex-end' }}>
-              <button type="button" className="btn btn-secondary" onClick={() => setEditingLecturer(null)} disabled={saving}>Há»§y</button>
+              <button type="button" className="btn btn-secondary" onClick={() => setEditingLecturer(null)} disabled={saving}>Hủy</button>
               <button type="submit" className="btn btn-primary" disabled={saving}>
-                {saving ? <><Loader2 size={16} className="spin" /> Äang lÆ°u...</> : 'LÆ°u thay Ä‘á»•i'}
+                {saving ? <><Loader2 size={16} className="spin" /> Đang lưu...</> : 'Lưu thay đổi'}
               </button>
             </div>
           </form>

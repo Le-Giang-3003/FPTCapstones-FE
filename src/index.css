@@ -413,6 +413,7 @@ input[type="checkbox"]:disabled {
 .badge-danger  { background: rgba(229, 72, 77, 0.12); color: var(--danger); border: 1px solid rgba(229, 72, 77, 0.25); }
 .badge-info    { background: rgba(58, 134, 255, 0.12); color: var(--signal-blue); border: 1px solid rgba(58, 134, 255, 0.25); }
 .badge-ongoing { background: rgba(0, 221, 179, 0.14); color: #2dd4bf; border: 1px solid rgba(0, 221, 179, 0.3); }
+.badge-neutral { background: var(--bg-secondary); color: var(--text-secondary); border: 1px solid var(--border-glass); }
 
 /* ── Mục điều hướng ─────────────────────────────────────────────────
    Mục đang mở đánh dấu bằng ba dấu hiệu cùng lúc: vạch dọc 2px màu nhận
