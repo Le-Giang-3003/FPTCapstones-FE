@@ -11,8 +11,12 @@ import type {
   HolidayCascadeResultDto,
   MilestoneType,
   ReviewStatus,
+  SemesterResetPreviewDto,
+  ResetSemesterStudentsResultDto,
+  ResetSemesterProjectsResultDto,
+  KeptAccountDto,
 } from '../types';
-import { Calendar, Filter, Users, Clock, AlertCircle, Plus, Loader2, RefreshCw, ChevronDown, X, Link2, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Calendar, Filter, Users, Clock, AlertCircle, Plus, Loader2, RefreshCw, ChevronDown, X, Link2, ChevronLeft, ChevronRight, ShieldAlert, Eraser, Trash2 } from 'lucide-react';
 
 // Map ReviewStatus → label + style (inline để có hatched pattern cho Registered + gray cho Draft)
 const REVIEW_STATUS_META: Record<ReviewStatus, { label: string; style: React.CSSProperties }> = {
@@ -60,6 +64,24 @@ const SEASON_LABEL: Record<string, string> = {
   Summer: 'Học kỳ Hè',
   Fall:   'Học kỳ Thu',
 };
+
+// Phạm vi reset dữ liệu kỳ — map 1-1 với 2 endpoint BE reset-students / reset-projects
+type ResetMode = 'students' | 'projects';
+
+const RESET_MODE_OPTIONS: { mode: ResetMode; title: string; desc: string; blockedMsg: string }[] = [
+  {
+    mode: 'students',
+    title: 'Chỉ reset sinh viên',
+    desc: 'Gỡ toàn bộ leader + member khỏi mọi nhóm của kỳ, xoá account sinh viên không còn nhóm nào. Nhóm, version và tài liệu giữ nguyên.',
+    blockedMsg: '⚠ Kỳ này chưa có sinh viên trong nhóm — BE sẽ trả lỗi NO_STUDENT_DATA.',
+  },
+  {
+    mode: 'projects',
+    title: 'Reset toàn bộ đồ án',
+    desc: 'Xoá nhóm + membership + version + tài liệu + nguyện vọng slot + assignment của kỳ. Đợt review và file trên storage giữ nguyên.',
+    blockedMsg: '⚠ Kỳ này chưa có nhóm nào — BE sẽ trả lỗi SEMESTER_EMPTY.',
+  },
+];
 
 // Format date dd/MM/yyyy gọn
 const fmt = (s: string) => {
@@ -786,6 +808,105 @@ const AdminSemesters = () => {
       });
     } finally {
       setLinking(false);
+    }
+  };
+
+  // === Reset dữ liệu kỳ (BE: /api/admin/semesters/{id}/reset-preview | reset-students | reset-projects) ===
+  // Thao tác KHÔNG hoàn tác. Luồng FE: mở modal -> GET preview -> chọn phạm vi -> gõ đúng mã kỳ -> POST.
+  const [resetOpen, setResetOpen] = useState(false);
+  const [resetMode, setResetMode] = useState<ResetMode>('students');
+  const [resetPreview, setResetPreview] = useState<SemesterResetPreviewDto | null>(null);
+  const [loadingResetPreview, setLoadingResetPreview] = useState(false);
+  const [resetPreviewError, setResetPreviewError] = useState<string | null>(null);
+  const [deleteOrphanAccounts, setDeleteOrphanAccounts] = useState(false);
+  const [resetConfirmCode, setResetConfirmCode] = useState('');
+  const [resetting, setResetting] = useState(false);
+  const [resetError, setResetError] = useState<string | null>(null);
+
+  const openResetModal = async () => {
+    if (!detail) return;
+    setResetOpen(true);
+    setResetMode('students');
+    setDeleteOrphanAccounts(false);
+    setResetConfirmCode('');
+    setResetError(null);
+    setResetPreview(null);
+    setResetPreviewError(null);
+    try {
+      setLoadingResetPreview(true);
+      const res = await api.get<SemesterResetPreviewDto>(`/api/admin/semesters/${detail.id}/reset-preview`);
+      setResetPreview(res.data);
+    } catch (e: any) {
+      setResetPreviewError(e?.response?.data?.message || 'Không tải được số liệu preview.');
+    } finally {
+      setLoadingResetPreview(false);
+    }
+  };
+
+  const closeResetModal = () => { if (!resetting) setResetOpen(false); };
+
+  // Liệt kê account bị FK Restrict giữ lại — hiện trong popup kết quả để admin biết phải xử lý tay
+  const keptAccountLines = (kept: KeptAccountDto[]): string[] =>
+    kept.length === 0
+      ? []
+      : [`── ${kept.length} account được giữ lại (không xoá được):`, ...kept.slice(0, 20).map(k => `  ${k.email} — ${k.reason}`)];
+
+  const handleRunReset = async () => {
+    if (!detail || resetting) return;
+    try {
+      setResetting(true);
+      setResetError(null);
+
+      let title: string;
+      let lines: string[];
+
+      if (resetMode === 'students') {
+        const res = await api.post<ResetSemesterStudentsResultDto>(
+          `/api/admin/semesters/${detail.id}/reset-students`,
+        );
+        const r = res.data;
+        title = `Đã reset sinh viên kỳ ${r.semesterCode}`;
+        lines = [
+          `Nhóm bị ảnh hưởng: ${r.groupsAffected}`,
+          `Membership gỡ khỏi nhóm: ${r.membershipsRemoved} (trong đó leader: ${r.leadersRemoved})`,
+          `Sinh viên bị xoá: ${r.studentsDeleted}`,
+          `Account (User) bị xoá: ${r.usersDeleted}`,
+          ...keptAccountLines(r.keptAccounts),
+        ];
+      } else {
+        const res = await api.post<ResetSemesterProjectsResultDto>(
+          `/api/admin/semesters/${detail.id}/reset-projects`,
+          null,
+          { params: { deleteOrphanStudentAccounts: deleteOrphanAccounts } },
+        );
+        const r = res.data;
+        title = `Đã reset đồ án kỳ ${r.semesterCode}`;
+        lines = [
+          `Nhóm bị xoá: ${r.groupsDeleted}`,
+          `Membership gỡ khỏi nhóm: ${r.membershipsRemoved}`,
+          `Version bị xoá: ${r.versionsDeleted}`,
+          `Tài liệu bị xoá: ${r.documentsDeleted}`,
+          `Nguyện vọng slot bị xoá: ${r.slotRegistrationsDeleted}`,
+          `Assignment bị xoá: ${r.assignmentsDeleted}`,
+          `Sinh viên bị xoá: ${r.studentsDeleted}`,
+          `Account (User) bị xoá: ${r.usersDeleted}`,
+          ...keptAccountLines(r.keptAccounts),
+        ];
+      }
+
+      setResetOpen(false);
+      // groupCount của kỳ đổi sau reset-projects -> refresh cả list lẫn detail
+      await Promise.all([loadList(), loadDetail(detail.id)]);
+      openConfirm({
+        title,
+        message: 'Đợt review/defence và lịch nghỉ của kỳ được giữ nguyên, có thể import dữ liệu mới ngay.',
+        lines,
+        variant: 'info', cancelLabel: null, confirmLabel: 'Đã hiểu',
+      });
+    } catch (e: any) {
+      setResetError(e?.response?.data?.message || 'Reset thất bại. Thử lại hoặc kiểm tra log BE.');
+    } finally {
+      setResetting(false);
     }
   };
 
@@ -2012,6 +2133,30 @@ const AdminSemesters = () => {
                 )}
               </div>
               </div>{/* /Wrapper column-reverse */}
+
+              {/* Danger zone — reset dữ liệu kỳ (BE: /api/admin/semesters/{id}/reset-*) */}
+              <div className="glass-card" style={{ border: '1px solid rgba(229, 72, 77, 0.3)' }}>
+                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap' }}>
+                  <div style={{ flex: 1, minWidth: 260 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.35rem' }}>
+                      <ShieldAlert size={18} color="var(--danger)" />
+                      <h3 style={{ margin: 0, color: 'var(--danger)' }}>Vùng nguy hiểm — Reset dữ liệu kỳ</h3>
+                    </div>
+                    <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: '0.85rem', lineHeight: 1.6 }}>
+                      Dọn dữ liệu sinh viên hoặc toàn bộ đồ án của kỳ <strong style={{ fontFamily: 'monospace' }}>{detail.code}</strong> để import danh sách mới.
+                      Lịch nghỉ và đợt review/defence của kỳ <strong>được giữ nguyên</strong>. Thao tác <strong style={{ color: 'var(--danger)' }}>không hoàn tác được</strong>.
+                    </p>
+                  </div>
+                  <button
+                    onClick={openResetModal}
+                    className="btn btn-secondary"
+                    style={{ color: 'var(--danger)', border: '1px solid rgba(229, 72, 77, 0.35)', padding: '0.5rem 1rem', fontSize: '0.85rem', flexShrink: 0 }}
+                    title="Xem preview số bản ghi sẽ bị xoá trước khi reset"
+                  >
+                    <Eraser size={15} /> Reset dữ liệu kỳ
+                  </button>
+                </div>
+              </div>
             </>
           )}
         </div>
@@ -2538,6 +2683,192 @@ const AdminSemesters = () => {
         </>
       )}
 
+      {/* Modal reset dữ liệu kỳ — preview trước, gõ đúng mã kỳ mới cho bấm */}
+      {resetOpen && detail && (() => {
+        const p = resetPreview;
+        // BE trả 400 nếu kỳ chưa có nhóm (reset-projects) hoặc nhóm chưa có sinh viên (reset-students)
+        const studentsBlocked = !!p && p.memberships === 0;
+        const projectsBlocked = !!p && p.groups === 0;
+        const modeBlocked = resetMode === 'students' ? studentsBlocked : projectsBlocked;
+        const codeMatched = resetConfirmCode.trim().toUpperCase() === detail.code.toUpperCase();
+        const canSubmit = !!p && !loadingResetPreview && !modeBlocked && codeMatched && !resetting;
+        // Số account SV thực sự sẽ mất: reset-students luôn dọn orphan, reset-projects chỉ khi tick checkbox
+        const orphanAtRisk = resetMode === 'students' || deleteOrphanAccounts ? (p?.orphanStudents ?? 0) : 0;
+        return (
+          <div
+            onClick={closeResetModal}
+            style={{
+              position: 'fixed', inset: 0, background: 'var(--modal-overlay-bg)', backdropFilter: 'blur(4px)',
+              zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem',
+            }}
+          >
+            <div
+              onClick={e => e.stopPropagation()}
+              className="glass-panel animate-fade-in"
+              style={{ width: '100%', maxWidth: 640, maxHeight: '90vh', overflowY: 'auto', padding: '1.75rem', borderTop: '3px solid var(--danger)' }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.35rem' }}>
+                <ShieldAlert size={20} color="var(--danger)" />
+                <h2 style={{ margin: 0, color: 'var(--text-primary)', fontSize: '1.15rem' }}>
+                  Reset dữ liệu kỳ <span style={{ fontFamily: 'monospace' }}>{detail.code}</span>
+                </h2>
+              </div>
+              <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginBottom: '1.25rem' }}>
+                Số liệu dưới đây lấy từ reset-preview tại thời điểm mở popup — kiểm tra kỹ trước khi xác nhận.
+              </p>
+
+              {/* === Preview số bản ghi sẽ bị xoá === */}
+              {loadingResetPreview ? (
+                <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-secondary)' }}>
+                  <Loader2 size={18} className="spin" /> Đang đếm dữ liệu của kỳ...
+                </div>
+              ) : resetPreviewError ? (
+                <div style={{
+                  display: 'flex', gap: '0.5rem', alignItems: 'center',
+                  background: 'rgba(229, 72, 77, 0.1)', color: 'var(--danger)',
+                  padding: '0.75rem 1rem', borderRadius: '8px', fontSize: '0.85rem', marginBottom: '1rem',
+                }}>
+                  <AlertCircle size={16} /> {resetPreviewError}
+                </div>
+              ) : p ? (
+                <div style={{
+                  padding: '1rem', background: 'var(--surface-glass)',
+                  border: '1px solid var(--border-glass)', borderRadius: '10px', marginBottom: '1.25rem',
+                }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: '0.85rem' }}>
+                    <ResetStat label="Nhóm" value={p.groups} />
+                    <ResetStat label="Membership" value={p.memberships} />
+                    <ResetStat label="Leader" value={p.leaders} />
+                    <ResetStat label="Sinh viên" value={p.distinctStudents} />
+                    <ResetStat label="SV mồ côi" value={p.orphanStudents} danger />
+                    <ResetStat label="Version" value={p.versions} />
+                    <ResetStat label="Tài liệu" value={p.documents} />
+                    <ResetStat label="Nguyện vọng slot" value={p.slotRegistrations} />
+                    <ResetStat label="Assignment" value={p.assignments} />
+                  </div>
+                  <p style={{ margin: '0.85rem 0 0', fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                    SV mồ côi = sinh viên không còn nhóm nào ở bất kỳ kỳ nào sau khi reset, account sẽ bị xoá.
+                  </p>
+                </div>
+              ) : null}
+
+              {/* === Chọn phạm vi reset === */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem', marginBottom: '1rem' }}>
+                {RESET_MODE_OPTIONS.map(opt => {
+                  const active = resetMode === opt.mode;
+                  const blocked = opt.mode === 'students' ? studentsBlocked : projectsBlocked;
+                  return (
+                    <button
+                      key={opt.mode}
+                      type="button"
+                      onClick={() => { setResetMode(opt.mode); setResetError(null); }}
+                      style={{
+                        textAlign: 'left', padding: '0.85rem 1rem', borderRadius: '10px', cursor: 'pointer',
+                        border: `1px solid ${active ? 'var(--danger)' : 'var(--border-glass)'}`,
+                        background: active ? 'rgba(229, 72, 77, 0.08)' : 'transparent',
+                        opacity: blocked ? 0.6 : 1,
+                        transition: 'all 0.15s',
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <span style={{
+                          width: 14, height: 14, borderRadius: '50%', flexShrink: 0,
+                          border: `2px solid ${active ? 'var(--danger)' : 'var(--text-tertiary)'}`,
+                          background: active ? 'var(--danger)' : 'transparent',
+                        }} />
+                        <strong style={{ color: 'var(--text-primary)', fontSize: '0.9rem' }}>{opt.title}</strong>
+                      </div>
+                      <p style={{ margin: '0.35rem 0 0 1.5rem', fontSize: '0.8rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+                        {opt.desc}
+                      </p>
+                      {blocked && (
+                        <p style={{ margin: '0.35rem 0 0 1.5rem', fontSize: '0.78rem', color: 'var(--warning)' }}>
+                          {opt.blockedMsg}
+                        </p>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Checkbox chỉ có nghĩa với reset-projects: query param deleteOrphanStudentAccounts */}
+              {resetMode === 'projects' && (
+                <label style={{
+                  display: 'flex', alignItems: 'flex-start', gap: '0.6rem', cursor: 'pointer',
+                  padding: '0.75rem 1rem', borderRadius: '8px', marginBottom: '1rem',
+                  border: '1px solid var(--border-glass)', background: 'var(--surface-glass)',
+                }}>
+                  <input
+                    type="checkbox"
+                    checked={deleteOrphanAccounts}
+                    onChange={e => setDeleteOrphanAccounts(e.target.checked)}
+                    style={{ marginTop: 3, accentColor: 'var(--danger)' }}
+                  />
+                  <span style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+                    Xoá luôn account sinh viên mồ côi. Nhóm bị xoá rồi thì reset sinh viên không tìm lại được
+                    sinh viên của kỳ nữa, tick ô này nếu muốn dọn sạch trong một lần.
+                  </span>
+                </label>
+              )}
+
+              {/* Cảnh báo số account thực sự sẽ mất theo lựa chọn hiện tại */}
+              {orphanAtRisk > 0 && (
+                <div style={{
+                  display: 'flex', gap: '0.5rem', alignItems: 'center',
+                  background: 'rgba(240, 177, 0, 0.12)', color: 'var(--warning)',
+                  padding: '0.7rem 1rem', borderRadius: '8px', fontSize: '0.82rem', marginBottom: '1rem',
+                }}>
+                  <AlertCircle size={16} /> {orphanAtRisk} account sinh viên sẽ bị xoá khỏi hệ thống.
+                </div>
+              )}
+
+              {/* === Gõ mã kỳ để xác nhận === */}
+              <div className="input-group" style={{ marginBottom: '1rem' }}>
+                <label className="input-label">
+                  Gõ <strong style={{ fontFamily: 'monospace', color: 'var(--danger)' }}>{detail.code}</strong> để xác nhận
+                </label>
+                <input
+                  className="input-field"
+                  value={resetConfirmCode}
+                  onChange={e => setResetConfirmCode(e.target.value)}
+                  placeholder={detail.code}
+                  autoComplete="off"
+                  spellCheck={false}
+                  style={{ fontFamily: 'monospace' }}
+                />
+              </div>
+
+              {resetError && (
+                <div style={{
+                  display: 'flex', gap: '0.5rem', alignItems: 'center',
+                  background: 'rgba(229, 72, 77, 0.1)', color: 'var(--danger)',
+                  padding: '0.75rem 1rem', borderRadius: '8px', fontSize: '0.85rem', marginBottom: '1rem',
+                }}>
+                  <AlertCircle size={16} /> {resetError}
+                </div>
+              )}
+
+              <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end' }}>
+                <button type="button" className="btn btn-secondary" onClick={closeResetModal} disabled={resetting}>
+                  Hủy
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  onClick={handleRunReset}
+                  disabled={!canSubmit}
+                  style={{ background: 'var(--danger)', opacity: canSubmit ? 1 : 0.5, cursor: canSubmit ? 'pointer' : 'not-allowed' }}
+                >
+                  {resetting
+                    ? <><Loader2 size={16} className="spin" /> Đang reset...</>
+                    : <><Trash2 size={16} /> {resetMode === 'students' ? 'Reset sinh viên' : 'Reset đồ án'}</>}
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
       {/* Modal tạo kỳ học mới */}
       {showCreate && (
         <div style={{
@@ -2693,6 +3024,18 @@ const Stat = ({ icon, label, value }: { icon: React.ReactNode; label: string; va
       {icon} {label}
     </span>
     <strong style={{ color: 'var(--text-primary)', fontSize: '0.95rem' }}>{value}</strong>
+  </div>
+);
+
+// Ô số liệu trong popup reset — value 0 để mờ đi cho dễ quét mắt
+const ResetStat = ({ label, value, danger }: { label: string; value: number; danger?: boolean }) => (
+  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.15rem', opacity: value === 0 ? 0.45 : 1 }}>
+    <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>{label}</span>
+    <strong style={{
+      fontSize: '1.05rem',
+      color: danger && value > 0 ? 'var(--danger)' : 'var(--text-primary)',
+      fontFamily: 'monospace',
+    }}>{value}</strong>
   </div>
 );
 
