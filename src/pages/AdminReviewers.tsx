@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import api from '../services/api';
 import type { LecturerListItemDto, ReviewerDto } from '../types';
 import { Search, Loader2, Check, ChevronLeft, ChevronRight, UserCheck, AlertCircle } from 'lucide-react';
+import { isPlaceholderEmail } from '../utils/placeholderEmail';
 
 // Admin pick lecturer làm reviewer — GLOBAL (mutate User.Role |= Reviewer).
 // Auto-reset khi 1 semester chuyển Ongoing → Completed/Cancelled.
@@ -218,7 +219,11 @@ const AdminReviewers = () => {
                         <td>
                           {l.code ? <span className="badge badge-success">{l.code}</span> : <span className="badge badge-warning">Chưa có</span>}
                         </td>
-                        <td>{l.email}</td>
+                        <td>
+                          {isPlaceholderEmail(l.email)
+                            ? <span className="badge badge-warning">Chưa có</span>
+                            : l.email}
+                        </td>
                         <td>
                           {state === 'saved' && <span className="badge badge-success">Reviewer</span>}
                           {state === 'newPick' && <span className="badge" style={{ background: 'rgba(14, 165, 233, 0.15)', color: '#0ea5e9' }}>Adding</span>}
