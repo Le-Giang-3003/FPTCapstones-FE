@@ -153,29 +153,32 @@ const AdminReviewers = () => {
       )}
 
       {/* Search + counter */}
-      <div className="glass-card" style={{ marginBottom: '1.25rem', display: 'flex', gap: '1rem', flexWrap: 'wrap', alignItems: 'center' }}>
-        <div className="input-group" style={{ marginBottom: 0, flex: 1, minWidth: 220 }}>
-          <div style={{ position: 'relative' }}>
-            <Search size={18} style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-secondary)' }} />
-            <input
-              type="text"
-              className="input-field"
-              placeholder="Tìm theo email, tên hoặc mã GV..."
-              style={{ paddingLeft: '2.5rem' }}
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
+      <div className="glass-card" style={{ padding: 0, overflow: 'hidden' }}>
+        <div className="panel-toolbar">
+          <div className="input-group" style={{ flex: 1, minWidth: 220 }}>
+            <div style={{ position: 'relative' }}>
+              <Search size={16} style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-secondary)' }} />
+              <input
+                type="text"
+                className="input-field"
+                placeholder="Tìm theo email, tên hoặc mã GV..."
+                style={{ paddingLeft: '2.25rem' }}
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
+            </div>
           </div>
         </div>
 
-        <div style={{ display: 'flex', gap: 14, fontSize: '0.85rem', color: 'var(--text-secondary)', flexWrap: 'wrap' }}>
-          <span><span style={{ display: 'inline-block', width: 10, height: 10, background: '#43ffc0', borderRadius: 2, verticalAlign: 'middle', marginRight: 6 }} /> Đã lưu <b>{counts.saved}</b></span>
-          <span><span style={{ display: 'inline-block', width: 10, height: 10, background: '#4cc6ff', borderRadius: 2, verticalAlign: 'middle', marginRight: 6 }} /> Mới tick <b>{counts.newPick}</b></span>
-          <span><span style={{ display: 'inline-block', width: 10, height: 10, background: '#ef4444', borderRadius: 2, verticalAlign: 'middle', marginRight: 6 }} /> Đánh dấu gỡ <b>{counts.pendingRemove}</b></span>
+        {/* Chỉ số tóm lược đi xuống dải phụ — nó mô tả bảng bên dưới, không phải bộ lọc */}
+        <div className="panel-subbar">
+          <span style={{ display: 'flex', gap: 14, flexWrap: 'wrap' }}>
+            <span>Đã lưu <b style={{ color: 'var(--text-primary)' }}>{counts.saved}</b></span>
+            <span>Mới tick <b style={{ color: 'var(--text-primary)' }}>{counts.newPick}</b></span>
+            <span>Đánh dấu gỡ <b style={{ color: 'var(--danger)' }}>{counts.pendingRemove}</b></span>
+          </span>
         </div>
-      </div>
 
-      <div className="glass-card" style={{ padding: 0, overflow: 'hidden' }}>
         {loadingLecturers || loadingPicked ? (
           <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-secondary)' }}>Đang tải...</div>
         ) : lecturers.length === 0 ? (

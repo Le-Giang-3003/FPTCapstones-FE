@@ -51,11 +51,15 @@
 .tooltip-glass-card {
   background: var(--surface-glass);
   border: 1px solid var(--border-glass);
-  padding: 0.6rem 0.75rem;
+  padding: 0.5rem 0.75rem;
   border-radius: 8px;
-  box-shadow: 0 6px 24px rgba(0,0,0,0.5);
-  width: 260px; /* Fixed width like the "Bắt đầu" popup */
+  box-shadow: var(--shadow-md);
+  width: max-content;
+  max-width: 280px;
   white-space: normal;
+  color: var(--text-primary);
+  font-size: 0.8rem;
+  line-height: 1.4;
 }
 
 /* ==================================================

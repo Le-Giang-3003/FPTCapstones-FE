@@ -149,66 +149,66 @@ const TopicManagement = () => {
         </div>
       </div>
 
-      <div className="glass-card" style={{ marginBottom: '2rem', display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
-        <div className="input-group" style={{ marginBottom: 0, flex: 1, minWidth: '200px' }}>
-          <div style={{ position: 'relative' }}>
-            <Search size={18} style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-secondary)' }} />
-            <input
-              type="text"
-              className="input-field"
-              placeholder="Tìm theo mã nhóm hoặc tên đề tài..."
-              style={{ paddingLeft: '2.5rem' }}
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
+      {/* Bộ lọc nằm trong đầu thẻ của chính bảng, không nổi thành thẻ riêng */}
+      <div className="glass-card" style={{ padding: 0, overflow: 'hidden' }}>
+        <div className="panel-toolbar">
+          <div className="input-group" style={{ marginBottom: 0, flex: 1, minWidth: '200px' }}>
+            <div style={{ position: 'relative' }}>
+              <Search size={18} style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-secondary)' }} />
+              <input
+                type="text"
+                className="input-field"
+                placeholder="Tìm theo mã nhóm hoặc tên đề tài..."
+                style={{ paddingLeft: '2.5rem' }}
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+            <Tooltip content="Lọc theo học kỳ" variant="glass-card">
+              <select
+                className="input-field"
+                value={semesterId}
+                onChange={(e) => setSemesterId(e.target.value)}
+                style={{ width: 'auto' }}
+              >
+                <option value="">Tất cả học kỳ</option>
+                {semesters.map(s => (
+                  <option key={s.id} value={s.id}>
+                    {s.code} ({s.status})
+                  </option>
+                ))}
+              </select>
+            </Tooltip>
+
+            <select className="input-field" value={finalized} onChange={(e) => setFinalized(e.target.value)} style={{ width: 'auto' }}>
+              <option value="">Tất cả trạng thái</option>
+              <option value="true">Đã finalize</option>
+              <option value="false">Chưa finalize</option>
+            </select>
+
+            <select className="input-field" value={sortBy} onChange={(e) => setSortBy(e.target.value)} style={{ width: 'auto' }}>
+              <option value="newest">Mới nhất</option>
+              <option value="oldest">Cũ nhất</option>
+            </select>
+
+            {(isAdmin || hasRole(user?.role, 'Lecturer') || hasRole(user?.role, 'StudentLeader')) && (
+              <Tooltip content="Export danh sách đề tài ra file ZIP" variant="glass-card">
+                <button
+                  className="btn btn-primary"
+                  onClick={handleExport}
+                  disabled={exporting || loading}
+                  style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.6rem 1.2rem' }}
+                >
+                  <Download size={16} />
+                  {exporting ? 'Đang export...' : 'Export'}
+                </button>
+              </Tooltip>
+            )}
           </div>
         </div>
-
-        <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
-          <Tooltip content="Lọc theo học kỳ" variant="glass-card">
-            <select
-              className="input-field"
-              value={semesterId}
-              onChange={(e) => setSemesterId(e.target.value)}
-              style={{ width: 'auto' }}
-            >
-              <option value="">Tất cả học kỳ</option>
-              {semesters.map(s => (
-                <option key={s.id} value={s.id}>
-                  {s.code} ({s.status})
-                </option>
-              ))}
-            </select>
-          </Tooltip>
-
-          <select className="input-field" value={finalized} onChange={(e) => setFinalized(e.target.value)} style={{ width: 'auto' }}>
-            <option value="">Tất cả trạng thái</option>
-            <option value="true">Đã finalize</option>
-            <option value="false">Chưa finalize</option>
-          </select>
-
-          <select className="input-field" value={sortBy} onChange={(e) => setSortBy(e.target.value)} style={{ width: 'auto' }}>
-            <option value="newest">Mới nhất</option>
-            <option value="oldest">Cũ nhất</option>
-          </select>
-
-          {(isAdmin || hasRole(user?.role, 'Lecturer') || hasRole(user?.role, 'StudentLeader')) && (
-            <Tooltip content="Export danh sách đề tài ra file ZIP" variant="glass-card">
-              <button
-                className="btn btn-primary"
-                onClick={handleExport}
-                disabled={exporting || loading}
-                style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.6rem 1.2rem' }}
-              >
-                <Download size={16} />
-                {exporting ? 'Đang export...' : 'Export'}
-              </button>
-            </Tooltip>
-          )}
-        </div>
-      </div>
-
-      <div className="glass-card" style={{ padding: 0, overflow: 'hidden' }}>
         {loading ? (
           <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-secondary)' }}>Đang tải...</div>
         ) : data.length === 0 ? (
