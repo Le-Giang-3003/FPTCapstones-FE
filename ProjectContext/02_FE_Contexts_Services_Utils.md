@@ -46,6 +46,7 @@ import TopicIdeas from './pages/TopicIdeas';
 import AdminUsers from './pages/AdminUsers';
 import AdminLecturers from './pages/AdminLecturers';
 import AdminImport from './pages/AdminImport';
+import AdminImportColumns from './pages/AdminImportColumns';
 import AdminSemesters from './pages/AdminSemesters';
 import AdminHolidayTemplates from './pages/AdminHolidayTemplates';
 import AuditLogs from './pages/AuditLogs';
@@ -66,7 +67,7 @@ const PrivateRoute = ({ children, roles }: { children: React.ReactNode; roles?: 
 const HomeRedirect = () => {
   const { user } = useAuth();
   if (!user) return <Navigate to="/login" replace />;
-  // Má»i user cÃ³ quyá»n xem dashboard Ä‘á»u landing á»Ÿ /dashboard (Admin/Lecturer/Reviewer/Student)
+  // Mọi user có quyền xem dashboard đều landing ở /dashboard (Admin/Lecturer/Reviewer/Student)
   if (hasAnyRole(user.role, ['Admin', 'Lecturer', 'Reviewer', 'StudentLeader', 'GroupMember']))
     return <Navigate to="/dashboard" replace />;
   if (user.groupId) return <Navigate to={`/projects/${user.groupId}`} replace />;
@@ -75,8 +76,8 @@ const HomeRedirect = () => {
 
 const NoProject = () => (
   <div style={{ padding: '3rem', textAlign: 'center' }}>
-    <h2>ChÆ°a cÃ³ nhÃ³m</h2>
-    <p style={{ color: 'var(--text-secondary)' }}>TÃ i khoáº£n cá»§a báº¡n chÆ°a Ä‘Æ°á»£c gÃ¡n vÃ o nhÃ³m nÃ o. LiÃªn há»‡ admin Ä‘á»ƒ Ä‘Æ°á»£c há»— trá»£.</p>
+    <h2>Chưa có nhóm</h2>
+    <p style={{ color: 'var(--text-secondary)' }}>Tài khoản của bạn chưa được gán vào nhóm nào. Liên hệ admin để được hỗ trợ.</p>
   </div>
 );
 
@@ -112,6 +113,10 @@ const App = () => {
           <Route
             path="/admin/import"
             element={<PrivateRoute roles={['Admin']}><AdminImport /></PrivateRoute>}
+          />
+          <Route
+            path="/admin/import-columns"
+            element={<PrivateRoute roles={['Admin']}><AdminImportColumns /></PrivateRoute>}
           />
           <Route
             path="/admin/semesters"
@@ -178,7 +183,7 @@ export interface CurrentUserDto {
   userId: number;
   email: string;
   fullName: string;
-  role: string;   // [Flags] enum.ToString() â€” single role "Admin" hoáº·c multi "Admin, Lecturer"
+  role: string;   // [Flags] enum.ToString() — single role "Admin" hoặc multi "Admin, Lecturer"
   groupId: number | null;
 }
 
@@ -269,11 +274,42 @@ export type ImportJobStatus = 'Pending' | 'Processing' | 'Success' | 'Failed';
 
 export interface ImportStatusDto {
   id: number;
-  status: ImportJobStatus | number; // BE serialize enum: náº¿u giá»¯ sá»‘ thÃ¬ FE map sau
+  status: ImportJobStatus | number; // BE serialize enum: nếu giữ số thì FE map sau
   errorReport: string | null;
   groupsCreated: number | null;
   usersCreated: number | null;
   completedAt: string | null;
+}
+
+// ---- Cấu hình TÊN CỘT cho import Excel (BE: /api/admin/import-columns) ----
+// Parser dò header theo tên thay vì vị trí cột, nên đổi ở đây ăn ngay vào lần import kế tiếp.
+export type ImportColumnScope = 'ProjectGroup' | 'Lecturer';
+
+export interface ImportColumnDto {
+  id: number;              // 0 = scope chưa seed vào DB, BE đang trả danh mục gốc → lưu phải POST chứ không PUT
+  scope: ImportColumnScope;
+  fieldKey: string;        // Khóa logic parser đọc — không tự chế được, phải nằm trong catalog của BE
+  displayName: string;
+  aliases: string[];       // Các tên header trong file Excel được chấp nhận cho field này
+  isRequired: boolean;     // Thiếu cột này trong file → BE reject cả file
+  isCore: boolean;         // Cột lõi: không xóa được, không bỏ Bắt buộc được
+  sortOrder: number;
+  description: string;
+}
+
+export interface CreateImportColumnRequest {
+  scope: ImportColumnScope;
+  fieldKey: string;
+  displayName?: string | null;
+  aliases: string[];
+  isRequired?: boolean | null;
+}
+
+// Field null = không đổi
+export interface UpdateImportColumnRequest {
+  displayName?: string | null;
+  aliases?: string[] | null;
+  isRequired?: boolean | null;
 }
 
 export interface AuditLogDto {
@@ -295,7 +331,7 @@ export interface LecturerListItemDto {
   isActive: boolean;
 }
 
-// Reviewer â€” lecturer hiá»‡n Ä‘ang cÃ³ cá» Reviewer (global, BE: ReviewerDto)
+// Reviewer — lecturer hiện đang có cờ Reviewer (global, BE: ReviewerDto)
 export interface ReviewerDto {
   lecturerId: number;
   userId: number;
@@ -316,7 +352,7 @@ export interface ImportLecturersResultDto {
   errors: LecturerImportError[];
 }
 
-// BE serialize enum thÃ nh string nhá» JsonStringEnumConverter
+// BE serialize enum thành string nhờ JsonStringEnumConverter
 export type SemesterSeason = 'Spring' | 'Summer' | 'Fall';
 export type SemesterStatus = 'Ongoing' | 'Completed' | 'Cancelled' | 'Pending';
 
@@ -331,13 +367,13 @@ export interface SemesterListItemDto {
   groupCount: number;
 }
 
-// Detail tráº£ thÃªm timestamps (BE: SemesterDetailDto)
+// Detail trả thêm timestamps (BE: SemesterDetailDto)
 export interface SemesterDetailDto extends SemesterListItemDto {
   createdAt: string;
   updatedAt: string | null;
 }
 
-// Holiday gáº¯n vÃ o 1 semester (BE: SemesterHolidayDto)
+// Holiday gắn vào 1 semester (BE: SemesterHolidayDto)
 export interface SemesterHolidayDto {
   id: number;
   semesterId: number;
@@ -348,7 +384,7 @@ export interface SemesterHolidayDto {
   isCompensated: boolean;
 }
 
-// Káº¿t quáº£ ná»‘i nhÃ³m vá»›i há»c ká»³ qua GroupCode (vd GSU26SE02 â†’ SU26)
+// Kết quả nối nhóm với học kỳ qua GroupCode (vd GSU26SE02 → SU26)
 export interface LinkGroupsResultDto {
   totalUnlinked: number;
   linked: number;
@@ -356,8 +392,61 @@ export interface LinkGroupsResultDto {
   skippedGroups: string[];
 }
 
-// Review window / Defence window â€” 1 review = 1 cá»­a sá»• thá»i gian (vd 2 tuáº§n) Ä‘á»ƒ book slot.
-// BE Ä‘Ã£ rename SemesterMilestone -> Review. Endpoint /api/admin/reviews.
+// ---- Reset dữ liệu theo học kỳ (BE: AdminController /api/admin/semesters/{id}/reset-*) ----
+// Thao tác KHÔNG hoàn tác được — FE luôn gọi reset-preview trước để hiện màn hình xác nhận.
+
+// Account sinh viên bị FK Restrict giữ lại: leader còn version/document tham chiếu,
+// hoặc account kiêm luôn role Admin/Lecturer.
+export interface KeptAccountDto {
+  email: string;
+  reason: string;
+}
+
+// GET /api/admin/semesters/{id}/reset-preview — đếm trước số bản ghi sẽ bị xoá (read-only)
+export interface SemesterResetPreviewDto {
+  semesterId: number;
+  semesterCode: string;
+  semesterStatus: SemesterStatus;
+  groups: number;
+  memberships: number;
+  leaders: number;
+  distinctStudents: number;
+  orphanStudents: number;      // SV không còn nhóm nào sau reset -> account sẽ bị xoá
+  versions: number;
+  documents: number;
+  slotRegistrations: number;   // nguyện vọng slot (ReviewSlotGroup) của các nhóm trong kỳ
+  assignments: number;         // ReviewAssignment của các nhóm trong kỳ
+}
+
+// POST /api/admin/semesters/{id}/reset-students
+export interface ResetSemesterStudentsResultDto {
+  semesterId: number;
+  semesterCode: string;
+  groupsAffected: number;
+  membershipsRemoved: number;
+  leadersRemoved: number;
+  studentsDeleted: number;
+  usersDeleted: number;
+  keptAccounts: KeptAccountDto[];
+}
+
+// POST /api/admin/semesters/{id}/reset-projects?deleteOrphanStudentAccounts=false
+export interface ResetSemesterProjectsResultDto {
+  semesterId: number;
+  semesterCode: string;
+  groupsDeleted: number;
+  membershipsRemoved: number;
+  versionsDeleted: number;
+  documentsDeleted: number;
+  slotRegistrationsDeleted: number;
+  assignmentsDeleted: number;
+  studentsDeleted: number;
+  usersDeleted: number;
+  keptAccounts: KeptAccountDto[];
+}
+
+// Review window / Defence window — 1 review = 1 cửa sổ thời gian (vd 2 tuần) để book slot.
+// BE đã rename SemesterMilestone -> Review. Endpoint /api/admin/reviews.
 export type ReviewType = 'Review' | 'Defence';
 export type ReviewStatus = 'Draft' | 'Registering' | 'Registered' | 'Ongoing' | 'Finished' | 'Cancelled';
 
@@ -373,13 +462,13 @@ export interface ReviewDto {
   note: string | null;
 }
 
-// Aliases Ä‘á»ƒ giá»¯ compat táº¡m thá»i (giáº£m rá»§i ro rename á»Ÿ component)
+// Aliases để giữ compat tạm thời (giảm rủi ro rename ở component)
 export type MilestoneType = ReviewType;
 export type SemesterMilestoneDto = ReviewDto;
 
 // ---- Slot review (BE: /api/admin/reviews/{id}/slots) ----
-// ÄÄƒng kÃ½ giá» lÃ  NGUYá»†N Vá»ŒNG: nhÃ³m tá»‘i Ä‘a 5 slot/Ä‘á»£t, GV khÃ´ng giá»›i háº¡n.
-// Slot thá»±c táº¿ cá»§a 1 láº§n review = ReviewAssignment (sinh sau thuáº­t toÃ¡n xáº¿p lá»‹ch).
+// Đăng ký giờ là NGUYỆN VỌNG: nhóm tối đa 5 slot/đợt, GV không giới hạn.
+// Slot thực tế của 1 lần review = ReviewAssignment (sinh sau thuật toán xếp lịch).
 export interface ReviewAssignmentDto {
   id: number;
   sessionIndex: number;
@@ -402,33 +491,33 @@ export interface ReviewSlotDto {
   groupPreferenceCount: number;
   lecturerPreferenceCount: number;
   assignmentCount: number;
-  isCurrentUserRegistered: boolean;   // BE compute tá»« JWT â€” slot cÃ³ chá»©a group/lecturer cá»§a user hiá»‡n táº¡i
-  isCurrentUserAssigned: boolean;     // GV Ä‘Ã£ Ä‘Æ°á»£c phÃª duyá»‡t review slot nÃ y (ReviewAssignment active)
+  isCurrentUserRegistered: boolean;   // BE compute từ JWT — slot có chứa group/lecturer của user hiện tại
+  isCurrentUserAssigned: boolean;     // GV đã được phê duyệt review slot này (ReviewAssignment active)
   assignments: ReviewAssignmentDto[];
   note: string | null;
 }
 
-// Sá»‘ nguyá»‡n vá»ng tá»‘i Ä‘a cho nhÃ³m (Ä‘á»“ng bá»™ vá»›i BE ReviewSlotGroup.MaxPreferences)
+// Số nguyện vọng tối đa cho nhóm (đồng bộ với BE ReviewSlotGroup.MaxPreferences)
 export const MAX_GROUP_PREFERENCES = 5;
 
-// ---- Scheduling (xáº¿p lá»‹ch review) â€” BE: /api/admin/reviews/{id}/scheduling ----
-// BE serialize enum thÃ nh string nhá» JsonStringEnumConverter.
+// ---- Scheduling (xếp lịch review) — BE: /api/admin/reviews/{id}/scheduling ----
+// BE serialize enum thành string nhờ JsonStringEnumConverter.
 export type SchedulingJobStatus = 'Pending' | 'Processing' | 'Completed' | 'Failed';
 
-// Polling DTO â€” GET /api/admin/reviews/scheduling/{jobId}
+// Polling DTO — GET /api/admin/reviews/scheduling/{jobId}
 export interface SchedulingStatusDto {
   id: number;
   reviewId: number;
   status: SchedulingJobStatus;
   force: boolean;
-  resultJson: string | null;   // JSON serialize tá»« runner (xem SchedulingResultSummary)
+  resultJson: string | null;   // JSON serialize từ runner (xem SchedulingResultSummary)
   error: string | null;
   startedAt: string | null;
   completedAt: string | null;
 }
 
-// Ná»™i dung parse tá»« resultJson. Runner serialize báº±ng JsonSerializer máº·c Ä‘á»‹nh:
-// key top-level giá»¯ nguyÃªn (assigned, groupsScheduled, ...) nhÆ°ng record con lÃ  PascalCase.
+// Nội dung parse từ resultJson. Runner serialize bằng JsonSerializer mặc định:
+// key top-level giữ nguyên (assigned, groupsScheduled, ...) nhưng record con là PascalCase.
 export interface SchedulingResultSummary {
   assigned: number;
   groupsScheduled: number;
@@ -437,7 +526,7 @@ export interface SchedulingResultSummary {
   force: boolean;
 }
 
-// Káº¿t quáº£ xáº¿p lá»‹ch â€” GET /api/admin/reviews/{id}/assignments
+// Kết quả xếp lịch — GET /api/admin/reviews/{id}/assignments
 export interface ReviewScheduleAssignmentDto {
   assignmentId: number;
   slotId: number;
@@ -452,7 +541,7 @@ export interface ReviewScheduleAssignmentDto {
   lecturer2Name: string | null;
 }
 
-// Káº¿t quáº£ cascade khi thÃªm/sá»­a/xÃ³a lá»… cÃ³ bÃ¹ â€” FE dÃ¹ng Ä‘á»ƒ show feedback cÃ¡c ká»³/milestone Ä‘Ã£ shift
+// Kết quả cascade khi thêm/sửa/xóa lễ có bù — FE dùng để show feedback các kỳ/milestone đã shift
 export interface ShiftedSemesterDto {
   id: number;
   code: string;
@@ -483,7 +572,7 @@ export interface OverflowItemDto {
 }
 
 export interface HolidayCascadeResultDto {
-  id?: number;                 // cÃ³ khi Create, váº¯ng khi Update/Delete
+  id?: number;                 // có khi Create, vắng khi Update/Delete
   semesterId: number;
   shiftedSemesters: ShiftedSemesterDto[];
   shiftedMilestones: ShiftedMilestoneDto[];
@@ -511,7 +600,7 @@ export interface DashboardMyGroupDto {
 export interface DashboardStatsDto {
   totalGroups: number;
   reviews: DashboardReviewDto[];
-  // BE serialize Dictionary<int,int> â†’ key lÃ  string
+  // BE serialize Dictionary<int,int> → key là string
   assignedSlotCounts: Record<string, number>;
   myGroup: DashboardMyGroupDto | null;
   viewerRole: 'Lecturer' | 'Student' | 'Admin';
@@ -534,13 +623,13 @@ export interface LecturerAssignedSlotDto {
   lecturer1Name: string;
   lecturer2Id: number | null;
   lecturer2Name: string | null;
-  partnerLecturerId: number | null;     // chá»‰ set cho lecturer view
+  partnerLecturerId: number | null;     // chỉ set cho lecturer view
   partnerLecturerName: string | null;
   isExpired: boolean;
 }
 
-// Template lá»… Ä‘á»™c láº­p â€” admin sá»­a template chá»‰ áº£nh hÆ°á»Ÿng nÄƒm sinh sau.
-// VD: Táº¿t NguyÃªn ÄÃ¡n dÃ¹ng ngÃ y tÆ°á»£ng trÆ°ng 10/2 â€” khi gÃ¡n vÃ o ká»³ cá»¥ thá»ƒ, admin chá»‰nh láº¡i cho Ä‘Ãºng nÄƒm.
+// Template lễ độc lập — admin sửa template chỉ ảnh hưởng năm sinh sau.
+// VD: Tết Nguyên Đán dùng ngày tượng trưng 10/2 — khi gán vào kỳ cụ thể, admin chỉnh lại cho đúng năm.
 export interface HolidayTemplateDto {
   id: number;
   label: string;

@@ -10,6 +10,7 @@ import TopicIdeas from './pages/TopicIdeas';
 import AdminUsers from './pages/AdminUsers';
 import AdminLecturers from './pages/AdminLecturers';
 import AdminImport from './pages/AdminImport';
+import AdminImportColumns from './pages/AdminImportColumns';
 import AdminSemesters from './pages/AdminSemesters';
 import AdminHolidayTemplates from './pages/AdminHolidayTemplates';
 import AuditLogs from './pages/AuditLogs';
@@ -76,6 +77,10 @@ const App = () => {
           <Route
             path="/admin/import"
             element={<PrivateRoute roles={['Admin']}><AdminImport /></PrivateRoute>}
+          />
+          <Route
+            path="/admin/import-columns"
+            element={<PrivateRoute roles={['Admin']}><AdminImportColumns /></PrivateRoute>}
           />
           <Route
             path="/admin/semesters"

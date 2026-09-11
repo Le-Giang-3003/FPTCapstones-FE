@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
 import api from '../services/api';
 import type { ImportStatusDto } from '../types';
-import { Upload, Loader2, CheckCircle, XCircle, RotateCcw } from 'lucide-react';
+import { Upload, Loader2, CheckCircle, XCircle, RotateCcw, Columns3 } from 'lucide-react';
 
 const AdminImport = () => {
   const [file, setFile] = useState<File | null>(null);
@@ -67,6 +68,10 @@ const AdminImport = () => {
           <h1>Import Excel</h1>
           <p style={{ color: 'var(--text-secondary)' }}>Nhập dữ liệu nhóm từ file Excel của hệ thống cũ</p>
         </div>
+        {/* Parser dò cột theo tên header — file đổi tên cột thì sửa ở đây thay vì chữa file */}
+        <Link to="/admin/import-columns" className="btn btn-secondary" style={{ textDecoration: 'none' }}>
+          <Columns3 size={16} /> Cấu hình cột
+        </Link>
       </div>
 
       <div className="glass-card" style={{ maxWidth: 700 }}>
@@ -97,6 +102,7 @@ const AdminImport = () => {
 
         <p style={{ marginTop: '0.75rem', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
           Import xử lý đồng bộ. Status sẽ Completed/Failed ngay lần poll đầu.
+          Thứ tự cột trong file tùy ý, miễn tên header khớp <Link to="/admin/import-columns">cấu hình cột</Link>.
         </p>
 
         <button

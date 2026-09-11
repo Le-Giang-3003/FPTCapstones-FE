@@ -9,7 +9,7 @@ import { Outlet, Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { hasAnyRole } from '../utils/role';
 import { useTheme } from '../contexts/ThemeContext';
-import { LayoutDashboard, Users, FolderKanban, LogOut, Upload, ClipboardList, Sun, Moon, ChevronDown, GraduationCap, CalendarRange, ChevronLeft, ChevronRight, BookOpen, CalendarCheck, UserCheck, CalendarClock } from 'lucide-react';
+import { LayoutDashboard, Users, FolderKanban, LogOut, Upload, ClipboardList, Sun, Moon, ChevronDown, GraduationCap, CalendarRange, ChevronLeft, ChevronRight, BookOpen, CalendarCheck, UserCheck, CalendarClock, Columns3 } from 'lucide-react';
 import { Tooltip } from './Tooltip';
 const Layout = () => {
   const { user, logout } = useAuth();
@@ -35,18 +35,19 @@ const Layout = () => {
 
   const navItems = [
     { path: '/dashboard', label: 'Dashboard', icon: <LayoutDashboard size={20} />, roles: ['Admin', 'Lecturer', 'Reviewer', 'StudentLeader', 'GroupMember'] },
-    { path: '/topics', label: 'Quáº£n lÃ½ Ä‘á»“ Ã¡n', icon: <FolderKanban size={20} />, roles: ['Admin', 'Lecturer'] },
-    { path: '/topic-ideas', label: 'Quáº£n lÃ½ Ä‘á» tÃ i', icon: <BookOpen size={20} />, roles: ['Lecturer'] },
-    { path: '/admin/users', label: 'Quáº£n lÃ½ user', icon: <Users size={20} />, roles: ['Admin'] },
-    { path: '/admin/lecturers', label: 'Giáº£ng viÃªn', icon: <GraduationCap size={20} />, roles: ['Admin'] },
-    { path: '/admin/semesters', label: 'Lá»‹ch trÃ¬nh ká»³', icon: <CalendarRange size={20} />, roles: ['Admin'] },
+    { path: '/topics', label: 'Quản lý đồ án', icon: <FolderKanban size={20} />, roles: ['Admin', 'Lecturer'] },
+    { path: '/topic-ideas', label: 'Quản lý đề tài', icon: <BookOpen size={20} />, roles: ['Lecturer'] },
+    { path: '/admin/users', label: 'Quản lý user', icon: <Users size={20} />, roles: ['Admin'] },
+    { path: '/admin/lecturers', label: 'Giảng viên', icon: <GraduationCap size={20} />, roles: ['Admin'] },
+    { path: '/admin/semesters', label: 'Lịch trình kỳ', icon: <CalendarRange size={20} />, roles: ['Admin'] },
     { path: '/admin/import', label: 'Import Excel', icon: <Upload size={20} />, roles: ['Admin'] },
-    { path: '/admin/reviewers', label: 'Chá»n reviewer', icon: <UserCheck size={20} />, roles: ['Admin'] },
-    { path: '/admin/scheduling', label: 'Xáº¿p lá»‹ch review', icon: <CalendarClock size={20} />, roles: ['Admin'] },
+    { path: '/admin/import-columns', label: 'Cấu hình cột import', icon: <Columns3 size={20} />, roles: ['Admin'] },
+    { path: '/admin/reviewers', label: 'Chọn reviewer', icon: <UserCheck size={20} />, roles: ['Admin'] },
+    { path: '/admin/scheduling', label: 'Xếp lịch review', icon: <CalendarClock size={20} />, roles: ['Admin'] },
     { path: '/audit-logs', label: 'Audit Logs', icon: <ClipboardList size={20} />, roles: ['Admin'] },
-    // ÄÄƒng kÃ½ slot chá»‰ hiá»‡n cho: StudentLeader/GroupMember (Ä‘Äƒng kÃ½ nhÃ³m) + Reviewer (GV Ä‘Æ°á»£c admin chá»‰ Ä‘á»‹nh)
-    { path: '/reviews/slots', label: 'ÄÄƒng kÃ½ slot review', icon: <CalendarCheck size={20} />, roles: ['Reviewer', 'StudentLeader', 'GroupMember'] },
-    { path: myProjectPath, label: 'NhÃ³m cá»§a tÃ´i', icon: <FolderKanban size={20} />, roles: ['StudentLeader', 'GroupMember', 'Student'] },
+    // Đăng ký slot chỉ hiện cho: StudentLeader/GroupMember (đăng ký nhóm) + Reviewer (GV được admin chỉ định)
+    { path: '/reviews/slots', label: 'Đăng ký slot review', icon: <CalendarCheck size={20} />, roles: ['Reviewer', 'StudentLeader', 'GroupMember'] },
+    { path: myProjectPath, label: 'Nhóm của tôi', icon: <FolderKanban size={20} />, roles: ['StudentLeader', 'GroupMember', 'Student'] },
   ];
 
   return (
@@ -198,7 +199,7 @@ const Layout = () => {
                 display: 'flex',
                 flexDirection: 'column',
                 gap: '1rem',
-                // Override bg Ä‘á»¥c 100% â€” khÃ´ng cho content phÃ­a sau lá»™ qua dropdown
+                // Override bg đục 100% — không cho content phía sau lộ qua dropdown
                 background: 'var(--surface-glass)',
               }}
             >
@@ -235,7 +236,7 @@ const Layout = () => {
                   style={{ margin: 0, width: '100%' }}
                 >
                   {isDark ? <Sun size={16} /> : <Moon size={16} />}
-                  {isDark ? 'Giao diá»‡n sÃ¡ng' : 'Giao diá»‡n tá»‘i'}
+                  {isDark ? 'Giao diện sáng' : 'Giao diện tối'}
                   <span className="theme-toggle-track">
                     <span className={`theme-toggle-thumb ${isDark ? 'dark' : 'light'}`} />
                   </span>
@@ -257,7 +258,7 @@ const Layout = () => {
                     e.currentTarget.style.background = 'transparent';
                   }}
                 >
-                  <LogOut size={18} /> ÄÄƒng xuáº¥t
+                  <LogOut size={18} /> Đăng xuất
                 </button>
               </div>
             </div>
