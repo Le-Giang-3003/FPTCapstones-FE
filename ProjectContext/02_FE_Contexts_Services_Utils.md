@@ -270,7 +270,8 @@ export interface UserDetailDto {
   studentProfile: { id: number } | null;
 }
 
-export type ImportJobStatus = 'Pending' | 'Processing' | 'Success' | 'Failed';
+// Khớp enum ImportJobStatus của BE (Pending/Processing/Completed/Failed) — không có giá trị "Success"
+export type ImportJobStatus = 'Pending' | 'Processing' | 'Completed' | 'Failed';
 
 export interface ImportStatusDto {
   id: number;

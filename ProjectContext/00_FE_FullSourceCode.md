@@ -1956,7 +1956,7 @@ const AdminImport = () => {
         const res = await api.get<ImportStatusDto>(`/api/imports/${id}/status`);
         setStatus(res.data);
         const s = String(res.data.status);
-        if (s === 'Success' || s === 'Failed') {
+        if (s === 'Completed' || s === 'Failed') {
           stopPolling();
         }
       } catch (e) {
@@ -1988,7 +1988,7 @@ const AdminImport = () => {
   };
 
   const statusLabel = status ? String(status.status) : '';
-  const isDone = statusLabel === 'Success' || statusLabel === 'Failed';
+  const isDone = statusLabel === 'Completed' || statusLabel === 'Failed';
 
   return (
     <div className="animate-fade-in">
@@ -2063,10 +2063,10 @@ const AdminImport = () => {
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                 <strong>Trạng thái:</strong>
-                {statusLabel === 'Success' && <CheckCircle size={18} color="lightgreen" />}
+                {statusLabel === 'Completed' && <CheckCircle size={18} color="lightgreen" />}
                 {statusLabel === 'Failed' && <XCircle size={18} color="salmon" />}
                 {!isDone && <Loader2 size={18} className="spin" />}
-                <span className={`badge ${statusLabel === 'Success' ? 'badge-success' : statusLabel === 'Failed' ? 'badge-warning' : ''}`}>
+                <span className={`badge ${statusLabel === 'Completed' ? 'badge-success' : statusLabel === 'Failed' ? 'badge-warning' : ''}`}>
                   {statusLabel}
                 </span>
               </div>
@@ -9956,7 +9956,8 @@ export interface UserDetailDto {
   studentProfile: { id: number } | null;
 }
 
-export type ImportJobStatus = 'Pending' | 'Processing' | 'Success' | 'Failed';
+// Khớp enum ImportJobStatus của BE (Pending/Processing/Completed/Failed) — không có giá trị "Success"
+export type ImportJobStatus = 'Pending' | 'Processing' | 'Completed' | 'Failed';
 
 export interface ImportStatusDto {
   id: number;
