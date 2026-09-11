@@ -1,8 +1,9 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { createPortal } from 'react-dom';
+import { Link } from 'react-router-dom';
 import api from '../services/api';
 import type { LecturerListItemDto, ImportLecturersResultDto } from '../types';
-import { Search, Upload, Edit, ChevronLeft, ChevronRight, Loader2, CheckCircle, AlertTriangle } from 'lucide-react';
+import { Search, Upload, Edit, ChevronLeft, ChevronRight, Loader2, CheckCircle, AlertTriangle, Columns3 } from 'lucide-react';
 import { isPlaceholderEmail } from '../utils/placeholderEmail';
 
 const AdminLecturers = () => {
@@ -105,6 +106,10 @@ const AdminLecturers = () => {
           <h1>Quản lý Giảng viên</h1>
           <p style={{ color: 'var(--text-secondary)' }}>Danh sách giảng viên hướng dẫn (GVHD)</p>
         </div>
+        {/* Tên cột của file DanhSach_GVHD cấu hình ở scope Lecturer */}
+        <Link to="/admin/import-columns" className="btn btn-secondary" style={{ textDecoration: 'none' }}>
+          <Columns3 size={16} /> Cấu hình cột
+        </Link>
         <button 
           className="btn btn-primary" 
           onClick={() => fileInputRef.current?.click()}

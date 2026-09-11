@@ -106,7 +106,8 @@ export interface UserDetailDto {
   studentProfile: { id: number } | null;
 }
 
-export type ImportJobStatus = 'Pending' | 'Processing' | 'Success' | 'Failed';
+// Khớp enum ImportJobStatus của BE (Pending/Processing/Completed/Failed) — không có giá trị "Success"
+export type ImportJobStatus = 'Pending' | 'Processing' | 'Completed' | 'Failed';
 
 export interface ImportStatusDto {
   id: number;
@@ -115,6 +116,37 @@ export interface ImportStatusDto {
   groupsCreated: number | null;
   usersCreated: number | null;
   completedAt: string | null;
+}
+
+// ---- Cấu hình TÊN CỘT cho import Excel (BE: /api/admin/import-columns) ----
+// Parser dò header theo tên thay vì vị trí cột, nên đổi ở đây ăn ngay vào lần import kế tiếp.
+export type ImportColumnScope = 'ProjectGroup' | 'Lecturer';
+
+export interface ImportColumnDto {
+  id: number;              // 0 = scope chưa seed vào DB, BE đang trả danh mục gốc → lưu phải POST chứ không PUT
+  scope: ImportColumnScope;
+  fieldKey: string;        // Khóa logic parser đọc — không tự chế được, phải nằm trong catalog của BE
+  displayName: string;
+  aliases: string[];       // Các tên header trong file Excel được chấp nhận cho field này
+  isRequired: boolean;     // Thiếu cột này trong file → BE reject cả file
+  isCore: boolean;         // Cột lõi: không xóa được, không bỏ Bắt buộc được
+  sortOrder: number;
+  description: string;
+}
+
+export interface CreateImportColumnRequest {
+  scope: ImportColumnScope;
+  fieldKey: string;
+  displayName?: string | null;
+  aliases: string[];
+  isRequired?: boolean | null;
+}
+
+// Field null = không đổi
+export interface UpdateImportColumnRequest {
+  displayName?: string | null;
+  aliases?: string[] | null;
+  isRequired?: boolean | null;
 }
 
 export interface AuditLogDto {
