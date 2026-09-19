@@ -119,19 +119,18 @@ const AdminHolidayTemplates = () => {
       </div>
 
       {/* Toggle includeInactive */}
-      <div className="glass-card" style={{ marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
-        <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', color: 'var(--text-primary)' }}>
-          <input
-            type="checkbox"
-            checked={includeInactive}
-            onChange={e => setIncludeInactive(e.target.checked)}
-            style={{ accentColor: 'var(--accent-primary)' }}
-          />
-          <span style={{ fontSize: '0.9rem' }}>Hiện cả template đã xóa (inactive)</span>
-        </label>
-      </div>
-
       <div className="glass-card" style={{ padding: 0, overflow: 'hidden' }}>
+        <div className="panel-toolbar">
+          <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', color: 'var(--text-primary)' }}>
+            <input
+              type="checkbox"
+              checked={includeInactive}
+              onChange={e => setIncludeInactive(e.target.checked)}
+            />
+            <span style={{ fontSize: '0.8125rem' }}>Hiện cả template đã xoá</span>
+          </label>
+        </div>
+
         {loading ? (
           <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-secondary)' }}>Đang tải...</div>
         ) : list.length === 0 ? (

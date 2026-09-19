@@ -85,28 +85,39 @@ const AuditLogs = () => {
         </div>
       </div>
 
-      <div className="glass-card" style={{ marginBottom: '2rem', display: 'flex', gap: '1rem', alignItems: 'flex-end' }}>
-        <div className="input-group" style={{ marginBottom: 0, flex: 1 }}>
-          <label className="input-label">Group ID {isAdmin ? '(để trống = xem tất cả)' : '(bắt buộc)'}</label>
-          <input
-            type="number"
-            className="input-field"
-            placeholder="VD: 1"
-            value={groupId}
-            onChange={e => setGroupId(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && applyFilter()}
-          />
-        </div>
-        <button className="btn btn-primary" onClick={applyFilter} disabled={loading}>
-          <RefreshCw size={16} /> Lọc
-        </button>
-      </div>
-
       {err && (
-        <div className="glass-card" style={{ marginBottom: '2rem', color: 'var(--danger)' }}>{err}</div>
+        <div
+          className="glass-card"
+          style={{
+            marginBottom: '1rem',
+            padding: '0.75rem 1rem',
+            background: 'var(--danger-subtle)',
+            borderColor: 'var(--danger-line)',
+            color: 'var(--danger)',
+            fontSize: '0.8125rem',
+          }}
+        >
+          {err}
+        </div>
       )}
 
       <div className="glass-card" style={{ padding: 0, overflow: 'hidden' }}>
+        <div className="panel-toolbar">
+          <div className="input-group" style={{ flex: 1, minWidth: 200 }}>
+            <input
+              type="number"
+              className="input-field"
+              placeholder={isAdmin ? 'Lọc theo Group ID — để trống là xem tất cả' : 'Nhập Group ID'}
+              value={groupId}
+              onChange={e => setGroupId(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && applyFilter()}
+            />
+          </div>
+          <button className="btn btn-secondary" onClick={applyFilter} disabled={loading}>
+            <RefreshCw size={14} /> Lọc
+          </button>
+        </div>
+
         {loading ? (
           <div style={{ padding: '3rem', textAlign: 'center' }}>Đang tải...</div>
         ) : logs.length === 0 ? (

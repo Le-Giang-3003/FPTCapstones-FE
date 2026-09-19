@@ -159,17 +159,17 @@ const AdminLecturers = () => {
         </div>
       )}
 
-      <div className="glass-card" style={{ marginBottom: '2rem', display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
-        <div className="input-group" style={{ marginBottom: 0, flex: 1, minWidth: 200 }}>
-          <div style={{ position: 'relative' }}>
-            <Search size={18} style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-secondary)' }} />
-            <input type="text" className="input-field" placeholder="Tìm theo email, tên hoặc mã tên..."
-              style={{ paddingLeft: '2.5rem' }} value={search} onChange={e => setSearch(e.target.value)} />
+      <div className="glass-card" style={{ padding: 0, overflow: 'hidden' }}>
+        <div className="panel-toolbar">
+          <div className="input-group" style={{ flex: 1, minWidth: 200 }}>
+            <div style={{ position: 'relative' }}>
+              <Search size={16} style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-secondary)' }} />
+              <input type="text" className="input-field" placeholder="Tìm theo email, tên hoặc mã tên..."
+                style={{ paddingLeft: '2.25rem' }} value={search} onChange={e => setSearch(e.target.value)} />
+            </div>
           </div>
         </div>
-      </div>
 
-      <div className="glass-card" style={{ padding: 0, overflow: 'hidden' }}>
         {loading ? (
           <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-secondary)' }}>Đang tải...</div>
         ) : lecturers.length === 0 ? (

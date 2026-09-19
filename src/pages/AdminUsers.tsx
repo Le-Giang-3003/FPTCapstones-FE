@@ -309,34 +309,34 @@ const AdminUsers = () => {
       )}
 
       {/* Bộ lọc */}
-      <div className="glass-card" style={{ marginBottom: '2rem', display: 'flex', gap: '1rem', flexWrap: 'wrap', alignItems: 'center' }}>
-        <div className="input-group" style={{ marginBottom: 0, flex: 1, minWidth: 200 }}>
-          <div style={{ position: 'relative' }}>
-            <Search size={18} style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-secondary)' }} />
-            <input
-              type="text" className="input-field"
-              placeholder="Tìm theo email hoặc tên..."
-              style={{ paddingLeft: '2.5rem' }}
-              value={search} onChange={e => setSearch(e.target.value)}
-            />
-          </div>
-        </div>
-        <select className="input-field" value={roleFilter} onChange={e => setRoleFilter(e.target.value)} style={{ width: 'auto' }}>
-          <option value="">Tất cả role</option>
-          <option value="Admin">Admin</option>
-          <option value="Lecturer">Lecturer</option>
-          <option value="StudentLeader">Student Leader</option>
-          <option value="GroupMember">Group Member</option>
-        </select>
-        {(search || roleFilter) && (
-          <button className="btn btn-secondary" onClick={() => { setSearch(''); setRoleFilter(''); }}>
-            <X size={14} /> Xóa bộ lọc
-          </button>
-        )}
-      </div>
-
-      {/* Bảng danh sách */}
+      {/* Bảng danh sách — bộ lọc nằm trong đầu thẻ của chính bảng */}
       <div className="glass-card" style={{ padding: 0, overflow: 'hidden' }}>
+        <div className="panel-toolbar">
+          <div className="input-group" style={{ flex: 1, minWidth: 200 }}>
+            <div style={{ position: 'relative' }}>
+              <Search size={16} style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-secondary)' }} />
+              <input
+                type="text" className="input-field"
+                placeholder="Tìm theo email hoặc tên..."
+                style={{ paddingLeft: '2.25rem' }}
+                value={search} onChange={e => setSearch(e.target.value)}
+              />
+            </div>
+          </div>
+          <select className="input-field" value={roleFilter} onChange={e => setRoleFilter(e.target.value)} style={{ width: 'auto' }}>
+            <option value="">Tất cả role</option>
+            <option value="Admin">Admin</option>
+            <option value="Lecturer">Lecturer</option>
+            <option value="StudentLeader">Student Leader</option>
+            <option value="GroupMember">Group Member</option>
+          </select>
+          {(search || roleFilter) && (
+            <button className="btn btn-secondary" onClick={() => { setSearch(''); setRoleFilter(''); }}>
+              <X size={14} /> Xoá bộ lọc
+            </button>
+          )}
+        </div>
+
         {loading ? (
           <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.75rem' }}>
             <Loader2 size={20} className="spin" /> Đang tải...
